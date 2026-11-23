@@ -6,6 +6,7 @@ import AppKit
 //
 //   AgentHUD                      обычный запуск (строка меню + плавающая панель)
 //   AgentHUD --summary [ГГГГ-ММ-ДД]  сводка агентов за день в Markdown (по умолчанию — сегодня)
+//   AgentHUD --report <от> [<до>]    отчёт за период в Markdown
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -116,6 +117,27 @@ if let i = CommandLine.arguments.firstIndex(of: "--summary") {
         day = d
     }
     print(DailySummary.markdown(DailySummary.build(ActivityLog.read(day: day)), day: day), terminator: "")
+    exit(0)
+}
+
+// Отчёт за период: AgentHUD --report <от> [<до>] — Markdown в stdout. Время: ISO 8601 или «ГГГГ-ММ-ДД ЧЧ:мм» (местное).
+if let i = CommandLine.arguments.firstIndex(of: "--report") {
+    func parse(_ s: String) -> Date? {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        if let d = f.date(from: s) { return d }
+        let iso = ISO8601DateFormatter()
+        if let d = iso.date(from: s) { return d }
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return iso.date(from: s)
+    }
+    let rest = Array(CommandLine.arguments.dropFirst(i + 1))
+    guard (1...2).contains(rest.count), let from = parse(rest[0]), let to = rest.count == 2 ? parse(rest[1]) : Date(), from <= to else {
+        FileHandle.standardError.write(Data("Использование: AgentHUD --report <от> [<до>]  (ISO 8601 или \"ГГГГ-ММ-ДД ЧЧ:мм\", до по умолчанию — сейчас)\n".utf8))
+        exit(2)
+    }
+    print(PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to), terminator: "")
     exit(0)
 }
 

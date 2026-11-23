@@ -13,6 +13,8 @@ struct PanelActions {
     var openLog: () -> Void = {}
     var openMap: () -> Void = {}
     var openSummary: () -> Void = {}
+    var openReport: () -> Void = {}
+    var quickReport: () -> Void = {}
     var quit: () -> Void = {}
 }
 
@@ -40,6 +42,10 @@ struct ControlPanelView: View {
                 HStack(spacing: 8) {
                     PanelButton(title: "Карта агентов", symbol: "map", action: actions.openMap)
                     PanelButton(title: "Сводка за день", symbol: "list.bullet.rectangle", action: actions.openSummary)
+                }
+                HStack(spacing: 8) {
+                    PanelButton(title: "Отчёт за период", symbol: "calendar", action: actions.openReport)
+                    PanelButton(title: "Отчёт: с 15:00 вчера", symbol: "clock.arrow.circlepath", action: actions.quickReport)
                 }
                 sessionsSection
                 agentsSection

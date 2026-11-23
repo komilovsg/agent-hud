@@ -35,7 +35,8 @@ final class AgentMapController: NSObject, NSWindowDelegate {
 
 struct AgentMapView: View {
     @ObservedObject var model: AppModel
-    @State var tab = 0
+    private var tab: Int { model.mapTab }
+    private var tabBinding: Binding<Int> { Binding(get: { model.mapTab }, set: { model.mapTab = $0 }) }
     @State private var showHidden = false
 
     var body: some View {
@@ -67,7 +68,7 @@ struct AgentMapView: View {
                 Toggle("Скрытые", isOn: $showHidden).toggleStyle(BrandSwitch()).help("Показывать скрытые сессии")
                 Text("Скрытые").font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
             }
-            BrandSegmented(options: [(0, "СЕЙЧАС"), (1, "СЕГОДНЯ")], selection: $tab).frame(width: 200)
+            BrandSegmented(options: [(0, "СЕЙЧАС"), (1, "СЕГОДНЯ")], selection: tabBinding).frame(width: 200)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
@@ -388,6 +389,7 @@ struct TodayMap: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 toolbar
+                PeriodReportBlock(model: model)
                 if projects.isEmpty {
                     Text(model.settings.activityLog
                          ? "Сегодня в журнале пока пусто. Записи появятся, когда агенты начнут получать задачи."
@@ -572,5 +574,73 @@ struct DayProjectCard: View {
         if t.stats.edits > 0 { parts.append("правок \(t.stats.edits)") }
         if t.stats.commands > 0 { parts.append("команд \(t.stats.commands)") }
         return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Отчёт за период
+
+/// Компактный блок: пресет или свой отрезок, число задач и проектов, копирование и файл.
+struct PeriodReportBlock: View {
+    @ObservedObject var model: AppModel
+    @State private var from = Date()
+    @State private var to = Date()
+    @State private var projects: [PeriodProject] = []
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("ОТЧЁТ ЗА ПЕРИОД").font(Brand.mono(10.5, medium: true)).tracking(0.5).foregroundStyle(Brand.inkSubtle)
+                Spacer()
+                Menu {
+                    ForEach(ReportPreset.allCases, id: \.self) { p in Button(p.title) { apply(p) } }
+                } label: {
+                    Text("Период")
+                }
+                .menuStyle(.borderlessButton).fixedSize()
+            }
+            if !model.settings.activityLog {
+                Text("Журнал активности выключен (Настройки → Журнал активности): отчёт строить не из чего.")
+                    .font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
+            } else {
+                HStack(spacing: 10) {
+                    DatePicker("С", selection: $from, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("До", selection: $to, displayedComponents: [.date, .hourAndMinute])
+                    Spacer()
+                }
+                .font(Brand.body(12))
+                HStack(spacing: 8) {
+                    let turns = projects.reduce(0) { $0 + $1.project.turns.count }
+                    Text("\(turns) \(DailySummary.plural(turns, "задача", "задачи", "задач")) · \(projects.count) \(DailySummary.plural(projects.count, "проект", "проекта", "проектов"))")
+                        .font(Brand.mono(10.5)).foregroundStyle(Brand.inkSubtle)
+                    Spacer()
+                    GhostButton(title: copied ? "Скопировано" : "Скопировать", symbol: "doc.on.doc") {
+                        let md = PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(md, forType: .string)
+                        copied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+                    }
+                    GhostButton(title: "Открыть файл", symbol: "doc.text") { NSWorkspace.shared.open(model.writeReport(from: from, to: to)) }
+                }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: Brand.radiusLg).fill(Brand.surface))
+        .overlay(RoundedRectangle(cornerRadius: Brand.radiusLg).strokeBorder(Brand.line, lineWidth: 1))
+        .onAppear { apply(.since15Yesterday) }
+        .onChange(of: from) { _, _ in recount() }
+        .onChange(of: to) { _, _ in recount() }
+    }
+
+    private func apply(_ p: ReportPreset) {
+        let r = p.range(now: Date(), calendar: .current)
+        from = r.from
+        to = r.to
+        recount()
+    }
+
+    private func recount() {
+        projects = model.settings.activityLog ? PeriodReport.load(from: from, to: to) : []
     }
 }

@@ -725,8 +725,9 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
 
     @Test func fileAppendAndRead() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("ahud-act-\(UUID().uuidString)")
+        supportDirLock.lock()
         setenv("AGENTHUD_SUPPORT_DIR", dir.path, 1)
-        defer { unsetenv("AGENTHUD_SUPPORT_DIR"); try? FileManager.default.removeItem(at: dir) }
+        defer { unsetenv("AGENTHUD_SUPPORT_DIR"); try? FileManager.default.removeItem(at: dir); supportDirLock.unlock() }
         let a = rec(.prompt, 0, "s", "/p", "раз"), b = rec(.stop, 5, "s", "/p", "два")
         ActivityLog.append(a)
         ActivityLog.append(b)

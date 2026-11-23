@@ -51,9 +51,11 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         case "PreToolUse":
             return [make(.toolStarted(toolName: toolName, input: input, toolUseId: toolUseId))]
         case "PostToolUse":
-            return [make(.toolFinished(toolName: toolName, input: input, toolUseId: toolUseId,
+            var e = make(.toolFinished(toolName: toolName, input: input, toolUseId: toolUseId,
                                        durationMs: p["duration_ms"]?.intValue, failed: false,
-                                       backgroundId: Self.backgroundId(p["tool_response"])))]
+                                       backgroundId: Self.backgroundId(p["tool_response"])))
+            if toolName == "Bash" { e.refs = Self.links(command: input["command"]?.stringValue, response: p["tool_response"]) }
+            return [e]
         case "PostToolUseFailure":
             return [make(.toolFinished(toolName: toolName, input: input, toolUseId: toolUseId,
                                        durationMs: p["duration_ms"]?.intValue, failed: true))]
@@ -114,6 +116,14 @@ public struct ClaudeCodeAdapter: AgentAdapter {
             if let s = response?[k]?.stringValue, !s.isEmpty { return s }
         }
         return nil
+    }
+
+    /// Ссылки на MR/PR из команды и stdout/stderr; остальной вывод отбрасывается.
+    static func links(command: String?, response: JSONValue?) -> [String] {
+        var text = command ?? ""
+        if let s = response?.stringValue { text += "\n" + s }
+        for k in ["stdout", "stderr", "output"] { if let s = response?[k]?.stringValue { text += "\n" + s } }
+        return GitRefs.links(inText: text)
     }
 
     static func modelName(_ v: JSONValue?) -> String? {

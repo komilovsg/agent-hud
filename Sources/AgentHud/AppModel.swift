@@ -177,7 +177,21 @@ final class AppModel: ObservableObject {
 
     /// Промпт и конец хода — в журнал активности (для сводки за день и вкладки «Сегодня»).
     private func logActivity(_ e: AgentEvent, session: AgentSession?) {
-        guard settings.activityLog, let s = session, e.agentId == nil else { return }
+        guard settings.activityLog, let s = session else { return }
+        // Ветки и ссылки — и из команд субагентов; остальное пишем только для основного агента.
+        if case .toolFinished(let tool, let input, _, _, let failed, _) = e.body {
+            guard tool == "Bash", !failed else { return }
+            let command = input["command"]?.stringValue ?? ""
+            var found: [(String, String)] = GitRefs.branches(inCommand: command).map { ($0, "branch") }
+            found += e.refs.flatMap { GitRefs.branches(inText: $0) }.map { ($0, "branch") }
+            found += e.refs.map { ($0, "link") }
+            for (text, kind) in found where loggedRefs[s.id, default: []].insert(kind + ":" + text).inserted {
+                ActivityLog.append(ActivityRecord(kind: .ref, time: e.time, agent: s.kind.rawValue, session: s.sessionId,
+                                                  project: s.projectName, cwd: s.cwd, text: text, detail: kind))
+            }
+            return
+        }
+        guard e.agentId == nil else { return }
         switch e.body {
         case .promptSubmitted(let text):
             guard !SessionStore.isInjectedPrompt(text) else { return }
@@ -191,6 +205,9 @@ final class AppModel: ObservableObject {
             break
         }
     }
+
+    /// Уже записанные ветки и ссылки по сессиям — чтобы не дублировать записи `ref`.
+    private var loggedRefs: [String: Set<String>] = [:]
 
     private func requestArrived(_ key: String) {
         if settings.openCardOnRequest, selectedKey == nil || store.session(selectedKey!)?.activePending == nil {
@@ -307,7 +324,27 @@ final class AppModel: ObservableObject {
         editorFolders = EditorWorkspaces.openFolders()
     }
 
+    /// Вкладка карты агентов: 0 — «Сейчас», 1 — «Сегодня».
+    @Published var mapTab = 0
+
     func openMap() { onOpenMap?() }
+
+    func openReportTab() {
+        mapTab = 1
+        onOpenMap?()
+    }
+
+    /// Отчёт за период в Markdown: файл `reports/<от>_<до>.md` в папке приложения.
+    @discardableResult
+    func writeReport(from: Date, to: Date) -> URL {
+        let md = PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to)
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HHmm"
+        let url = AgentHUDPaths.supportDirectory.appendingPathComponent("reports/\(f.string(from: from))_\(f.string(from: to)).md")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(md.utf8).write(to: url)
+        return url
+    }
 
     /// Сводка за день в Markdown: файл в папке приложения (его же можно открыть или скопировать).
     @discardableResult

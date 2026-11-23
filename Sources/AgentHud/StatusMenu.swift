@@ -157,6 +157,16 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self.closePopover()
             NSWorkspace.shared.open(self.model.writeSummary())
         }
+        a.openReport = { [weak self] in
+            self?.closePopover()
+            self?.model.openReportTab()
+        }
+        a.quickReport = { [weak self] in
+            guard let self else { return }
+            self.closePopover()
+            let r = ReportPreset.since15Yesterday.range(now: Date(), calendar: .current)
+            NSWorkspace.shared.open(self.model.writeReport(from: r.from, to: r.to))
+        }
         a.quit = { NSApp.terminate(nil) }
         return a
     }

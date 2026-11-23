@@ -28,6 +28,8 @@ public struct AgentEvent: Equatable, Sendable {
     public var host: HostInfo?
     public var time: Date
     public var body: Body
+    /// Ссылки на merge/pull request из команды и вывода инструмента (сам вывод не храним).
+    public var refs: [String] = []
 
     public init(kind: AgentKind, sessionId: String, cwd: String? = nil, transcriptPath: String? = nil,
                 agentId: String? = nil, host: HostInfo? = nil, time: Date, body: Body) {

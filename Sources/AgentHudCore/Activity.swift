@@ -4,7 +4,7 @@ import Foundation
 /// Журнал — по файлу на день: `~/Library/Application Support/AgentHUD/activity/ГГГГ-ММ-ДД.jsonl`.
 /// Только локально; из него строится сводка за день (для стендапа) и вкладка «Сегодня» на карте агентов.
 public struct ActivityRecord: Equatable, Sendable {
-    public enum Kind: String, Sendable { case prompt, stop, decision }
+    public enum Kind: String, Sendable { case prompt, stop, decision, ref }
 
     public var kind: Kind
     public var time: Date
@@ -12,9 +12,9 @@ public struct ActivityRecord: Equatable, Sendable {
     public var session: String
     public var project: String
     public var cwd: String
-    /// Промпт, итоговое сообщение агента или суть решения.
+    /// Промпт, итоговое сообщение агента, суть решения или ветка/ссылка (для `ref`).
     public var text: String
-    /// Для решения — что решили («разрешено», «отклонено»…).
+    /// Для решения — что решили («разрешено», «отклонено»…); для `ref` — «branch» или «link».
     public var detail: String?
     public var failed = false
     public var stats: TurnStats?
@@ -105,6 +105,22 @@ public enum ActivityLog {
             (try? JSONValue.parse(String(line))).flatMap(ActivityRecord.init(json:))
         }
     }
+
+    /// Записи всех дней, пересекающих отрезок, с `from <= time <= to`, по времени.
+    public static func read(from: Date, to: Date) -> [ActivityRecord] {
+        guard from <= to else { return [] }
+        let cal = Calendar.current
+        var day = cal.startOfDay(for: from)
+        var out: [ActivityRecord] = []
+        var guardDays = 0
+        while day <= to, guardDays < 400 {
+            out += read(day: day).filter { $0.time >= from && $0.time <= to }
+            guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+            guardDays += 1
+        }
+        return out.sorted { $0.time < $1.time }
+    }
 }
 
 // MARK: - Сводка за день
@@ -162,6 +178,8 @@ public enum DailySummary {
                 }
             case .decision:
                 projects[key]!.decisions[r.detail ?? "решение", default: 0] += 1
+            case .ref:
+                break   // ветки и ссылки собирает PeriodReport
             }
         }
         return order.compactMap { projects[$0] }.filter { !$0.turns.isEmpty || !$0.decisions.isEmpty }
@@ -236,5 +254,106 @@ public enum DailySummary {
     static func oneLine(_ s: String, _ max: Int) -> String {
         let line = s.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
         return line.count > max ? String(line.prefix(max - 1)) + "…" : line
+    }
+}
+
+// MARK: - Отчёт за период
+
+public struct PeriodProject: Equatable, Sendable {
+    public var project: DayProject
+    public var branches: [String] = []
+    public var links: [String] = []
+}
+
+/// Пресеты отрезков; `now` и календарь передаются снаружи.
+public enum ReportPreset: CaseIterable, Sendable {
+    case since15Yesterday, today, yesterday, week
+
+    public var title: String {
+        switch self {
+        case .since15Yesterday: return "С 15:00 вчера"
+        case .today: return "Сегодня"
+        case .yesterday: return "Вчера"
+        case .week: return "7 дней"
+        }
+    }
+
+    public func range(now: Date, calendar cal: Calendar) -> (from: Date, to: Date) {
+        let today = cal.startOfDay(for: now)
+        func daysAgo(_ n: Int) -> Date { cal.date(byAdding: .day, value: -n, to: today) ?? today }
+        switch self {
+        case .since15Yesterday:
+            return (cal.date(bySettingHour: 15, minute: 0, second: 0, of: daysAgo(1)) ?? daysAgo(1), now)
+        case .today: return (today, now)
+        case .yesterday: return (daysAgo(1), today.addingTimeInterval(-1))
+        case .week: return (daysAgo(6), now)
+        }
+    }
+}
+
+public enum PeriodReport {
+    /// Записи → проекты за отрезок. Записи должны включать промпты ходов, начатых до `from`
+    /// (см. `load`): ход, начатый раньше, но законченный внутри отрезка, попадает в отчёт.
+    public static func build(_ records: [ActivityRecord], from: Date? = nil, to: Date? = nil) -> [PeriodProject] {
+        func inRange(_ d: Date) -> Bool { (from.map { d >= $0 } ?? true) && (to.map { d <= $0 } ?? true) }
+        // Решения и ссылки считаем только внутри отрезка; промпты и стопы нужны для сопоставления ходов.
+        let recs = records.filter { $0.kind == .prompt || $0.kind == .stop || inRange($0.time) }
+        var result: [PeriodProject] = []
+        for var p in DailySummary.build(recs) {
+            p.turns = p.turns.filter { inRange($0.start) || ($0.end.map(inRange) ?? false) }
+            let key = p.cwd.isEmpty ? p.name : p.cwd
+            var item = PeriodProject(project: p)
+            for r in recs where r.kind == .ref && (r.cwd.isEmpty ? r.project : r.cwd) == key {
+                if r.detail == "link" { if !item.links.contains(r.text) { item.links.append(r.text) } }
+                else if !item.branches.contains(r.text) { item.branches.append(r.text) }
+            }
+            if !p.turns.isEmpty { result.append(item) }
+        }
+        return result
+    }
+
+    /// Читает журнал с запасом назад (промпты ходов, начатых до `from`) и строит отчёт.
+    public static func load(from: Date, to: Date) -> [PeriodProject] {
+        let lookback = from.addingTimeInterval(-24 * 3600)
+        return build(ActivityLog.read(from: lookback, to: to), from: from, to: to)
+    }
+
+    public static func markdown(_ projects: [PeriodProject], from: Date, to: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "ru_RU")
+        df.dateFormat = "d MMM HH:mm"
+        let tf = DateFormatter()
+        tf.dateFormat = "HH:mm"
+        let multiDay = !Calendar.current.isDate(from, inSameDayAs: to)
+
+        var out = "# Отчёт агентов · \(df.string(from: from)) — \(df.string(from: to))\n\n"
+        guard !projects.isEmpty else { return out + "За этот период агенты ничего не делали.\n" }
+
+        let turns = projects.reduce(0) { $0 + $1.project.turns.count }
+        let worked = projects.reduce(0) { $0 + $1.project.workedSec }
+        var total = "**Итого:** \(turns) \(DailySummary.plural(turns, "задача", "задачи", "задач")) в \(projects.count) \(DailySummary.plural(projects.count, "проекте", "проектах", "проектах"))"
+        if worked > 0 { total += " · агенты работали \(DailySummary.duration(worked))" }
+        out += total + "\n"
+
+        for item in projects {
+            let p = item.project
+            out += "\n## \(p.name)\n\n"
+            var line = "\(p.turns.count) \(DailySummary.plural(p.turns.count, "задача", "задачи", "задач"))"
+            if p.workedSec > 0 { line += " · \(DailySummary.duration(p.workedSec))" }
+            out += line + "\n"
+            if !item.branches.isEmpty { out += "\nВетки: " + item.branches.map { "`\($0)`" }.joined(separator: ", ") + "\n" }
+            if !item.links.isEmpty { out += "\nСсылки:\n" + item.links.map { "- \($0)" }.joined(separator: "\n") + "\n" }
+            out += "\n"
+            for t in p.turns {
+                let prompt = DailySummary.oneLine(t.prompt, 120)
+                var status: String
+                if t.end == nil { status = "не завершена" }
+                else if t.failed { status = "ошибка" }
+                else { status = "готово" + (t.stats.durationSec.map { " за \(DailySummary.duration($0))" } ?? "") }
+                let when = multiDay ? df.string(from: t.start) : tf.string(from: t.start)
+                out += "- **\(when)** \(prompt.isEmpty ? "(без текста)" : prompt) — \(status)\n"
+            }
+        }
+        return out
     }
 }

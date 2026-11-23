@@ -40,12 +40,12 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         guard waiting != shownWaiting else { return }
         shownWaiting = waiting
         let img = NSImage(systemSymbolName: waiting > 0 ? "circle.hexagongrid.fill" : "circle.hexagongrid",
-                          accessibilityDescription: "AgentHUD")
+                          accessibilityDescription: "Agent HUD")
         img?.isTemplate = true
         b.image = img
         b.imagePosition = .imageLeading
         b.title = waiting > 0 ? " \(waiting)" : ""
-        b.toolTip = waiting > 0 ? "AgentHUD: ждут тебя — \(waiting)" : "AgentHUD"
+        b.toolTip = waiting > 0 ? "Agent HUD: ждут тебя — \(waiting)" : "Agent HUD"
     }
 
     // MARK: - Поповер

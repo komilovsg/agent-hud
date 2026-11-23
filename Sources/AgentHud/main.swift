@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.terminate(nil)
                 return
             }
-            HookSetup.info("AgentHUD не запустился", "\(error)", style: .critical)
+            HookSetup.info("Agent HUD не запустился", "\(error)", style: .critical)
             NSApp.terminate(nil)
             return
         }

@@ -65,9 +65,9 @@ enum HookSetup {
             let link = try ensureSymlink()
             let installer = HookInstaller(agent: kind, hookPath: link.path, timeout: timeout)
             let (before, after) = try HookInstaller.preview(file: file) { installer.install(into: $0) }
-            guard before != after else { info("Уже подключено", "Хуки AgentHUD в \(tilde(file.path)) уже на месте."); return }
+            guard before != after else { info("Уже подключено", "Хуки Agent HUD в \(tilde(file.path)) уже на месте."); return }
             let summary = """
-            В \(tilde(file.path)) добавятся хуки AgentHUD (по одному на событие). Ваши хуки (herdr, Orca, плагины) останутся как есть.
+            В \(tilde(file.path)) добавятся хуки Agent HUD (по одному на событие). Ваши хуки (herdr, Orca, плагины) останутся как есть.
 
             Перед записью будет сделана копия файла: \(file.lastPathComponent).agenthud-backup-<дата>.
 
@@ -80,7 +80,7 @@ enum HookSetup {
             Что добавится:
             \(installer.plannedEntries().pretty())
             """
-            guard confirm("Подключить AgentHUD к \(kind.displayName)?", summary, ok: "Подключить") else { return }
+            guard confirm("Подключить Agent HUD к \(kind.displayName)?", summary, ok: "Подключить") else { return }
             let r = try HookInstaller.apply(file: file) { installer.install(into: $0) }
             info("Готово", "Хуки подключены. \(trustNote(kind))\n\nКопия старого файла: \(r.backup.map { tilde($0.path) } ?? "не понадобилась")")
         } catch {
@@ -92,10 +92,10 @@ enum HookSetup {
         let file = kind.hooksFile
         do {
             let (before, after) = try HookInstaller.preview(file: file) { HookInstaller.uninstall(from: $0) }
-            guard before != after else { info("Нечего отключать", "Хуков AgentHUD в \(tilde(file.path)) нет."); return }
-            guard confirm("Отключить AgentHUD от \(kind.displayName)?", "Из \(tilde(file.path)) будут удалены только записи AgentHUD. Перед записью будет сделана копия файла.", ok: "Отключить") else { return }
+            guard before != after else { info("Нечего отключать", "Хуков Agent HUD в \(tilde(file.path)) нет."); return }
+            guard confirm("Отключить Agent HUD от \(kind.displayName)?", "Из \(tilde(file.path)) будут удалены только записи Agent HUD. Перед записью будет сделана копия файла.", ok: "Отключить") else { return }
             let r = try disconnect(kind)
-            info("Отключено", "Записи AgentHUD удалены.\n\nКопия: \(r.backup.map { tilde($0.path) } ?? "—")")
+            info("Отключено", "Записи Agent HUD удалены.\n\nКопия: \(r.backup.map { tilde($0.path) } ?? "—")")
         } catch {
             info("Не получилось отключить", error.localizedDescription, style: .critical)
         }

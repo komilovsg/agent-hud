@@ -67,7 +67,7 @@ struct ControlPanelView: View {
                            style: settings.avatarStyle, size: 36, animated: settings.animations)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("AgentHUD").font(Brand.display(24)).foregroundStyle(Brand.ink)
+                Text("Agent HUD").font(Brand.display(24)).foregroundStyle(Brand.ink)
                 Text(summary(total: sessions.count, waiting: waiting))
                     .font(Brand.mono(10.5, medium: true)).tracking(0.63)
                     .foregroundStyle(waiting > 0 ? Brand.warning : Brand.inkSubtle)

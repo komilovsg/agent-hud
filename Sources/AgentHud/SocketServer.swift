@@ -11,7 +11,7 @@ final class SocketServer {
 
         var description: String {
             switch self {
-            case .alreadyRunning: return "AgentHUD уже запущен."
+            case .alreadyRunning: return "Agent HUD уже запущен."
             case .system(let s): return s
             }
         }

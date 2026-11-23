@@ -89,7 +89,7 @@ public struct ClaudeCodeAdapter: AgentAdapter {
             return Self.permissionOutput(Self.allowDecision(payload: payload, updates: updates))
         case (.permission, .deny(let reason)):
             let given = (reason?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-            let msg = given ?? "Пользователь отклонил это действие в AgentHUD."
+            let msg = given ?? "Пользователь отклонил это действие в Agent HUD."
             return Self.permissionOutput(["behavior": "deny", "message": .string(msg)])
         }
     }

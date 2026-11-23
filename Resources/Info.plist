@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>AgentHUD</string>
+	<string>Agent HUD</string>
 	<key>CFBundleExecutable</key>
 	<string>AgentHUD</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.agenthud.AgentHUD</string>
+	<string>io.github.komilovsg.agenthud</string>
 	<key>CFBundleName</key>
-	<string>AgentHUD</string>
+	<string>Agent HUD</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

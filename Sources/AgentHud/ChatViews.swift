@@ -79,6 +79,8 @@ final class ChatLoader: ObservableObject {
 
 struct ChatView: View {
     let items: [ChatItem]
+    /// Text of a reply that is still being written (a session run by the app); shown as the last row.
+    var streaming = ""
     @State private var atBottom = true
 
     var body: some View {
@@ -87,6 +89,9 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                         ChatRow(item: item).padding(.top, i == 0 ? 0 : gap(items[i - 1], item))
+                    }
+                    if !streaming.isEmpty {
+                        StreamingText(text: streaming).padding(.top, items.isEmpty ? 0 : 10)
                     }
                     Color.clear.frame(height: 1).id("end")
                 }
@@ -97,6 +102,9 @@ struct ChatView: View {
                 g.contentOffset.y + g.containerSize.height >= g.contentSize.height - 24
             } action: { _, near in atBottom = near }
             .onChange(of: items.last?.id) { _, _ in
+                if atBottom { proxy.scrollTo("end", anchor: .bottom) }
+            }
+            .onChange(of: streaming.count) { _, _ in
                 if atBottom { proxy.scrollTo("end", anchor: .bottom) }
             }
         }
@@ -160,6 +168,84 @@ struct AssistantText: View {
     }
 }
 
+/// The reply while it is being written: plain text (half-written Markdown is not parsed) with a progress mark.
+struct StreamingText: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: text)
+                .font(.system(size: 12))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini).frame(width: 12, height: 12)
+                Text("Writing…").font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
+/// Conversation of a session run by the app: rows from its output stream plus the reply being written.
+struct OwnedChat: View {
+    @ObservedObject var owned: OwnedSession
+
+    var body: some View {
+        let items = owned.history + owned.items
+        if items.isEmpty && owned.partialText.isEmpty {
+            Text(owned.isLive ? "No messages yet. Write the first one below." : "No messages.")
+                .font(.system(size: 11)).foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            ChatView(items: items, streaming: owned.partialText)
+        }
+    }
+}
+
+/// What a session run by the app has to say besides the conversation: a failed start (with the end of the
+/// process's error output), an error at the end of a turn, a retry or a refused tool call.
+struct OwnedNotices: View {
+    @ObservedObject var owned: OwnedSession
+    let hooksSilent: Bool
+
+    var body: some View {
+        if let e = owned.lastError {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                    Text(e).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                }
+                if !owned.isLive, !tail.isEmpty {
+                    Text(verbatim: tail)
+                        .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                        .lineLimit(8).truncationMode(.head)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Color.red.opacity(0.1)))
+        }
+        if let n = owned.notice {
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle").font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(n).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2)
+            }
+        }
+        if hooksSilent {
+            Notice(icon: "exclamationmark.shield", color: .orange,
+                   text: "No hook events have arrived for this session, so its permission requests cannot reach Agent HUD and are refused.")
+        }
+    }
+
+    /// The last lines of the process's error output.
+    private var tail: String {
+        owned.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isNewline).suffix(8).joined(separator: "\n")
+    }
+}
+
 struct ToolRow: View {
     let name: String
     let summary: String
@@ -202,10 +288,19 @@ struct ChatInputPreset {
     var note: ChatInputNote?
 }
 
+/// Texts of the input of a session run by the app.
+enum OwnedInputText {
+    static let helper = "Sends directly — this session runs in Agent HUD"
+    static let interruptHelp = "Interrupt: end the current turn"
+    static let forceStopHelp = "The turn has not ended yet. Press again to end the session's process"
+}
+
 /// The next message for a session. Return sends it: typed into the host app when that is allowed, otherwise copied.
 struct ChatInput: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
+    /// State of the session's process when this app runs it; nil for a session in an editor or a terminal.
+    let owned: OwnedSessionLogic.State?
     private let preset: ChatInputPreset?
 
     @State private var text: String
@@ -220,9 +315,10 @@ struct ChatInput: View {
 
     private static let rowHeight: CGFloat = 24
 
-    init(model: AppModel, session: AgentSession, preset: ChatInputPreset? = nil) {
+    init(model: AppModel, session: AgentSession, owned: OwnedSessionLogic.State? = nil, preset: ChatInputPreset? = nil) {
         self.model = model
         self.session = session
+        self.owned = owned
         self.preset = preset
         _text = State(initialValue: preset?.text ?? "")
         _commands = State(initialValue: preset?.commands ?? [])
@@ -233,7 +329,12 @@ struct ChatInput: View {
 
     private var kind: SendHostKind { SendHostKind(host: session.host) }
     private var suggestions: [SlashCommand] { SlashCommands.suggestions(for: text, in: commands, limit: 8) }
-    private var canSend: Bool { !sending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var canSend: Bool {
+        if let owned, owned != .starting, owned != .idle { return false }
+        return !sending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    /// A turn is in progress in a process of this app: the button interrupts instead of sending.
+    private var interruptible: Bool { owned == .running || owned == .interrupting }
 
     private var helperMode: SendMode {
         SendPlan.expectedMode(trusted: preset?.trusted ?? PromptSender.isTrusted,
@@ -241,7 +342,7 @@ struct ChatInput: View {
     }
 
     var body: some View {
-        if kind.canCompose {
+        if owned != nil || kind.canCompose {
             composer
         } else {
             HStack(spacing: 8) {
@@ -287,12 +388,21 @@ struct ChatInput: View {
                         nav.dismiss()
                         return .handled
                     }
-                Button { send(text, fromField: true) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 22)) }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.5))
-                    .disabled(!canSend)
-                    .help(helperMode == .type ? "Send to the session in \(session.host.label)"
-                                              : "Copy the text and open the session in \(session.host.label)")
+                if interruptible {
+                    Button { model.interrupt(session.id) } label: { Image(systemName: "stop.circle.fill").font(.system(size: 22)) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(owned == .interrupting ? Color.orange : Color.red)
+                        .help(owned == .interrupting ? OwnedInputText.forceStopHelp : OwnedInputText.interruptHelp)
+                        .accessibilityLabel("Interrupt")
+                } else {
+                    Button { send(text, fromField: true) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 22)) }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.5))
+                        .disabled(!canSend)
+                        .help(owned != nil ? OwnedInputText.helper
+                              : helperMode == .type ? "Send to the session in \(session.host.label)"
+                                                    : "Copy the text and open the session in \(session.host.label)")
+                }
             }
             .overlay(alignment: .top) {
                 if nav.isOpen {
@@ -319,6 +429,11 @@ struct ChatInput: View {
             Text(note.text)
                 .font(.system(size: 10)).foregroundStyle(note.isError ? Color.orange : Color.secondary)
                 .lineLimit(2)
+        } else if let owned {
+            Text(owned == .interrupting ? OwnedInputText.forceStopHelp
+                 : owned == .running ? "The agent is working — the stop button interrupts it" : OwnedInputText.helper)
+                .font(.system(size: 10)).foregroundStyle(.tertiary)
+                .lineLimit(2)
         } else {
             Text(SendPlan.helperLine(mode: helperMode, hostLabel: session.host.label))
                 .font(.system(size: 10)).foregroundStyle(.tertiary)
@@ -336,7 +451,7 @@ struct ChatInput: View {
                             .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                     }
                     .buttonStyle(.plain)
-                    .disabled(sending)
+                    .disabled(sending || interruptible)
                     .help("Send \"\(p)\" to the session in \(session.host.label)")
                 }
             }

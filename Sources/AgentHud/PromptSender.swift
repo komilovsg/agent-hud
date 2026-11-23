@@ -27,7 +27,12 @@ final class PromptSender {
 
     // MARK: - Send
 
-    func send(_ text: String, to session: AgentSession) async -> Outcome {
+    /// `owned`: the session's process belongs to this app - the text goes straight to it, nothing is typed anywhere.
+    func send(_ text: String, to session: AgentSession, owned: OwnedSession? = nil) async -> Outcome {
+        if let owned {
+            guard owned.isLive else { return .failed(OwnedSession.goneMessage) }
+            return owned.send(text) ? .sent : .failed(OwnedSession.busyMessage)
+        }
         guard !busy else { return .failed("Another message is still being sent") }
         busy = true
         defer { busy = false }

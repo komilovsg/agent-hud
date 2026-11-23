@@ -32,6 +32,7 @@ public enum HostPlace: String, Sendable {
     case terminal     // terminal (including the VS Code integrated terminal)
     case desktopApp   // Claude app
     case editor       // Claude Code extension in VS Code
+    case hud          // a process started by Agent HUD itself
 }
 
 /// Where the agent is running: needed for the "Open" button.
@@ -55,6 +56,12 @@ public struct HostInfo: Equatable, Sendable {
     public static let cursor = "com.todesktop.230313mzl4w4u92"
     public static let editorApps: Set<String> = [vscode, vscodeInsiders, cursor]
     public static let vscodeEntrypoint = "claude-vscode"
+    /// This app: the host of sessions it starts itself.
+    public static let agentHud = "io.github.komilovsg.agenthud"
+    public static let agentHudName = "Agent HUD"
+
+    /// Host of a session started by this app.
+    public static var ownedByHud: HostInfo { HostInfo(appBundleId: agentHud, appName: agentHudName) }
 
     public init(termProgram: String? = nil, tty: String? = nil, agentPid: Int32? = nil,
                 herdrPaneId: String? = nil, herdrSocket: String? = nil, processChain: [String] = [],
@@ -85,7 +92,11 @@ public struct HostInfo: Equatable, Sendable {
     /// Terminal inside VS Code: `claude` runs in the editor's integrated terminal.
     public var isEditorTerminal: Bool { !isEditor && termProgram == "vscode" }
 
+    /// The session's process was started by Agent HUD (no editor or terminal behind it).
+    public var isHud: Bool { appBundleId == Self.agentHud }
+
     public var place: HostPlace {
+        if isHud { return .hud }
         if isEditor { return .editor }
         if isDesktopApp { return .desktopApp }
         return .terminal
@@ -103,6 +114,7 @@ public struct HostInfo: Equatable, Sendable {
 
     /// Human-readable host name: "Terminal", "herdr", "Claude app", "VS Code".
     public var label: String {
+        if isHud { return Self.agentHudName }
         if isEditor { return editorName }
         if isEditorTerminal { return "terminal \(editorName)" }
         if isDesktopApp {

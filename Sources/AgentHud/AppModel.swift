@@ -82,6 +82,8 @@ final class AppModel: ObservableObject {
     var onOpenMap: (() -> Void)?
     /// Open the setup window (held by AppDelegate), optionally highlighting one permission.
     var onOpenSetup: ((PermissionKind?) -> Void)?
+    /// Open the "New session" window (held by AppDelegate): preselected folder and a message to show in it.
+    var onNewSession: ((String?, String?) -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -110,6 +112,8 @@ final class AppModel: ObservableObject {
     }
 
     func stop() {
+        // Sessions run by the app end with it: nothing would show their permission requests afterwards.
+        OwnedSession.shutDown(Array(owned.values))
         // Held tool calls go on: nothing stays paused or stopped without the app.
         release(store.releaseAll())
         // Release all waiting hooks - agents will ask in the terminal.
@@ -124,12 +128,31 @@ final class AppModel: ObservableObject {
     // MARK: - Events
 
     func handle(_ m: HookMessage) {
+        var m = m
         let adapter = Adapters.adapter(for: m.agent)
         let now = Date()
+        let hookSession = m.payload["session_id"]?.stringValue
+        if let sid = hookSession, let o = owned[sid] {
+            if o.isLive {
+                // Whatever the hook saw around the process (the app may itself be started from a terminal),
+                // this session is run by the app.
+                m.host.appBundleId = HostInfo.agentHud
+                m.host.appName = HostInfo.agentHudName
+                hookSeen.insert(sid)
+            } else if let t = o.exitedAt, now.timeIntervalSince(t) > 3, m.payload["hook_event_name"]?.stringValue != "SessionEnd" {
+                // Events long after our process left: the session lives somewhere else now and is no longer ours.
+                dropOwned(sid)
+            }
+        }
         // Apply all events of a message to a copy and publish once: every publish is a HUD redraw.
         var next = store
         var released: [String] = []
-        let events = adapter.events(from: m, now: now)
+        var events = adapter.events(from: m, now: now)
+        // The end of our own process may be reported after the session was already handed to an editor.
+        events.removeAll { e in
+            guard case .sessionEnded = e.body, let t = handedOver[e.sessionKey] else { return false }
+            return now.timeIntervalSince(t) < 5
+        }
         for e in events {
             released += next.apply(e, adapter: adapter)
             logActivity(e, session: next.session(e.sessionKey))
@@ -377,6 +400,13 @@ final class AppModel: ObservableObject {
 
     func open(_ key: String) {
         guard let s = store.session(key) else { return }
+        // A session run by the app has no other place to open: its card is the place.
+        if s.host.isHud {
+            if !settings.hudVisible { settings.hudVisible = true }
+            selectedKey = key
+            selectedByUser = true
+            return
+        }
         TerminalFocus.focus(s)
     }
 
@@ -386,6 +416,9 @@ final class AppModel: ObservableObject {
         }
         // A hidden session must not stay held: there would be nothing on screen to resume it with.
         release(store.release(sessionKey: key))
+        // An ended session of ours is let go; a running one keeps running and comes back when it needs you.
+        if let s = store.session(key), let o = owned[s.sessionId], !o.isLive { dropOwned(s.sessionId) }
+        handedOver[key] = nil
         store.hide(key)
         if selectedKey == key { selectedKey = nil }
     }
@@ -397,7 +430,7 @@ final class AppModel: ObservableObject {
     /// Sends the card's message to the session (typed into the host app, or copied as a fallback).
     func send(_ key: String, _ text: String) async -> PromptSender.Outcome {
         guard let s = store.session(key) else { return .failed("The session is gone") }
-        let outcome = await sender.send(text, to: s)
+        let outcome = await sender.send(text, to: s, owned: owned[s.sessionId])
         // The card clears its field itself; this also covers a card that closed during the send.
         if case .failed = outcome { return outcome }
         if draft(key) == text { setDraft(key, "") }
@@ -424,7 +457,10 @@ final class AppModel: ObservableObject {
 
     /// Remember session folders and re-read VS Code windows every half minute (for project labels).
     private func rememberProjects(now: Date) {
-        for s in store.sessions.values where !s.cwd.isEmpty { knownProjects.insert(s.cwd) }
+        for s in store.sessions.values where !s.cwd.isEmpty {
+            knownProjects.insert(s.cwd)
+            if (projectSeenAt[s.cwd] ?? .distantPast) < s.lastEventAt { projectSeenAt[s.cwd] = s.lastEventAt }
+        }
         guard now.timeIntervalSince(editorFoldersReadAt) > 30 else { return }
         editorFoldersReadAt = now
         editorFolders = EditorWorkspaces.openFolders()
@@ -463,6 +499,203 @@ final class AppModel: ObservableObject {
         try? Data(md.utf8).write(to: url)
         return url
     }
+
+    // MARK: - Sessions run by the app
+
+    /// Sessions whose CLI process this app started, by session id. An entry stays after its process exits
+    /// (the card shows what happened) until the session is hidden, handed over or continued.
+    @Published private(set) var owned: [String: OwnedSession] = [:]
+    /// Sessions moved to an editor (by session key) and when. Until the editor's first event arrives the card
+    /// says that the move is not confirmed.
+    @Published private(set) var handedOver: [String: Date] = [:]
+    private var handOverTarget: [String: EditorChoice] = [:]     // by session id, while our process is leaving
+    private var hookSeen = Set<String>()                          // session ids whose hook events have arrived
+    private var ownedSubscriptions: [String: AnyCancellable] = [:]
+    private var projectSeenAt: [String: Date] = [:]
+
+    static let handOverWaitHint = "Wait until the agent finishes this step"
+    /// Opens a session in an editor: the project folder first, then the session link.
+    var openInEditor: (AgentSession, String) -> Void = { TerminalFocus.focusEditor($0, bundleId: $1) }
+
+    /// Project folders for the "New session" window: most recently active first.
+    var recentProjects: [String] {
+        var seen = projectSeenAt.map { (cwd: $0.key, at: $0.value) }
+        // Earlier today, before this launch: taken from the activity log.
+        for r in ActivityLog.read(day: Date()) where !r.cwd.isEmpty && projectSeenAt[r.cwd] == nil {
+            seen.append((cwd: r.cwd, at: r.time))
+        }
+        return OwnedSessionLogic.recentFolders(seen, limit: 8)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    func newSession(in folder: String? = nil) { onNewSession?(folder, nil) }
+
+    /// Why a session cannot be started right now; nil when it can. Without the hooks every tool call of such
+    /// a session would be refused with nothing shown, so it is not started at all.
+    func startRefusal() -> String? {
+        if !HookSetup.isInstalled(.claude) {
+            return "Agent HUD is not connected to Claude Code, so the agent's permission requests could not reach you. Connect it in the setup window first."
+        }
+        if HookSetup.needsUpdate(.claude) {
+            return "The Agent HUD hooks need an update before a session can run here. Update them in the setup window first."
+        }
+        return nil
+    }
+
+    /// Starts a new session in `cwd`. Returns the reason when it was not started.
+    @discardableResult
+    func startSession(cwd: String, firstMessage: String?) -> String? {
+        if let refusal = startRefusal() { return refusal }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
+            return "The project folder does not exist"
+        }
+        let id = UUID().uuidString.lowercased()
+        let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
+        launch(OwnedSession(sessionId: id, cwd: cwd, resume: false), key: key, firstMessage: firstMessage)
+        return nil
+    }
+
+    /// One owner per session: only a session that has ended (or that this app ran and saw exit, or handed over
+    /// without the editor ever picking it up) may be continued here.
+    func canContinueHere(_ s: AgentSession) -> Bool {
+        guard OwnedSessionLogic.isValidSessionId(s.sessionId), !s.cwd.isEmpty else { return false }
+        let ended = s.baseState == .ended || isHandOverUnconfirmed(s)
+        return OwnedSessionLogic.canResumeHere(owned: owned[s.sessionId]?.state, sessionEnded: ended)
+    }
+
+    /// The session was moved to an editor and nothing has been heard from it since.
+    func isHandOverUnconfirmed(_ s: AgentSession) -> Bool {
+        guard let t = handedOver[s.id] else { return false }
+        return s.lastEventAt <= t
+    }
+
+    /// The agent has answered but none of its hook events arrived: permission requests cannot reach the HUD.
+    func hooksSilent(_ o: OwnedSession) -> Bool {
+        o.isLive && o.turnsFinished > 0 && !hookSeen.contains(o.sessionId)
+    }
+
+    /// Continues an ended session in a process of this app. Returns the reason when it was not started.
+    @discardableResult
+    func continueHere(_ key: String) -> String? {
+        guard let s = store.session(key) else { return "The session is gone" }
+        guard canContinueHere(s) else { return "This session is still running elsewhere" }
+        if let refusal = startRefusal() {
+            onNewSession?(s.cwd, refusal)
+            return refusal
+        }
+        // A session of ours that never got as far as reporting itself does not exist yet: it is started anew.
+        let neverStarted = owned[s.sessionId].map { !$0.initialized } ?? false
+        let transcript = s.transcriptPath
+        dropOwned(s.sessionId)
+        handedOver[key] = nil
+        store.register(sessionId: s.sessionId, cwd: s.cwd, host: .ownedByHud, now: Date())
+        let o = OwnedSession(sessionId: s.sessionId, cwd: s.cwd, resume: !neverStarted)
+        if !neverStarted { o.loadHistory(transcriptPath: transcript) }
+        launch(o, key: key, firstMessage: nil)
+        return nil
+    }
+
+    private func launch(_ o: OwnedSession, key: String, firstMessage: String?) {
+        let id = o.sessionId
+        owned[id] = o
+        store.keep(key, true)
+        hookSeen.remove(id)
+        o.onInit = { [weak self, weak o] reported, model in
+            guard let self, let o, self.owned[id] === o else { return }
+            self.ownedInitialized(o, reported: reported, model: model)
+        }
+        o.onExit = { [weak self, weak o] _ in
+            guard let self, let o, self.owned[id] === o else { return }
+            self.ownedExited(o)
+        }
+        // State and cost changes redraw the HUD; streamed text only redraws the open card.
+        ownedSubscriptions[id] = o.$state.map { _ in () }.merge(with: o.$costUSD.map { _ in () })
+            .sink { [weak self] in self?.objectWillChange.send() }
+        if !settings.hudVisible { settings.hudVisible = true }
+        selectedKey = key
+        selectedByUser = true
+        o.start()
+        if let text = firstMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty { o.send(text) }
+        hudLog.notice("owned start [\(id.prefix(8), privacy: .public)]")
+    }
+
+    private func ownedInitialized(_ o: OwnedSession, reported: String?, model: String?) {
+        var key = "\(AgentKind.claude.rawValue):\(o.sessionId)"
+        if let reported, reported != o.sessionId, OwnedSessionLogic.isValidSessionId(reported) {
+            // The CLI runs the conversation under another id: follow it, otherwise its events would show up as a second session.
+            let wasSelected = selectedKey == key
+            owned[reported] = o
+            owned[o.sessionId] = nil
+            ownedSubscriptions[reported] = ownedSubscriptions.removeValue(forKey: o.sessionId)
+            o.onInit = nil
+            o.onExit = { [weak self, weak o] _ in
+                guard let self, let o, self.owned[reported] === o else { return }
+                self.ownedExited(o)
+            }
+            if hookSeen.remove(o.sessionId) != nil { hookSeen.insert(reported) }
+            key = store.rekey(key, toSessionId: reported)
+            if wasSelected { selectedKey = key }
+        }
+        guard let s = store.session(key) else { return }
+        var next = store
+        next.apply(AgentEvent(kind: .claude, sessionId: s.sessionId, cwd: s.cwd, time: Date(),
+                              body: .sessionStarted(source: nil, model: model)))
+        store = next
+    }
+
+    /// The registry id of a session object (it may have moved to the id the CLI reported).
+    private func registryId(of o: OwnedSession) -> String? { owned.first { $0.value === o }?.key }
+
+    private func ownedExited(_ o: OwnedSession) {
+        guard let id = registryId(of: o) else { return }
+        let key = "\(AgentKind.claude.rawValue):\(id)"
+        hudLog.notice("owned exit [\(id.prefix(8), privacy: .public)]")
+        var next = store
+        let released = next.markEnded(key, now: Date())
+        store = next
+        release(released)
+        if let editor = handOverTarget.removeValue(forKey: id) { completeHandOver(id, key: key, to: editor) }
+    }
+
+    private func dropOwned(_ id: String) {
+        guard let o = owned.removeValue(forKey: id) else { return }
+        o.onInit = nil
+        o.onExit = nil
+        if o.isLive { o.terminate() }
+        ownedSubscriptions[id] = nil
+        handOverTarget[id] = nil
+        hookSeen.remove(id)
+        store.keep("\(AgentKind.claude.rawValue):\(id)", false)
+    }
+
+    func interrupt(_ key: String) {
+        guard let s = store.session(key) else { return }
+        owned[s.sessionId]?.interrupt()
+    }
+
+    /// Moves a session of ours to an editor: our process leaves first, and only then the editor is asked to open
+    /// the session - two processes on one session lose messages.
+    func handOver(_ key: String, to editor: EditorChoice) {
+        guard let s = store.session(key), let o = owned[s.sessionId], o.logic.canHandOver else { return }
+        handOverTarget[s.sessionId] = editor
+        o.finish()
+    }
+
+    private func completeHandOver(_ id: String, key: String, to editor: EditorChoice) {
+        guard let s = store.session(key) else { return }
+        dropOwned(id)
+        let now = Date()
+        let host = HostInfo(appBundleId: editor.bundleId, appName: editor.name, entrypoint: HostInfo.vscodeEntrypoint)
+        store.register(sessionId: s.sessionId, cwd: s.cwd, host: host, now: now)
+        handedOver[key] = now
+        if let moved = store.session(key) { openInEditor(moved, editor.bundleId) }
+    }
+
+    /// For the offscreen render check: a session object in a fixed state, no process.
+    func installPreview(_ o: OwnedSession) { owned[o.sessionId] = o }
+
+    func markHandedOverForPreview(_ key: String, at date: Date) { handedOver[key] = date }
 
     // MARK: - For demo and preview
 

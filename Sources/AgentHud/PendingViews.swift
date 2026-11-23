@@ -189,9 +189,14 @@ struct ToolDetail: View {
     static let maxHeight: CGFloat = 200
 
     var body: some View {
-        ScrollView {
+        // Short input takes only the height it needs; a scroll view alone would always claim the full limit.
+        ViewThatFits(in: .vertical) {
             content
                 .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .frame(maxHeight: Self.maxHeight)
     }

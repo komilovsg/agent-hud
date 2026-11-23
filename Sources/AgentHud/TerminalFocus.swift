@@ -2,7 +2,7 @@ import AgentHudCore
 import AppKit
 import Foundation
 
-/// The "Open" button: bring up the app, the VS Code window or the terminal tab where the session runs.
+/// The "Open" button: bring up the app, the editor window or the terminal tab where the session runs.
 enum TerminalFocus {
     static func focus(_ session: AgentSession) {
         let host = session.host
@@ -63,8 +63,8 @@ enum TerminalFocus {
     /// open window with that folder), then the link into the session itself. `prompt` is the text for the input field
     /// (the extension only inserts it; the user sends it).
     /// Link: https://code.claude.com/docs/en/vs-code - `vscode://anthropic.claude-code/open?session=…&prompt=…`.
-    static func focusEditor(_ session: AgentSession, prompt: String?) {
-        let bundle = session.host.appBundleId ?? HostInfo.vscode
+    static func focusEditor(_ session: AgentSession, prompt: String?, bundleId: String? = nil) {
+        let bundle = bundleId ?? session.host.appBundleId ?? HostInfo.vscode
         let folder = EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd
         openEditorWindow(folder: folder, bundleId: bundle) { ok in
             guard let url = editorDeepLink(session, bundleId: bundle, prompt: prompt) else { return }
@@ -99,7 +99,7 @@ enum TerminalFocus {
         cfg.activates = true
         let url = URL(fileURLWithPath: folder, isDirectory: true)
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: cfg) { _, error in
-            if let error { NSLog("AgentHUD: couldn't open \(folder) in VS Code: \(error.localizedDescription)") }
+            if let error { NSLog("AgentHUD: couldn't open \(folder) in the editor: \(error.localizedDescription)") }
             Task { @MainActor in then(error == nil) }
         }
     }
@@ -212,5 +212,12 @@ extension EditorWorkspaces {
             for folder in v["workspaceFolders"]?.arrayValue?.compactMap(\.stringValue) ?? [] { out.insert(folder) }
         }
         return out
+    }
+}
+
+extension TerminalFocus {
+    /// Opens the project folder in the chosen editor (no session link).
+    static func openProject(_ session: AgentSession, in bundleId: String) {
+        openEditorWindow(folder: EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd, bundleId: bundleId) { _ in }
     }
 }

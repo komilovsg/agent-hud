@@ -12,6 +12,7 @@ extension EnvironmentValues {
 
 struct Glass: ViewModifier {
     var radius: CGFloat
+    var shadow = true
     @Environment(\.solidBackground) private var solid
     @Environment(\.colorScheme) private var scheme
 
@@ -27,139 +28,102 @@ struct Glass: ViewModifier {
                     .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5)
             }
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+            .shadow(color: .black.opacity(shadow ? 0.18 : 0), radius: 10, y: 4)
     }
 }
 
 extension View {
-    func glass(_ radius: CGFloat = 14) -> some View { modifier(Glass(radius: radius)) }
+    func glass(_ radius: CGFloat = 14, shadow: Bool = true) -> some View { modifier(Glass(radius: radius, shadow: shadow)) }
 }
 
-// MARK: - HUD root
+// MARK: - Fixed sizes
 
-/// Smooth appearance and disappearance without size animation. Spring layout animations changed the content
-/// size on every frame, and the HUD window resized ~74 times a second with fractional sizes -
-/// the HUD flickered and the icons jittered. Opacity doesn't change size: the window resizes once.
-enum HUDFade {
-    static let card = AnyTransition.opacity.animation(.easeOut(duration: 0.14))
-    static let avatar = AnyTransition.opacity.animation(.easeOut(duration: 0.18))
+/// The one size of a session icon window. Badges, labels and selection are drawn inside it.
+enum TokenMetrics {
+    static let size = CGSize(width: 96, height: 108)
 }
 
-struct HUDRootView: View {
+/// The one size of the session card window.
+enum CardMetrics {
+    static let size = CGSize(width: 380, height: 560)
+
+    /// On short screens the card is as tall as the visible area minus a margin.
+    static func fitted(to visibleFrame: CGRect) -> CGSize {
+        visibleFrame.height < 640 ? CGSize(width: size.width, height: max(240, visibleFrame.height - 40)) : size
+    }
+}
+
+// MARK: - Session icon ("token")
+
+/// Window content of one token: looks the session up by id.
+struct TokenRoot: View {
     @ObservedObject var model: AppModel
-    var onSize: (CGSize) -> Void = { _ in }
+    let key: String
 
     var body: some View {
-        let left = model.settings.anchorLeft
-        VStack(alignment: left ? .leading : .trailing, spacing: 8) {
-            AvatarRow(model: model)
-            if let key = model.selectedKey, let s = model.store.session(key) {
-                SessionCard(model: model, session: s)
-                    .transition(HUDFade.card)
+        Group {
+            if let s = model.store.session(key) {
+                TokenView(model: model, session: s, selected: model.selectedKey == key)
+            } else {
+                Color.clear
             }
         }
-        .padding(14)   // room for the shadow
-        .fixedSize()
+        .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
         .tint(Brand.accent)
-        .onGeometryChange(for: CGSize.self) { $0.size } action: { onSize($0) }
-        // The content is pinned to the anchor corner. If the window is a frame off from the content in size,
-        // the content doesn't drift to the window center (it used to shift by half the difference for that frame).
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: left ? .topLeading : .topTrailing)
     }
 }
 
-/// How much height the session window gets: the screen minus the menu bar, the icon row and margins.
-enum HUDMetrics {
-    @MainActor static var maxCardHeight: CGFloat {
-        let screen = NSScreen.main?.visibleFrame.height ?? 800
-        return max(320, screen - 110)
-    }
-}
-
-// MARK: - Character row
-
-struct AvatarRow: View {
-    @ObservedObject var model: AppModel
-    static let maxShown = 6
-
-    var body: some View {
-        // The order is stable - by time of appearance. Previously the waiting ones jumped to the start of the row and back
-        // on every permission request, and the icons kept swapping places.
-        let sorted = Self.ordered(model.visibleSessions)
-        let shown = Array(sorted.prefix(Self.maxShown))
-        let overflow = Array(sorted.dropFirst(Self.maxShown))
-        let overflowWaits = overflow.contains { $0.state.needsUser || $0.state == .expired }
-        let labels = model.settings.projectLabels ? model.projectShortLabels : [:]
-
-        HStack(alignment: .top, spacing: 6) {
-            ForEach(shown) { s in
-                AvatarButton(model: model, session: s, projectLabel: labels[s.cwd])
-                    .transition(HUDFade.avatar)
-            }
-            if !overflow.isEmpty {
-                Menu {
-                    ForEach(overflow) { s in
-                        Button("\(s.projectName) — \(s.state.title)") { model.select(s.id) }
-                    }
-                } label: {
-                    Text("+\(overflow.count)").font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(overflowWaits ? Color.orange : Color.primary)
-                        .frame(width: 30, height: 40)
-                }
-                .help(overflowWaits ? "Someone among the other sessions is waiting for you" : "Other sessions")
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .glass(16)
-    }
-
-    static func ordered(_ sessions: [AgentSession]) -> [AgentSession] {
-        sessions.sorted { a, b in a.startedAt != b.startedAt ? a.startedAt < b.startedAt : a.id < b.id }
-    }
-}
-
-struct AvatarButton: View {
+/// A desktop-item look: icon with the project name under it. No plate; everything stays inside the fixed box.
+struct TokenView: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
-    var projectLabel: String? = nil
+    var selected = false
     @State private var hover = false
 
     var body: some View {
-        let selected = model.selectedKey == session.id
-        Button { model.select(session.id) } label: {
-            VStack(spacing: 2) {
-                AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 34,
-                           animated: model.settings.animations, kind: session.kind)
-                    .padding(3)
-                    .overlay(alignment: .topTrailing) { HungBadge(session: session) }
-                if let projectLabel {
-                    ProjectChip(cwd: session.cwd, label: projectLabel)
-                        .frame(maxWidth: 66)
-                }
-            }
-            .padding(.bottom, projectLabel == nil ? 0 : 2)
-            .background {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.18) : (hover ? Color.primary.opacity(0.07) : .clear))
-            }
-            .contentShape(Rectangle())
+        VStack(spacing: 4) {
+            icon
+            label
         }
-        .buttonStyle(.plain)
-        // The HUD can be dragged by the icon itself too: the button grabs the mouse, and when collapsed there is nothing but the icons to grab.
-        .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
-            if let e = NSApp.currentEvent, e.type == .leftMouseDragged { e.window?.performDrag(with: e) }
-        })
-        .onHover { hover = $0 }
-        .help(tooltip)
-        .contextMenu {
-            Button(session.host.openTitle) { model.open(session.id) }
-            Button("Agent map") { model.openMap() }
-            Button("Hide") { model.hide(session.id) }
+        .padding(.top, 8)
+        .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height, alignment: .top)
+        .overlay {
+            TokenInteraction(tooltip: tooltip,
+                             menu: { menuEntries },
+                             onClick: { model.select(session.id) },
+                             onHover: { hover = $0 })
         }
+    }
+
+    private var icon: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color.white.opacity(selected ? 0.14 : (hover ? 0.08 : 0)))
+            AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 56,
+                       animated: model.settings.animations, kind: session.kind)
+            // The agent's state at a glance (the avatar adds its own pulse and badges for "needs you", done, error).
+            Circle().fill(session.state.tint).frame(width: 10, height: 10)
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5))
+                .shadow(color: .black.opacity(0.35), radius: 1, y: 0.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(4)
+        }
+        .frame(width: 64, height: 64)
+        .overlay(alignment: .topLeading) { HungBadge(session: session).offset(x: -3, y: -3) }
+    }
+
+    private var label: some View {
+        Text(session.projectName)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .shadow(color: .black.opacity(0.8), radius: 1.5, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.45), radius: 3, x: 0, y: 0)
+            .padding(.horizontal, 5).padding(.vertical, 1.5)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(selected ? Color.accentColor : .clear))
+            .frame(maxWidth: 90)
+            .frame(height: 20)
     }
 
     private var tooltip: String {
@@ -168,16 +132,130 @@ struct AvatarButton: View {
         if let step = session.currentStep { parts.append(step.summary) }
         return parts.joined(separator: "\n")
     }
+
+    @MainActor private var menuEntries: [TokenMenuEntry] {
+        let model = model, id = session.id
+        var out = OpenAction.items(for: session, model: model).map { a in TokenMenuEntry(title: a.title, run: a.run) }
+        // Pause and Stop will be added here.
+        out.append(TokenMenuEntry(title: "Agent map") { model.openMap() })
+        out.append(TokenMenuEntry(title: "Hide") { model.hide(id) })
+        return out
+    }
 }
 
-// MARK: - Session window
+struct TokenMenuEntry {
+    let title: String
+    let run: @MainActor () -> Void
+}
+
+/// Transparent AppKit layer over the whole token. Click and drag are told apart right here in `mouseDown`
+/// (a tracking loop and a fixed threshold), so they do not depend on SwiftUI gesture timing. It also owns
+/// the context menu (`menu(for:)`; ctrl-click is routed to the same menu), the hover state and the tooltip.
+struct TokenInteraction: NSViewRepresentable {
+    var tooltip: String
+    var menu: @MainActor () -> [TokenMenuEntry]
+    var onClick: () -> Void
+    var onHover: (Bool) -> Void
+
+    func makeNSView(context: Context) -> TokenHitView { TokenHitView() }
+
+    func updateNSView(_ v: TokenHitView, context: Context) {
+        v.toolTip = tooltip
+        v.menuProvider = menu
+        v.onClick = onClick
+        v.onHover = onHover
+    }
+}
+
+final class TokenHitView: NSView {
+    var menuProvider: @MainActor () -> [TokenMenuEntry] = { [] }
+    var onClick: () -> Void = {}
+    var onHover: (Bool) -> Void = { _ in }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for a in trackingAreas { removeTrackingArea(a) }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { onHover(false) }
+
+    override func mouseDown(with down: NSEvent) {
+        if down.modifierFlags.contains(.control) {
+            if let m = menu(for: down) { NSMenu.popUpContextMenu(m, with: down, for: self) }
+            return
+        }
+        guard let win = window else { return }
+        while let e = win.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: .distantFuture,
+                                    inMode: .eventTracking, dequeue: true) {
+            if e.type == .leftMouseUp {
+                onClick()
+                return
+            }
+            if TokenLayout.isDrag(from: down.locationInWindow, to: e.locationInWindow) {
+                win.performDrag(with: down)
+                return
+            }
+        }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let entries = MainActor.assumeIsolated { menuProvider() }
+        let m = NSMenu()
+        for e in entries {
+            let item = ClosureMenuItem(title: e.title, run: e.run)
+            m.addItem(item)
+        }
+        return m
+    }
+}
+
+final class ClosureMenuItem: NSMenuItem {
+    private let run: @MainActor () -> Void
+    init(title: String, run: @escaping @MainActor () -> Void) {
+        self.run = run
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+    required init(coder: NSCoder) { fatalError() }
+    @objc private func fire() { MainActor.assumeIsolated { run() } }
+}
+
+// MARK: - Session card (mini chat)
+
+/// The card window's content: the selected session's card filling the (fixed-size) window.
+struct CardRoot: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Group {
+            if let key = model.selectedKey, let s = model.store.session(key) {
+                SessionCard(model: model, session: s).id(key)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tint(Brand.accent)
+    }
+}
 
 struct SessionCard: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
+    @StateObject private var loader: ChatLoader
+
+    init(model: AppModel, session: AgentSession, preset: [ChatItem]? = nil) {
+        self.model = model
+        self.session = session
+        _loader = StateObject(wrappedValue: ChatLoader(preset: preset))
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             header
             if let p = session.activePending {
                 Group {
@@ -187,7 +265,8 @@ struct SessionCard: View {
                     }
                 }
                 .id(p.id)
-                // A request with buttons is laid out first; the steps feed shrinks, not it.
+                // A request takes its own height and is laid out first; the chat gets the rest.
+                .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
             } else if let p = session.expiredPending {
                 ExpiredView(model: model, session: session, request: p)
@@ -196,22 +275,34 @@ struct SessionCard: View {
                        text: "The agent is waiting for a reply \(session.host.placeIn).",
                        actions: [("Open", { model.open(session.id) })])
             }
-            if let msg = session.lastMessage, session.state == .done || session.state == .error {
-                LastMessageView(text: msg, failed: session.state == .error)
-            }
-            if session.host.canPrefillPrompt, session.activePending == nil,
-               [.done, .idle, .error].contains(session.state) {
-                NextPromptBar(model: model, session: session)
-            }
             if !session.backgroundTasks.isEmpty { BackgroundList(tasks: session.backgroundTasks) }
-            StepsList(session: session)
+            chat.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if session.activePending == nil { ChatInput(model: model, session: session) }
         }
         .padding(12)
-        .frame(width: 360, alignment: .leading)
-        // No taller than the screen: with a huge input (e.g. a long script) the buttons ran off the bottom edge.
-        // The scrollable parts shrink - the request details and the steps feed.
-        .frame(maxHeight: HUDMetrics.maxCardHeight, alignment: .top)
-        .glass(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .glass(14, shadow: false)
+        .onAppear { loader.bind(key: session.id, path: session.transcriptPath) }
+        .onChange(of: session.transcriptPath) { _, p in loader.bind(key: session.id, path: p) }
+        .onChange(of: session.lastEventAt) { _, _ in loader.reload(force: true) }
+        .onDisappear { loader.stop() }
+    }
+
+    @ViewBuilder private var chat: some View {
+        if !loader.items.isEmpty {
+            ChatView(items: loader.items)
+        } else {
+            // No readable transcript: the steps feed, so a live session is never an empty card.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    if let msg = session.lastMessage, session.state == .done || session.state == .error {
+                        LastMessageView(text: msg, failed: session.state == .error)
+                    }
+                    StepsList(session: session)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 
     private var header: some View {
@@ -240,8 +331,9 @@ struct SessionCard: View {
                 }
             }
             Spacer(minLength: 4)
+            // Pause and Stop will go at the start of this row.
             HStack(spacing: 2) {
-                IconButton(symbol: "arrow.up.forward.app", help: session.host.openTitle) { model.open(session.id) }
+                OpenMenuButton(model: model, session: session)
                 IconButton(symbol: "map", help: "Agent map: all sessions and what they are doing") { model.openMap() }
                 IconButton(symbol: "eye.slash", help: "Hide") { model.hide(session.id) }
                 IconButton(symbol: "xmark", help: "Close") { model.select(nil) }
@@ -259,48 +351,31 @@ struct SessionCard: View {
     }
 }
 
-/// Next task for a VS Code session: the text goes into its chat's input field, you send it yourself.
-struct NextPromptBar: View {
+/// The "open" button: one action opens directly, several (installed editors) go into a menu.
+struct OpenMenuButton: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
-    @State private var text = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                TextField("Next task…", text: $text)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 12))
-                    .onSubmit(send)
-                Button(action: send) { Image(systemName: "arrow.up.forward.app") }
-                    .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .help("Open the session in VS Code with this text in the input field (you send it yourself)")
+        let items = OpenAction.items(for: session, model: model)
+        if items.count <= 1 {
+            IconButton(symbol: "arrow.up.forward.app", help: items.first?.title ?? session.host.openTitle) {
+                if let a = items.first { a.run() } else { model.open(session.id) }
             }
-            if !model.settings.quickPrompts.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 4) {
-                        ForEach(model.settings.quickPrompts, id: \.self) { p in
-                            Button { model.prefillPrompt(session.id, p) } label: {
-                                Text(p).font(.system(size: 11)).lineLimit(1)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Capsule().fill(Color.accentColor.opacity(0.12)))
-                            }
-                            .buttonStyle(.plain)
-                            .help("Insert \"\(p)\" into the session's input field")
-                        }
-                    }
-                }
-                .frame(height: 22)
+        } else {
+            Menu {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, a in Button(a.title) { a.run() } }
+            } label: {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 11, weight: .semibold))
+                    .frame(width: 22, height: 22)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+            .help("Open")
         }
-        .controlSize(.small)
-    }
-
-    private func send() {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        model.prefillPrompt(session.id, t)
-        text = ""
     }
 }
 

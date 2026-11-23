@@ -158,6 +158,16 @@ if let i = CommandLine.arguments.firstIndex(of: "--login-item") {
     }
 }
 
+// Developer check: AgentHud --render <dir> draws the views to PNG files and exits.
+if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine.arguments.count {
+    let dir = CommandLine.arguments[i + 1]
+    MainActor.assumeIsolated {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        RenderCheck.run(dir: dir)
+    }
+    exit(0)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let delegate = MainActor.assumeIsolated { AppDelegate() }

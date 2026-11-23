@@ -1,3 +1,4 @@
+import AgentHudCore
 import AppKit
 import Combine
 import SwiftUI
@@ -5,7 +6,9 @@ import SwiftUI
 /// A floating panel without app activation: it doesn't steal focus from the terminal,
 /// is visible on all desktops and above full-screen windows.
 final class HUDPanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+    /// Only the card needs the keyboard; token windows never take key focus from the card or another app.
+    var allowsKey = true
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 }
 
@@ -14,159 +17,235 @@ final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
+/// One small window per visible session (its icon) plus one card window for the selected session.
+/// Token windows have a fixed size and move only when their own icon is dragged (or on reset / screen changes);
+/// opening and closing the card never touches them.
 @MainActor
 final class HUDController: NSObject, NSWindowDelegate {
-    let panel: HUDPanel
+    private final class Token {
+        let panel: HUDPanel
+        let positionKey: String
+        init(panel: HUDPanel, positionKey: String) { self.panel = panel; self.positionKey = positionKey }
+    }
+
     private let model: AppModel
-    private var size = CGSize(width: 80, height: 60)
+    private let card: HUDPanel
+    private var tokens: [String: Token] = [:]        // by session id
+    private var settleTasks: [String: Task<Void, Never>] = [:]
     private var settingFrame = false
     private var cancellables = Set<AnyCancellable>()
-    private var settleTask: Task<Void, Never>?
-    /// How many times the window actually changed its frame (for --uitest: at rest and when a window opens - a handful, not dozens).
-    private(set) var framesApplied = 0
-    /// Transparent margins around the content for the shadow (padding in HUDRootView).
-    static let shadowPad: CGFloat = 14
+    private static let positionsKey = "tokenPositions"
+
+    /// Frame changes applied to token windows / the card window (for --uitest and debugging).
+    private(set) var tokenFramesApplied = 0
+    private(set) var cardFramesApplied = 0
 
     init(model: AppModel) {
         self.model = model
-        panel = HUDPanel(contentRect: NSRect(x: 0, y: 0, width: 80, height: 60),
-                         styleMask: [.borderless, .nonactivatingPanel],
-                         backing: .buffered, defer: false)
+        card = HUDPanel(contentRect: NSRect(origin: .zero, size: CardMetrics.size),
+                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
-        panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = false
-        panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
-        panel.becomesKeyOnlyIfNeeded = true
-        panel.animationBehavior = .none
-        panel.delegate = self
-
-        let root = HUDRootView(model: model) { [weak self] s in
-            Task { @MainActor in self?.contentSizeChanged(s) }
-        }
-        let host = FirstClickHostingView(rootView: root)
-        host.sizingOptions = []
-        panel.contentView = host
+        Self.configure(card)
+        card.contentView = {
+            let host = FirstClickHostingView(rootView: CardRoot(model: model))
+            host.sizingOptions = []
+            return host
+        }()
 
         model.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateVisibility() }
+            .sink { [weak self] _ in self?.sync() }
             .store(in: &cancellables)
-        // The card was opened by a click - give the panel keyboard focus (for ⌘↩, Esc and the reply field).
+        // The card was opened by a click - give it keyboard focus (for Esc and the input field).
         model.$selectedKey
             .receive(on: RunLoop.main)
             .sink { [weak self] key in
                 guard let self else { return }
-                if key != nil, self.model.selectedByUser { self.panel.makeKey() }
+                self.sync()
+                if key != nil, self.model.selectedByUser, self.card.isVisible { self.card.makeKey() }
             }
             .store(in: &cancellables)
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.placeWindow() }
+            Task { @MainActor in self?.screensChanged() }
         }
     }
 
-    var isShown: Bool { panel.isVisible }
+    private static func configure(_ p: HUDPanel) {
+        p.isFloatingPanel = true
+        p.level = .statusBar
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        p.backgroundColor = .clear
+        p.isOpaque = false
+        p.hasShadow = false
+        p.hidesOnDeactivate = false
+        p.isMovableByWindowBackground = false
+        p.becomesKeyOnlyIfNeeded = true
+        p.animationBehavior = .none
+    }
 
-    func updateVisibility() {
+    var isShown: Bool { tokens.values.contains { $0.panel.isVisible } }
+
+    func updateVisibility() { sync() }
+
+    // MARK: - Sync with the model
+
+    private func orderedSessions() -> [AgentSession] {
+        model.visibleSessions.sorted { a, b in a.startedAt != b.startedAt ? a.startedAt < b.startedAt : a.id < b.id }
+    }
+
+    private func sync() {
         let s = model.settings
-        let any = !model.visibleSessions.isEmpty
-        let shouldShow = s.hudVisible && any && (!s.hideWhenNothingWaits || model.hasAttention || model.selectedKey != nil)
-        if shouldShow, !panel.isVisible {
-            placeWindow()
-            panel.orderFrontRegardless()
-        } else if !shouldShow, panel.isVisible {
-            panel.orderOut(nil)
+        let sessions = orderedSessions()
+        let live = Set(sessions.map(\.id))
+        for (id, t) in tokens where !live.contains(id) {
+            settleTasks[id]?.cancel()
+            settleTasks[id] = nil
+            t.panel.orderOut(nil)
+            t.panel.close()
+            tokens[id] = nil
+        }
+        for session in sessions where tokens[session.id] == nil { createToken(for: session) }
+
+        let shouldShow = s.hudVisible && !sessions.isEmpty
+            && (!s.hideWhenNothingWaits || model.hasAttention || model.selectedKey != nil)
+        for t in tokens.values {
+            if shouldShow, !t.panel.isVisible { t.panel.orderFrontRegardless() }
+            else if !shouldShow, t.panel.isVisible { t.panel.orderOut(nil) }
+        }
+        syncCard(show: shouldShow)
+    }
+
+    private func syncCard(show: Bool) {
+        #if DEBUG
+        let before = tokens.mapValues { $0.panel.frame }
+        defer { assert(before.allSatisfy { tokens[$0.key]?.panel.frame == $0.value || tokens[$0.key] == nil },
+                       "opening or closing the card moved a token window") }
+        #endif
+        if show, let key = model.selectedKey, let t = tokens[key] {
+            positionCard(for: t)
+            if !card.isVisible { card.orderFrontRegardless() }
+        } else if card.isVisible {
+            card.orderOut(nil)
         }
     }
 
-    /// Reposition the window per current settings (after an anchor change from code, for --uitest).
-    func refreshPlacement() { placeWindow() }
+    // MARK: - Tokens
 
-    func resetPosition() {
-        model.settings.anchor = nil
-        model.settings.anchorLeft = false
-        placeWindow()
+    private static func positionKey(_ s: AgentSession) -> String { s.cwd.isEmpty ? s.id : s.cwd }
+
+    private var primaryVisibleFrame: CGRect {
+        (NSScreen.screens.first ?? NSScreen.main)?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
-    private func contentSizeChanged(_ s: CGSize) {
-        // Whole points: fractional sizes (animation tails) must not jerk the window.
-        let r = CGSize(width: ceil(s.width), height: ceil(s.height))
-        guard r.width > 0, r.height > 0, r != size else { return }
-        size = r
-        placeWindow()
+    /// Visible frame of the screen under the center of `rect`; nil when the point is on no connected screen.
+    private func visibleFrame(containingCenterOf rect: CGRect) -> CGRect? {
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        return NSScreen.screens.first { $0.frame.contains(c) }?.visibleFrame
     }
 
-    /// The anchor corner is kept at one point: at the right edge - top-right (the window grows left and down),
-    /// at the left - top-left (grows right and down). The frame is pinned to the visible part of the screen:
-    /// content doesn't go past the edges or under the menu bar; the shadow may extend past the edge.
-    private func placeWindow() {
-        let left = model.settings.anchorLeft
-        // By default - the main screen (with the menu bar), not NSScreen.main: that one means "the screen with focus",
-        // and with two monitors the HUD jumped to the other screen on every size change.
-        guard let defaultScreen = NSScreen.screens.first ?? NSScreen.main else { return }
-        var anchor = model.settings.anchor ?? Self.defaultAnchor(defaultScreen.visibleFrame, left: left)
-        // Anchor outside all screens (a monitor was disconnected) - to the default corner.
-        if !NSScreen.screens.contains(where: { $0.frame.insetBy(dx: -4, dy: -4).contains(anchor) }) {
-            anchor = Self.defaultAnchor(defaultScreen.visibleFrame, left: left)
+    private func savedPositions() -> [String: String] {
+        UserDefaults.standard.dictionary(forKey: Self.positionsKey) as? [String: String] ?? [:]
+    }
+
+    private func createToken(for session: AgentSession) {
+        let size = TokenMetrics.size
+        let panel = HUDPanel(contentRect: NSRect(origin: .zero, size: size),
+                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        Self.configure(panel)
+        panel.allowsKey = false
+        panel.delegate = self
+        let host = FirstClickHostingView(rootView: TokenRoot(model: model, key: session.id))
+        host.sizingOptions = []
+        panel.contentView = host
+
+        let key = Self.positionKey(session)
+        let others = tokens.values.map { $0.panel.frame }
+        var origin: CGPoint
+        if let saved = savedPositions()[key].flatMap(TokenLayout.decode),
+           let vf = visibleFrame(containingCenterOf: CGRect(origin: saved, size: size)),
+           !others.contains(where: { $0.intersects(CGRect(origin: saved, size: size)) }) {
+            origin = TokenLayout.clamp(CGRect(origin: saved, size: size), to: vf).origin
+        } else {
+            origin = TokenLayout.freeSlot(in: primaryVisibleFrame, tokenSize: size, occupied: others)
         }
-        let screen = NSScreen.screens.first(where: { $0.frame.insetBy(dx: -4, dy: -4).contains(anchor) }) ?? defaultScreen
-        let raw = NSRect(x: left ? anchor.x : anchor.x - size.width, y: anchor.y - size.height,
-                         width: size.width, height: size.height)
-        let frame = Self.clamp(raw, to: screen.visibleFrame, pad: Self.shadowPad)
-        guard frame != panel.frame else { return }
+        let t = Token(panel: panel, positionKey: key)
+        tokens[session.id] = t
+        setFrame(t, CGRect(origin: origin, size: size))
+    }
+
+    private func setFrame(_ t: Token, _ frame: CGRect) {
+        guard frame != t.panel.frame else { return }
         settingFrame = true
-        panel.setFrame(frame, display: true)
+        t.panel.setFrame(frame, display: true)
         settingFrame = false
-        framesApplied += 1
+        tokenFramesApplied += 1
     }
 
-    static func defaultAnchor(_ vf: NSRect, left: Bool) -> CGPoint {
-        CGPoint(x: left ? vf.minX + 2 : vf.maxX - 2, y: vf.maxY + 2)
+    /// "Reset HUD position": forget saved positions and put every token into the default grid.
+    func resetPosition() {
+        UserDefaults.standard.removeObject(forKey: Self.positionsKey)
+        let size = TokenMetrics.size
+        for (i, s) in orderedSessions().enumerated() {
+            guard let t = tokens[s.id] else { continue }
+            setFrame(t, CGRect(origin: TokenLayout.defaultSlot(index: i, in: primaryVisibleFrame, tokenSize: size), size: size))
+        }
+        if let k = model.selectedKey, let t = tokens[k], card.isVisible { positionCard(for: t) }
     }
 
-    /// Frame inside the visible part of the screen with a tolerance for the transparent shadow margins.
-    /// If the window is taller than the screen, the top wins: the icon row and request buttons matter more than the feed tail.
-    static func clamp(_ f: NSRect, to vf: NSRect, pad: CGFloat) -> NSRect {
-        var r = f
-        let area = vf.insetBy(dx: -pad, dy: -pad)
-        if r.maxX > area.maxX { r.origin.x = area.maxX - r.width }
-        if r.minX < area.minX { r.origin.x = area.minX }
-        if r.minY < area.minY { r.origin.y = area.minY }
-        if r.maxY > area.maxY { r.origin.y = area.maxY - r.height }
-        return r
+    /// After a display was connected or removed: tokens off every screen go to free slots, the rest are kept on screen.
+    private func screensChanged() {
+        for (id, t) in tokens.sorted(by: { $0.key < $1.key }) {
+            let f = t.panel.frame
+            if let vf = visibleFrame(containingCenterOf: f) {
+                setFrame(t, TokenLayout.clamp(f, to: vf))
+            } else {
+                let others = tokens.filter { $0.key != id }.map { $0.value.panel.frame }
+                setFrame(t, CGRect(origin: TokenLayout.freeSlot(in: primaryVisibleFrame, tokenSize: TokenMetrics.size, occupied: others),
+                                   size: TokenMetrics.size))
+            }
+        }
+        if let k = model.selectedKey, let t = tokens[k], card.isVisible { positionCard(for: t) }
     }
 
-    /// While the HUD is being dragged we touch nothing; once released we decide which edge it is now at,
-    /// remember the anchor corner and bring the frame back within the screen (not past the edge or onto the menu bar).
+    // MARK: - Card
+
+    private func positionCard(for t: Token) {
+        let tf = t.panel.frame
+        let vf = visibleFrame(containingCenterOf: tf) ?? primaryVisibleFrame
+        let frame = TokenLayout.cardFrame(token: tf, cardSize: CardMetrics.fitted(to: vf), in: vf)
+        guard frame != card.frame else { return }
+        card.setFrame(frame, display: true)
+        cardFramesApplied += 1
+    }
+
+    // MARK: - Dragging
+
+    /// While a token is dragged we only move the card along; once released it is kept on screen and its position saved.
     nonisolated func windowDidMove(_ notification: Notification) {
         MainActor.assumeIsolated {
-            guard !self.settingFrame else { return }
-            self.settleTask?.cancel()
-            self.settleTask = Task { @MainActor [weak self] in
+            guard !self.settingFrame, let w = notification.object as? NSWindow,
+                  let (id, t) = self.tokens.first(where: { $0.value.panel === w }) else { return }
+            if self.model.selectedKey == id, self.card.isVisible { self.positionCard(for: t) }
+            self.settleTasks[id]?.cancel()
+            self.settleTasks[id] = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(300))
                 guard let self, !Task.isCancelled else { return }
-                self.settleAfterDrag()
+                self.settle(id)
             }
         }
     }
 
-    private func settleAfterDrag() {
-        let f = panel.frame
-        let probe = NSPoint(x: f.midX, y: f.maxY - Self.shadowPad - 20)
-        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(probe) }) ?? NSScreen.main else { return }
-        let vf = screen.visibleFrame
-        let left = f.midX < vf.midX
-        if model.settings.anchorLeft != left { model.settings.anchorLeft = left }
-        // The anchor corner itself is within the screen: the icon row doesn't stay on the menu bar or past the edge.
-        let area = vf.insetBy(dx: -Self.shadowPad, dy: -Self.shadowPad)
-        let x = left ? max(area.minX, min(f.minX, area.maxX - 80)) : min(area.maxX, max(f.maxX, area.minX + 80))
-        let y = min(area.maxY, max(f.maxY, area.minY + 80))
-        model.settings.anchor = CGPoint(x: x, y: y)
-        placeWindow()
+    private func settle(_ id: String) {
+        guard let t = tokens[id] else { return }
+        let f = t.panel.frame
+        let vf = visibleFrame(containingCenterOf: f)
+            ?? NSScreen.screens.first { $0.frame.intersects(f) }?.visibleFrame ?? primaryVisibleFrame
+        let clamped = TokenLayout.clamp(f, to: vf)
+        setFrame(t, clamped)
+        var all = savedPositions()
+        all[t.positionKey] = TokenLayout.encode(clamped.origin)
+        UserDefaults.standard.set(all, forKey: Self.positionsKey)
+        if model.selectedKey == id, card.isVisible { positionCard(for: t) }
     }
 }

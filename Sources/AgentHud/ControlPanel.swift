@@ -154,8 +154,6 @@ struct ControlPanelView: View {
                     Divider().overlay(Brand.line)
                     BrandToggleRow(title: "Show HUD", isOn: $settings.hudVisible)
                     BrandToggleRow(title: "Animate characters", isOn: $settings.animations)
-                    BrandToggleRow(title: "Project under icon", hint: "Short project name to tell sessions apart",
-                                   isOn: $settings.projectLabels)
                     BrandToggleRow(title: "Hide when nobody is waiting",
                                    hint: "The HUD appears only on a request or a question", isOn: $settings.hideWhenNothingWaits)
                         .padding(.bottom, 4)

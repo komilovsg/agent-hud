@@ -33,28 +33,12 @@ final class Settings: ObservableObject {
     @Published var hookTimeout: Int { didSet { d.set(hookTimeout, forKey: "hookTimeout") } }
     @Published var notifications: Bool { didSet { d.set(notifications, forKey: "notifications") } }
     @Published var animations: Bool { didSet { d.set(animations, forKey: "animations") } }
-    /// Project label under the agent icon (when there is only one agent, the icons look the same).
-    @Published var projectLabels: Bool { didSet { d.set(projectLabels, forKey: "projectLabels") } }
     /// Activity log for the daily summary and the "Today" tab (local only).
     @Published var activityLog: Bool { didSet { d.set(activityLog, forKey: "activityLog") } }
     /// Quick prompts for VS Code sessions (inserted into the session's input field).
     @Published var quickPrompts: [String] { didSet { d.set(quickPrompts, forKey: "quickPrompts") } }
-    /// HUD is pinned to the left screen edge: the anchor is the top-left corner, the window expands to the right.
-    @Published var anchorLeft: Bool { didSet { d.set(anchorLeft, forKey: "anchorLeft") } }
 
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
-
-    /// HUD top corner in screen coordinates (right one, or left one with `anchorLeft`); nil - default.
-    var anchor: CGPoint? {
-        get {
-            guard d.object(forKey: "anchorX") != nil else { return nil }
-            return CGPoint(x: d.double(forKey: "anchorX"), y: d.double(forKey: "anchorY"))
-        }
-        set {
-            if let p = newValue { d.set(p.x, forKey: "anchorX"); d.set(p.y, forKey: "anchorY") }
-            else { d.removeObject(forKey: "anchorX"); d.removeObject(forKey: "anchorY") }
-        }
-    }
 
     init() {
         avatarStyle = AvatarStyle(rawValue: d.string(forKey: "avatarStyle") ?? "") ?? .logo
@@ -71,10 +55,8 @@ final class Settings: ObservableObject {
         hookTimeout = d.object(forKey: "hookTimeout") as? Int ?? HookTiming.defaultTimeout
         notifications = d.object(forKey: "notifications") as? Bool ?? true
         animations = d.object(forKey: "animations") as? Bool ?? true
-        projectLabels = d.object(forKey: "projectLabels") as? Bool ?? true
         activityLog = d.object(forKey: "activityLog") as? Bool ?? true
         quickPrompts = (d.stringArray(forKey: "quickPrompts") ?? Self.defaultQuickPrompts).filter { !$0.isEmpty }
-        anchorLeft = d.bool(forKey: "anchorLeft")
     }
 }
 
@@ -306,6 +288,16 @@ final class AppModel: ObservableObject {
     func prefillPrompt(_ key: String, _ text: String) {
         guard let s = store.session(key), s.host.canPrefillPrompt else { return }
         TerminalFocus.focusEditor(s, prompt: text)
+    }
+
+    /// Open the session in a specific editor (session link) or, for other hosts, just the project folder.
+    func open(_ key: String, in editor: EditorChoice) {
+        guard let s = store.session(key) else { return }
+        if s.host.isEditor {
+            TerminalFocus.focusEditor(s, prompt: nil, bundleId: editor.bundleId)
+        } else {
+            TerminalFocus.openProject(s, in: editor.bundleId)
+        }
     }
 
     /// Short project labels for visible sessions ("mobile", "web"...), stable as sessions come and go.

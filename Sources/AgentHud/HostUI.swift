@@ -1,4 +1,5 @@
 import AgentHudCore
+import AppKit
 import SwiftUI
 
 /// Labels and icons depending on where the session runs: terminal, app or VS Code.
@@ -6,7 +7,7 @@ extension HostInfo {
     /// "in the terminal", "in the app", "in VS Code" - for phrases like "the agent is waiting for a reply ...".
     var placeIn: String {
         switch place {
-        case .terminal: return isEditorTerminal ? "in the VS Code terminal" : "in the terminal"
+        case .terminal: return isEditorTerminal ? "in the \(editorName) terminal" : "in the terminal"
         case .desktopApp: return "in the app"
         case .editor: return "in \(editorName)"
         }
@@ -40,9 +41,9 @@ extension HostInfo {
 
     var openTitle: String {
         switch place {
-        case .terminal: return isEditorTerminal ? "Open in VS Code" : "Open in terminal"
+        case .terminal: return isEditorTerminal ? "Open in \(editorName)" : "Open in terminal"
         case .desktopApp: return "Open in app"
-        case .editor: return "Open in VS Code"
+        case .editor: return "Open in \(editorName)"
         }
     }
 
@@ -83,5 +84,49 @@ struct ProjectDot: View {
 
     var body: some View {
         Circle().fill(ProjectColor.color(cwd)).frame(width: size, height: size)
+    }
+}
+
+/// Editors that can open a session's project: the session's own host app first, then the other installed known ones.
+struct EditorChoice: Identifiable, Equatable {
+    let bundleId: String
+    let name: String
+    var id: String { bundleId }
+
+    static let known: [(bundleId: String, name: String)] = [
+        (HostInfo.vscode, "VS Code"), (HostInfo.vscodeInsiders, "VS Code Insiders"), (HostInfo.cursor, "Cursor"),
+    ]
+
+    @MainActor static func installed(for host: HostInfo) -> [EditorChoice] {
+        func isInstalled(_ id: String) -> Bool { NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil }
+        var out: [EditorChoice] = []
+        if host.isEditor || host.isEditorTerminal {
+            out.append(EditorChoice(bundleId: host.appBundleId ?? HostInfo.vscode, name: host.editorName))
+        }
+        for k in known where isInstalled(k.bundleId) && !out.contains(where: { $0.bundleId == k.bundleId }) {
+            out.append(EditorChoice(bundleId: k.bundleId, name: k.name))
+        }
+        return out
+    }
+}
+
+/// One entry of the "open" menus (token context menu and card header). Pause and Stop will be added to the same list.
+struct OpenAction {
+    let title: String
+    let run: @MainActor () -> Void
+
+    @MainActor static func items(for session: AgentSession, model: AppModel) -> [OpenAction] {
+        let host = session.host
+        let editors = EditorChoice.installed(for: host)
+        let key = session.id
+        if host.isEditor {
+            if editors.isEmpty { return [OpenAction(title: host.openTitle) { model.open(key) }] }
+            return editors.map { e in OpenAction(title: "Open in \(e.name)") { model.open(key, in: e) } }
+        }
+        var out = [OpenAction(title: host.openTitle) { model.open(key) }]
+        // The terminal inside an editor is already covered by the first item.
+        let rest = host.isEditorTerminal ? Array(editors.dropFirst()) : editors
+        out += rest.map { e in OpenAction(title: "Open project in \(e.name)") { model.open(key, in: e) } }
+        return out
     }
 }

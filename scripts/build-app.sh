@@ -19,6 +19,7 @@ cp "$BIN/agenthud-hook" "$APP/Contents/Helpers/agenthud-hook"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 # Шрифты (OFL): Golos Text, IBM Plex Mono
 cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Ресурсы SwiftPM (если появятся)
 for b in "$BIN"/*.bundle; do [ -e "$b" ] && case "$b" in *Tests*) ;; *) cp -R "$b" "$APP/Contents/Resources/";; esac; done
 # Подпись ad-hoc: без неё macOS не запомнит разрешение на управление Терминалом.

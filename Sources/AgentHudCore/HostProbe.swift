@@ -108,8 +108,9 @@ public enum HostProbe {
                 // У настоящей сессии приложения есть свой id (local_…); у служебных запросов — нет.
                 return env["CLAUDE_CODE_HOST_SESSION_ID"]?.isEmpty == false
             case HostInfo.vscodeEntrypoint:
-                // Панель чата расширения Claude Code. TTY нет; признак живого человека — процесс внутри VS Code.
-                return host.appBundleId.map(HostInfo.editorApps.contains) == true
+                // Chat panel of the Claude Code extension. No TTY; a GUI app in the process chain means a person is there.
+                // Any editor built on VS Code counts, not only the ones known by bundle id.
+                return host.appBundleId != nil
             case nil, "cli":
                 return host.tty != nil
             default:

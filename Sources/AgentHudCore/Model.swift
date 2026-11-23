@@ -49,7 +49,9 @@ public struct HostInfo: Equatable, Sendable {
     public static let desktopApps: Set<String> = [claudeDesktop]
     public static let vscode = "com.microsoft.VSCode"
     public static let vscodeInsiders = "com.microsoft.VSCodeInsiders"
-    public static let editorApps: Set<String> = [vscode, vscodeInsiders]
+    /// Cursor — сборка VS Code: расширение то же, отличаются бандл и схема ссылок.
+    public static let cursor = "com.todesktop.230313mzl4w4u92"
+    public static let editorApps: Set<String> = [vscode, vscodeInsiders, cursor]
     public static let vscodeEntrypoint = "claude-vscode"
 
     public init(termProgram: String? = nil, tty: String? = nil, agentPid: Int32? = nil,
@@ -87,10 +89,20 @@ public struct HostInfo: Equatable, Sendable {
         return .terminal
     }
 
+    /// Имя редактора для подписей и кнопок.
+    public var editorName: String {
+        switch appBundleId {
+        case Self.vscode, nil: return "VS Code"
+        case Self.vscodeInsiders: return "VS Code Insiders"
+        case Self.cursor: return "Cursor"
+        default: return appName ?? "VS Code"
+        }
+    }
+
     /// Человекочитаемое имя хоста: «Terminal», «herdr», «приложение Claude», «VS Code».
     public var label: String {
-        if isEditor { return appBundleId == Self.vscodeInsiders ? "VS Code Insiders" : "VS Code" }
-        if isEditorTerminal { return "терминал VS Code" }
+        if isEditor { return editorName }
+        if isEditorTerminal { return "терминал \(editorName)" }
         if isDesktopApp {
             switch appBundleId {
             case Self.claudeDesktop: return "приложение Claude"

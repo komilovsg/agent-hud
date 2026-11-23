@@ -470,6 +470,16 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(HostProbe.isInteractive(kind: .claude, host: tty, env: [:]))
     }
 
+    @Test func cursorCountsAsEditor() {
+        let cursor = HostInfo(appBundleId: HostInfo.cursor, appName: "Cursor", entrypoint: HostInfo.vscodeEntrypoint)
+        #expect(HostProbe.isInteractive(kind: .claude, host: cursor, env: ["CLAUDE_CODE_ENTRYPOINT": HostInfo.vscodeEntrypoint]))
+        #expect(cursor.isEditor && cursor.label == "Cursor")
+        // Any other editor built on VS Code is shown too, under its own name.
+        let other = HostInfo(appBundleId: "com.example.editor", appName: "Example", entrypoint: HostInfo.vscodeEntrypoint)
+        #expect(HostProbe.isInteractive(kind: .claude, host: other, env: ["CLAUDE_CODE_ENTRYPOINT": HostInfo.vscodeEntrypoint]))
+        #expect(other.label == "Example")
+    }
+
     @Test func desktopSessions() {
         #expect(HostProbe.isInteractive(kind: .claude, host: claudeApp,
                                         env: ["CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDE_CODE_HOST_SESSION_ID": "local_1"]))
@@ -508,9 +518,9 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
 
     @Test func vscodeSessionsAreInteractive() {
         #expect(HostProbe.isInteractive(kind: .claude, host: vscode, env: ["CLAUDE_CODE_ENTRYPOINT": "claude-vscode"]))
-        // Другие редакторы и SDK по-прежнему мимо.
-        let cursor = HostInfo(appBundleId: "com.todesktop.230313mzl4w4u92", entrypoint: "claude-vscode")
-        #expect(!HostProbe.isInteractive(kind: .claude, host: cursor, env: ["CLAUDE_CODE_ENTRYPOINT": "claude-vscode"]))
+        // No GUI app in the chain, or an SDK run: still passed through.
+        let headless = HostInfo(entrypoint: "claude-vscode")
+        #expect(!HostProbe.isInteractive(kind: .claude, host: headless, env: ["CLAUDE_CODE_ENTRYPOINT": "claude-vscode"]))
         #expect(!HostProbe.isInteractive(kind: .claude, host: vscode, env: ["CLAUDE_CODE_ENTRYPOINT": "sdk-ts"]))
     }
 

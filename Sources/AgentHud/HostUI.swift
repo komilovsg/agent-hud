@@ -8,7 +8,7 @@ extension HostInfo {
         switch place {
         case .terminal: return isEditorTerminal ? "в терминале VS Code" : "в терминале"
         case .desktopApp: return "в приложении"
-        case .editor: return "в VS Code"
+        case .editor: return "в \(editorName)"
         }
     }
 
@@ -17,7 +17,7 @@ extension HostInfo {
         switch place {
         case .terminal: return "терминал"
         case .desktopApp: return "приложение"
-        case .editor: return "VS Code"
+        case .editor: return editorName
         }
     }
 
@@ -26,7 +26,7 @@ extension HostInfo {
         switch place {
         case .terminal: return "В терминале"
         case .desktopApp: return "В приложении"
-        case .editor: return "В VS Code"
+        case .editor: return "В \(editorName)"
         }
     }
 

@@ -12,7 +12,8 @@ enum TerminalFocus {
         }
         if host.isEditorTerminal {
             // `claude` во встроенном терминале VS Code: вкладку терминала не выбрать, но окно проекта поднимем.
-            openEditorWindow(folder: EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd, bundleId: HostInfo.vscode) { _ in }
+            openEditorWindow(folder: EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd,
+                             bundleId: host.appBundleId ?? HostInfo.vscode) { _ in }
             return
         }
         if host.isDesktopApp {
@@ -63,7 +64,7 @@ enum TerminalFocus {
     /// (расширение его только вставляет, отправляет пользователь сам).
     /// Ссылка: https://code.claude.com/docs/en/vs-code — `vscode://anthropic.claude-code/open?session=…&prompt=…`.
     static func focusEditor(_ session: AgentSession, prompt: String?) {
-        let bundle = session.host.appBundleId.flatMap { HostInfo.editorApps.contains($0) ? $0 : nil } ?? HostInfo.vscode
+        let bundle = session.host.appBundleId ?? HostInfo.vscode
         let folder = EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd
         openEditorWindow(folder: folder, bundleId: bundle) { ok in
             guard let url = editorDeepLink(session, bundleId: bundle, prompt: prompt) else { return }
@@ -72,9 +73,16 @@ enum TerminalFocus {
         }
     }
 
+    /// The editor's own URL scheme from its bundle (`vscode`, `vscode-insiders`, `cursor`, …), so forks need no list here.
+    static func urlScheme(ofApp bundleId: String) -> String? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId),
+              let types = Bundle(url: url)?.infoDictionary?["CFBundleURLTypes"] as? [[String: Any]] else { return nil }
+        return types.lazy.compactMap { ($0["CFBundleURLSchemes"] as? [String])?.first }.first
+    }
+
     static func editorDeepLink(_ session: AgentSession, bundleId: String, prompt: String?) -> URL? {
         var c = URLComponents()
-        c.scheme = bundleId == HostInfo.vscodeInsiders ? "vscode-insiders" : "vscode"
+        c.scheme = urlScheme(ofApp: bundleId) ?? "vscode"
         c.host = "anthropic.claude-code"
         c.path = "/open"
         var items = [URLQueryItem(name: "session", value: session.sessionId)]

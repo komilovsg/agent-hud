@@ -1,0 +1,67 @@
+{
+  "session_id": "11111111-2222-3333-4444-555555555555",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-project/0000.jsonl",
+  "cwd": "/Users/dev/project",
+  "scratchpad_dir": "/tmp/scratch",
+  "prompt_id": "bf44af8d-df33-428e-9d29-9c001fe5aa3c",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Какой цвет вы предпочитаете?",
+        "header": "Цвет",
+        "options": [
+          {
+            "label": "Red",
+            "description": "Красный"
+          },
+          {
+            "label": "Green",
+            "description": "Зелёный"
+          },
+          {
+            "label": "Blue",
+            "description": "Синий"
+          }
+        ],
+        "multiSelect": false
+      }
+    ],
+    "answers": {
+      "Какой цвет вы предпочитаете?": "Red"
+    }
+  },
+  "tool_response": {
+    "questions": [
+      {
+        "question": "Какой цвет вы предпочитаете?",
+        "header": "Цвет",
+        "options": [
+          {
+            "label": "Red",
+            "description": "Красный"
+          },
+          {
+            "label": "Green",
+            "description": "Зелёный"
+          },
+          {
+            "label": "Blue",
+            "description": "Синий"
+          }
+        ],
+        "multiSelect": false
+      }
+    ],
+    "answers": {
+      "Какой цвет вы предпочитаете?": "Red"
+    }
+  },
+  "tool_use_id": "toolu_01MUcesdb4i3jVF5Fohy7aa6",
+  "duration_ms": 0
+}

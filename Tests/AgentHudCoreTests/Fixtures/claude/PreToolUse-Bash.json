@@ -1,0 +1,18 @@
+{
+  "session_id": "11111111-2222-3333-4444-555555555555",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-project/0000.jsonl",
+  "cwd": "/Users/dev/project",
+  "scratchpad_dir": "/tmp/scratch",
+  "prompt_id": "bf44af8d-df33-428e-9d29-9c001fe5aa3c",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "node -e \"require('fs').writeFileSync('p2_' + process.argv[1] + '.txt','x')\" Red",
+    "description": "Write p2_Red.txt file with chosen color"
+  },
+  "tool_use_id": "toolu_01CqCicFYu2bJp8W1kYijWFn"
+}

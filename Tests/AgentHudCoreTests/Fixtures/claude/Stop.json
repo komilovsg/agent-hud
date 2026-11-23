@@ -1,0 +1,16 @@
+{
+  "session_id": "11111111-2222-3333-4444-555555555555",
+  "transcript_path": "/Users/dev/.claude/projects/-Users-dev-project/0000.jsonl",
+  "cwd": "/Users/dev/project",
+  "scratchpad_dir": "/tmp/scratch",
+  "prompt_id": "bf44af8d-df33-428e-9d29-9c001fe5aa3c",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Вы выбрали **Red**. Команда выполнена, она создала файл `p2_Red.txt` в текущей рабочей директории.",
+  "background_tasks": [],
+  "session_crons": []
+}

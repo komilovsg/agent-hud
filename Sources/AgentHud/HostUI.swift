@@ -46,9 +46,6 @@ extension HostInfo {
         case .editor: return "Open in \(editorName)"
         }
     }
-
-    /// Whether the next prompt can be sent right from the HUD (via the VS Code extension link).
-    var canPrefillPrompt: Bool { place == .editor }
 }
 
 /// Project color: the same in the HUD, the panel and the agent map.

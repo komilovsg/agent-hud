@@ -187,40 +187,62 @@ struct ToolRow: View {
 
 // MARK: - Input
 
-/// The next message for a session. The text goes into the editor's input field; the person sends it there.
+/// A transient line under the field: what happened to the last send.
+struct ChatInputNote: Equatable {
+    let text: String
+    var isError = false
+}
+
+/// Fixed state for the offscreen render check: no key events, no file access, no permission query.
+struct ChatInputPreset {
+    var text = ""
+    var commands: [SlashCommand] = []
+    var selectedRow = 0
+    var trusted = true
+    var note: ChatInputNote?
+}
+
+/// The next message for a session. Return sends it: typed into the host app when that is allowed, otherwise copied.
 struct ChatInput: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
-    @State private var text = ""
+    private let preset: ChatInputPreset?
+
+    @State private var text: String
+    @State private var selection: TextSelection?
+    @State private var nav: SuggestionNav
+    @State private var commands: [SlashCommand]
+    @State private var loadedCwd: String?
+    @State private var note: ChatInputNote?
+    @State private var noteTask: Task<Void, Never>?
+    @State private var sending = false
+    @FocusState private var focused: Bool
+
+    private static let rowHeight: CGFloat = 24
+
+    init(model: AppModel, session: AgentSession, preset: ChatInputPreset? = nil) {
+        self.model = model
+        self.session = session
+        self.preset = preset
+        _text = State(initialValue: preset?.text ?? "")
+        _commands = State(initialValue: preset?.commands ?? [])
+        _note = State(initialValue: preset?.note)
+        let count = SlashCommands.suggestions(for: preset?.text ?? "", in: preset?.commands ?? []).count
+        _nav = State(initialValue: SuggestionNav(count: count, index: preset?.selectedRow ?? 0))
+    }
+
+    private var kind: SendHostKind { SendHostKind(host: session.host) }
+    private var suggestions: [SlashCommand] { SlashCommands.suggestions(for: text, in: commands, limit: 8) }
+    private var canSend: Bool { !sending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    private var helperMode: SendMode {
+        SendPlan.expectedMode(trusted: preset?.trusted ?? PromptSender.isTrusted,
+                              typingEnabled: model.settings.sendByTyping, hostKind: kind)
+    }
 
     var body: some View {
-        if session.host.canPrefillPrompt {
-            VStack(alignment: .leading, spacing: 6) {
-                if !model.settings.quickPrompts.isEmpty { chips }
-                HStack(alignment: .bottom, spacing: 6) {
-                    TextField("Message…", text: $text, axis: .vertical)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                        .lineLimit(1...4)
-                        .padding(.horizontal, 10).padding(.vertical, 7)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
-                        .onKeyPress(.return, phases: .down) { press in
-                            if press.modifiers.contains(.shift) { text += "\n" } else { send() }
-                            return .handled
-                        }
-                    Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.system(size: 22)) }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.5))
-                        .disabled(!canSend)
-                        .help("Open the session in \(session.host.editorName) with this text")
-                }
-                Text("Opens the session in \(session.host.editorName) with this text. Press Return there to send.")
-                    .font(.system(size: 10)).foregroundStyle(.tertiary)
-                    .lineLimit(2)
-            }
-            // The draft outlives the card: closing it (also by a click elsewhere) must not lose typed text.
-            .onAppear { text = model.draft(session.id) }
-            .onChange(of: text) { _, t in model.setDraft(session.id, t) }
+        if kind.canCompose {
+            composer
         } else {
             HStack(spacing: 8) {
                 Image(systemName: session.host.placeSymbol).foregroundStyle(.secondary)
@@ -232,29 +254,222 @@ struct ChatInput: View {
         }
     }
 
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !model.settings.quickPrompts.isEmpty { chips }
+            HStack(alignment: .bottom, spacing: 6) {
+                TextField("Message…", text: $text, selection: $selection, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .lineLimit(1...4)
+                    .focused($focused)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.07)))
+                    .onKeyPress(.return, phases: .down) { press in
+                        if press.modifiers.contains(.shift) {
+                            insertNewline()
+                        } else if let c = nav.selected(in: suggestions) {
+                            accept(c)
+                        } else {
+                            send(text, fromField: true)
+                        }
+                        return .handled
+                    }
+                    .onKeyPress(.tab, phases: .down) { _ in
+                        guard let c = nav.selected(in: suggestions) else { return .ignored }
+                        accept(c)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow, phases: .down) { _ in move(-1) }
+                    .onKeyPress(.downArrow, phases: .down) { _ in move(1) }
+                    .onKeyPress(.escape, phases: .down) { _ in
+                        guard nav.isOpen else { return .ignored }
+                        nav.dismiss()
+                        return .handled
+                    }
+                Button { send(text, fromField: true) } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 22)) }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.5))
+                    .disabled(!canSend)
+                    .help(helperMode == .type ? "Send to the session in \(session.host.label)"
+                                              : "Copy the text and open the session in \(session.host.label)")
+            }
+            .overlay(alignment: .top) {
+                if nav.isOpen {
+                    SlashSuggestionList(items: suggestions, selected: nav.index, rowHeight: Self.rowHeight,
+                                        onHover: { nav.select($0) }, onPick: accept)
+                        .offset(y: -(SlashSuggestionList.height(rows: suggestions.count, rowHeight: Self.rowHeight) + 4))
+                }
+            }
+            helperLine
+        }
+        // The draft outlives the card: closing it (also by a click elsewhere) must not lose typed text.
+        .onAppear { if preset == nil { text = model.draft(session.id) } }
+        .onChange(of: text) { _, t in
+            if preset == nil { model.setDraft(session.id, t) }
+            nav.reset(count: suggestions.count)
+        }
+        .onChange(of: commands) { _, _ in nav.reset(count: suggestions.count) }
+        .task(id: session.cwd) { await loadCommands() }
+        .onDisappear { noteTask?.cancel() }
+    }
+
+    @ViewBuilder private var helperLine: some View {
+        if let note {
+            Text(note.text)
+                .font(.system(size: 10)).foregroundStyle(note.isError ? Color.orange : Color.secondary)
+                .lineLimit(2)
+        } else {
+            Text(SendPlan.helperLine(mode: helperMode, hostLabel: session.host.label))
+                .font(.system(size: 10)).foregroundStyle(.tertiary)
+                .lineLimit(2)
+        }
+    }
+
     private var chips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 4) {
                 ForEach(model.settings.quickPrompts, id: \.self) { p in
-                    Button { model.prefillPrompt(session.id, p) } label: {
+                    Button { send(p, fromField: false) } label: {
                         Text(p).font(.system(size: 11)).lineLimit(1)
                             .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                     }
                     .buttonStyle(.plain)
-                    .help("Insert \"\(p)\" into the session's input field in \(session.host.editorName)")
+                    .disabled(sending)
+                    .help("Send \"\(p)\" to the session in \(session.host.label)")
                 }
             }
         }
         .frame(height: 22)
     }
 
-    private var canSend: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    // MARK: Suggestions
 
-    private func send() {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        model.prefillPrompt(session.id, t)
-        text = ""
+    private func loadCommands() async {
+        guard preset == nil, loadedCwd != session.cwd else { return }
+        let cwd = session.cwd
+        let list = await Task.detached(priority: .userInitiated) {
+            SlashCommands.available(home: FileManager.default.homeDirectoryForCurrentUser,
+                                    projectDir: cwd.isEmpty ? nil : URL(fileURLWithPath: cwd, isDirectory: true))
+        }.value
+        commands = list
+        loadedCwd = cwd
+    }
+
+    private func move(_ delta: Int) -> KeyPress.Result {
+        guard nav.isOpen else { return .ignored }
+        nav.move(delta)
+        return .handled
+    }
+
+    private func accept(_ c: SlashCommand) {
+        text = SuggestionNav.accepted(c)
+        selection = TextSelection(insertionPoint: text.endIndex)
+        focused = true
+    }
+
+    // MARK: Editing
+
+    /// Shift-Return: a newline at the caret instead of at the end.
+    private func insertNewline() {
+        var range: Range<Int>?
+        if let sel = selection, case .selection(let r) = sel.indices,
+           r.lowerBound <= text.endIndex, r.upperBound <= text.endIndex {
+            range = text.distance(from: text.startIndex, to: r.lowerBound)..<text.distance(from: text.startIndex, to: r.upperBound)
+        }
+        let edit = InputEdit.insertNewline(in: text, selection: range)
+        text = edit.text
+        selection = TextSelection(insertionPoint: text.index(text.startIndex, offsetBy: edit.caret))
+    }
+
+    // MARK: Sending
+
+    private func send(_ raw: String, fromField: Bool) {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard preset == nil, !t.isEmpty, !sending else { return }
+        sending = true
+        showNote(nil)
+        let key = session.id
+        Task { @MainActor in
+            let outcome = await model.send(key, t)
+            sending = false
+            switch outcome {
+            case .sent:
+                if fromField, text.trimmingCharacters(in: .whitespacesAndNewlines) == t { text = "" }
+                showNote(ChatInputNote(text: SendPlan.sentNote), seconds: SendPlan.sentNoteSeconds)
+            case .copied:
+                if fromField, text.trimmingCharacters(in: .whitespacesAndNewlines) == t { text = "" }
+                showNote(ChatInputNote(text: SendPlan.copiedNote), seconds: SendPlan.copiedNoteSeconds)
+            case .failed(let reason):
+                // The text stays in the field; a chip has no field to keep it in, so the note is shown for longer.
+                showNote(ChatInputNote(text: reason, isError: true), seconds: 8)
+            }
+        }
+    }
+
+    private func showNote(_ n: ChatInputNote?, seconds: Double = 0) {
+        noteTask?.cancel()
+        note = n
+        guard n != nil, seconds > 0 else { return }
+        noteTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            note = nil
+        }
+    }
+}
+
+/// Command suggestions above the field. Fixed row height; at most 8 rows.
+struct SlashSuggestionList: View {
+    let items: [SlashCommand]
+    let selected: Int
+    let rowHeight: CGFloat
+    let onHover: (Int) -> Void
+    let onPick: (SlashCommand) -> Void
+
+    /// Total height of the list, so the caller can place it right above the field.
+    static func height(rows: Int, rowHeight: CGFloat) -> CGFloat { CGFloat(rows) * rowHeight + 8 }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { i, c in
+                row(c, isSelected: i == selected)
+                    .onHover { if $0 { onHover(i) } }
+                    .onTapGesture { onPick(c) }
+            }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(nsColor: .windowBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+    }
+
+    private func row(_ c: SlashCommand, isSelected: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text("/" + c.name)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .lineLimit(1).layoutPriority(3)
+            if let hint = c.argumentHint, !hint.isEmpty {
+                Text(hint)
+                    .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                    .lineLimit(1).layoutPriority(2)
+            }
+            Text(c.description)
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+                .lineLimit(1).truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if c.source != .builtin {
+                Text(c.source.rawValue)
+                    .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.08)))
+                    .fixedSize().layoutPriority(4)
+            }
+        }
+        .padding(.horizontal, 6)
+        .frame(height: rowHeight)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(isSelected ? Color.accentColor.opacity(0.18) : .clear))
+        .contentShape(Rectangle())
     }
 }

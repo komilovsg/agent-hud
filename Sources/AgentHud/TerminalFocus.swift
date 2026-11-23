@@ -7,7 +7,7 @@ enum TerminalFocus {
     static func focus(_ session: AgentSession) {
         let host = session.host
         if host.isEditor {
-            focusEditor(session, prompt: nil)
+            focusEditor(session)
             return
         }
         if host.isEditorTerminal {
@@ -40,36 +40,52 @@ enum TerminalFocus {
         }
     }
 
-    static func focus(_ host: HostInfo) {
+    /// Brings the terminal forward. Returns true only when the session's own tab or window was found by its tty and
+    /// selected; every other path (herdr, no tty, a failed script) just activates the app and returns false.
+    @discardableResult
+    static func focus(_ host: HostInfo) -> Bool {
         if let pane = host.herdrPaneId {
             focusHerdr(pane: pane, socket: host.herdrSocket)
             // The Terminal tab that has the herdr client open.
             if !runAppleScript(terminalScript(match: "processes of t contains \"herdr\"")) { activate("com.apple.Terminal") }
-            return
+            return false
         }
         if let tty = host.tty {
-            if host.termProgram == "iTerm.app", runAppleScript(iTermScript(tty: tty)) { return }
-            if runAppleScript(terminalScript(match: "tty of t is \"\(tty)\"")) { return }
+            if host.termProgram == "iTerm.app", runAppleScript(iTermScript(tty: tty)) { return true }
+            if runAppleScript(terminalScript(match: "tty of t is \"\(tty)\"")) { return true }
         }
         switch host.termProgram {
         case "iTerm.app": activate("com.googlecode.iterm2")
         default: activate("com.apple.Terminal")
+        }
+        return false
+    }
+
+    /// The app that owns a terminal session's window, for the frontmost check before typing.
+    static func terminalBundleId(_ host: HostInfo) -> String? {
+        switch host.termProgram {
+        case "iTerm.app": return "com.googlecode.iterm2"
+        case "Apple_Terminal": return "com.apple.Terminal"
+        default: return nil
         }
     }
 
     // MARK: - VS Code
 
     /// A Claude Code extension session in VS Code: first the window with the project folder (VS Code itself raises an already
-    /// open window with that folder), then the link into the session itself. `prompt` is the text for the input field
-    /// (the extension only inserts it; the user sends it).
-    /// Link: https://code.claude.com/docs/en/vs-code - `vscode://anthropic.claude-code/open?session=…&prompt=…`.
-    static func focusEditor(_ session: AgentSession, prompt: String?, bundleId: String? = nil) {
+    /// open window with that folder), then the link into the session itself, which reveals the session and focuses its input.
+    /// `then` runs once the link has been handed to the editor.
+    /// Link: https://code.claude.com/docs/en/vs-code - `vscode://anthropic.claude-code/open?session=…`.
+    static func focusEditor(_ session: AgentSession, bundleId: String? = nil, then: (@MainActor () -> Void)? = nil) {
         let bundle = bundleId ?? session.host.appBundleId ?? HostInfo.vscode
         let folder = EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd
         openEditorWindow(folder: folder, bundleId: bundle) { ok in
-            guard let url = editorDeepLink(session, bundleId: bundle, prompt: prompt) else { return }
+            guard let url = editorDeepLink(session, bundleId: bundle) else { then?(); return }
             // VS Code hands the link to the last active window - wait until the project window becomes it.
-            DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.45 : 0)) { NSWorkspace.shared.open(url) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.45 : 0)) {
+                NSWorkspace.shared.open(url)
+                MainActor.assumeIsolated { then?() }
+            }
         }
     }
 
@@ -80,16 +96,12 @@ enum TerminalFocus {
         return types.lazy.compactMap { ($0["CFBundleURLSchemes"] as? [String])?.first }.first
     }
 
-    static func editorDeepLink(_ session: AgentSession, bundleId: String, prompt: String?) -> URL? {
+    static func editorDeepLink(_ session: AgentSession, bundleId: String) -> URL? {
         var c = URLComponents()
         c.scheme = urlScheme(ofApp: bundleId) ?? "vscode"
         c.host = "anthropic.claude-code"
         c.path = "/open"
-        var items = [URLQueryItem(name: "session", value: session.sessionId)]
-        if let p = prompt?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty {
-            items.append(URLQueryItem(name: "prompt", value: p))
-        }
-        c.queryItems = items
+        c.queryItems = [URLQueryItem(name: "session", value: session.sessionId)]
         return c.url
     }
 

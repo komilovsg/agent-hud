@@ -37,6 +37,8 @@ final class Settings: ObservableObject {
     @Published var activityLog: Bool { didSet { d.set(activityLog, forKey: "activityLog") } }
     /// Quick prompts for VS Code sessions (inserted into the session's input field).
     @Published var quickPrompts: [String] { didSet { d.set(quickPrompts, forKey: "quickPrompts") } }
+    /// Send from the card by typing into the host app (needs the Accessibility permission); off: copy the text and open the session.
+    @Published var sendByTyping: Bool { didSet { d.set(sendByTyping, forKey: "sendByTyping") } }
 
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
@@ -56,6 +58,7 @@ final class Settings: ObservableObject {
         notifications = d.object(forKey: "notifications") as? Bool ?? true
         animations = d.object(forKey: "animations") as? Bool ?? true
         activityLog = d.object(forKey: "activityLog") as? Bool ?? true
+        sendByTyping = d.object(forKey: "sendByTyping") as? Bool ?? true
         quickPrompts = (d.stringArray(forKey: "quickPrompts") ?? Self.defaultQuickPrompts).filter { !$0.isEmpty }
     }
 }
@@ -69,6 +72,7 @@ final class AppModel: ObservableObject {
     @Published var selectedByUser = false
 
     let settings: Settings
+    let sender: PromptSender
     private var server: SocketServer?
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -85,6 +89,7 @@ final class AppModel: ObservableObject {
 
     init(settings: Settings) {
         self.settings = settings
+        sender = PromptSender(settings: settings)
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
     }
 
@@ -386,17 +391,21 @@ final class AppModel: ObservableObject {
 
     func unhide(_ key: String) { store.unhide(key) }
 
-    /// Next prompt for a VS Code session: its chat opens with the text in the input field (you send it yourself).
-    func prefillPrompt(_ key: String, _ text: String) {
-        guard let s = store.session(key), s.host.canPrefillPrompt else { return }
-        TerminalFocus.focusEditor(s, prompt: text)
+    /// Sends the card's message to the session (typed into the host app, or copied as a fallback).
+    func send(_ key: String, _ text: String) async -> PromptSender.Outcome {
+        guard let s = store.session(key) else { return .failed("The session is gone") }
+        let outcome = await sender.send(text, to: s)
+        // The card clears its field itself; this also covers a card that closed during the send.
+        if case .failed = outcome { return outcome }
+        if draft(key) == text { setDraft(key, "") }
+        return outcome
     }
 
     /// Open the session in a specific editor (session link) or, for other hosts, just the project folder.
     func open(_ key: String, in editor: EditorChoice) {
         guard let s = store.session(key) else { return }
         if s.host.isEditor {
-            TerminalFocus.focusEditor(s, prompt: nil, bundleId: editor.bundleId)
+            TerminalFocus.focusEditor(s, bundleId: editor.bundleId)
         } else {
             TerminalFocus.openProject(s, in: editor.bundleId)
         }

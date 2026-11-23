@@ -50,6 +50,29 @@ enum RenderCheck {
         write(card(fb, nil), size: cardSize, to: out.appendingPathComponent("card-fallback.png"))
         write(card(held(.pause, calls: 1), chat), size: cardSize, to: out.appendingPathComponent("card-paused.png"))
 
+        func inputCard(_ preset: ChatInputPreset) -> some View {
+            SessionCard(model: model, session: session(.working), preset: chat, inputPreset: preset)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .environment(\.solidBackground, true)
+        }
+        write(inputCard(ChatInputPreset(text: "/co", commands: sampleCommands, selectedRow: 1)),
+              size: cardSize, to: out.appendingPathComponent("card-suggestions.png"))
+        write(inputCard(ChatInputPreset(note: ChatInputNote(text: SendPlan.sentNote))),
+              size: cardSize, to: out.appendingPathComponent("card-sent-hint.png"))
+        write(inputCard(ChatInputPreset(note: ChatInputNote(text: SendPlan.copiedNote))),
+              size: cardSize, to: out.appendingPathComponent("card-copy-hint.png"))
+        write(inputCard(ChatInputPreset(text: "Run the tests", trusted: false)),
+              size: cardSize, to: out.appendingPathComponent("card-helper-copy.png"))
+        write(inputCard(ChatInputPreset(text: "Run the tests", note: ChatInputNote(text: PromptSender.lostFocusMessage, isError: true))),
+              size: cardSize, to: out.appendingPathComponent("card-send-failed.png"))
+
+        for (name, granted) in [("settings-send-granted", true), ("settings-send-not-granted", false)] {
+            let panel = ControlPanelView(model: model, settings: model.settings, accessibilityTrusted: granted, tab: 1)
+                .tint(Brand.accent)
+            let size = NSHostingView(rootView: panel).fittingSize
+            write(panel, size: size, to: out.appendingPathComponent("\(name).png"))
+        }
+
         for (name, s) in [("hold-popover-paused", held(.pause, calls: 5)), ("hold-popover-stopped", held(.stop, calls: 0))] {
             guard let hold = s.hold else { continue }
             let size = HoldPopoverMetrics.size(for: s)
@@ -74,6 +97,12 @@ enum RenderCheck {
         }
         return s
     }
+
+    private static let sampleCommands: [SlashCommand] = SlashCommands.builtin + [
+        SlashCommand(name: "commit-push", description: "Commit the staged changes with a short message and push the branch", argumentHint: "[message]", source: .user),
+        SlashCommand(name: "release-notes", description: "Draft release notes from merged pull requests", source: .project),
+        SlashCommand(name: "seo:content", description: "Content quality and E-E-A-T analysis", source: .plugin),
+    ]
 
     private static var photo: some View {
         LinearGradient(colors: [Color(red: 0.95, green: 0.85, blue: 0.6), Color(red: 0.85, green: 0.5, blue: 0.3),

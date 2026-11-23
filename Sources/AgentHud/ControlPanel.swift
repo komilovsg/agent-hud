@@ -30,6 +30,8 @@ struct ControlPanelView: View {
     /// Agents whose installed hooks are an older form (no Pause / Stop yet).
     var needsUpdate: [AgentKind: Bool] = [:]
     var loginItem = false
+    /// Whether this app may type into other apps (Accessibility); read when the panel is built.
+    var accessibilityTrusted = PromptSender.isTrusted
     @State var tab = 0
     @State private var quickText = ""
 
@@ -189,6 +191,10 @@ struct ControlPanelView: View {
                                    isOn: Binding(get: { loginItem }, set: { actions.setLoginItem($0) }))
                     BrandToggleRow(title: "Activity log", hint: "For the daily summary; stored only on this Mac",
                                    isOn: $settings.activityLog)
+                    BrandToggleRow(title: "Send from the card by typing into the editor",
+                                   hint: "Needs the Accessibility permission. Off: the text is copied and the session opens.",
+                                   isOn: $settings.sendByTyping)
+                    accessibilityRow
                     Divider().overlay(Brand.line).padding(.vertical, 4)
                     FieldLabel(title: "Time to answer", hint: "then it goes to the agent")
                     BrandSegmented(options: [(120, "2 MIN"), (300, "5 MIN"), (600, "10 MIN"), (1800, "30 MIN")],
@@ -209,6 +215,21 @@ struct ControlPanelView: View {
                 }
             }
         }
+    }
+
+    /// Accessibility status for typing from the card, with a way to the system pane when it is missing.
+    private var accessibilityRow: some View {
+        HStack(spacing: 6) {
+            Circle().fill(accessibilityTrusted ? Brand.success : Brand.warning).frame(width: 7, height: 7)
+            Text(accessibilityTrusted ? "Accessibility: granted" : "Accessibility: not granted")
+                .font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
+                .lineLimit(1).fixedSize()
+            Spacer(minLength: 4)
+            if !accessibilityTrusted {
+                GhostButton(title: "Settings", symbol: "gearshape", action: PromptSender.openAccessibilitySettings)
+            }
+        }
+        .padding(.bottom, 2)
     }
 
     /// Red flags: how many rules are active, whether the file has problems, a button to open the file.

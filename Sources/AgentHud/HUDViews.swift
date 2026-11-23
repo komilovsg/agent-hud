@@ -276,10 +276,12 @@ struct SessionCard: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
     @StateObject private var loader: ChatLoader
+    private let inputPreset: ChatInputPreset?
 
-    init(model: AppModel, session: AgentSession, preset: [ChatItem]? = nil) {
+    init(model: AppModel, session: AgentSession, preset: [ChatItem]? = nil, inputPreset: ChatInputPreset? = nil) {
         self.model = model
         self.session = session
+        self.inputPreset = inputPreset
         _loader = StateObject(wrappedValue: ChatLoader(preset: preset))
     }
 
@@ -307,7 +309,7 @@ struct SessionCard: View {
             }
             if !session.backgroundTasks.isEmpty { BackgroundList(tasks: session.backgroundTasks) }
             chat.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if session.activePending == nil { ChatInput(model: model, session: session) }
+            if session.activePending == nil { ChatInput(model: model, session: session, preset: inputPreset) }
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

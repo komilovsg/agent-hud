@@ -66,8 +66,31 @@ enum RenderCheck {
         write(inputCard(ChatInputPreset(text: "Run the tests", note: ChatInputNote(text: PromptSender.lostFocusMessage, isError: true))),
               size: cardSize, to: out.appendingPathComponent("card-send-failed.png"))
 
-        for (name, granted) in [("settings-send-granted", true), ("settings-send-not-granted", false)] {
-            let panel = ControlPanelView(model: model, settings: model.settings, accessibilityTrusted: granted, tab: 1)
+        // Fake statuses only: the render check never calls the real probes.
+        func fake(_ s: PermissionStatus) -> [PermissionKind: PermissionState] {
+            Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, PermissionState(status: s)) })
+        }
+        var mixed = fake(.notGranted)
+        mixed[.hooks] = PermissionState(status: .notGranted, detail: "Needs an update")
+        mixed[.accessibility] = PermissionState(status: .granted)
+        mixed[.automation] = PermissionState(status: .unknown, detail: "Open Terminal to check")
+        let setups: [(String, [PermissionKind: PermissionState], Bool)] = [
+            ("setup-all-granted", fake(.granted), false),
+            ("setup-nothing-granted", fake(.notGranted), true),
+            ("setup-mixed", mixed, true),
+        ]
+        for (name, st, source) in setups {
+            let v = SetupView(model: SetupModel(states: st, showsSourceBuildNote: source)).tint(Brand.accent)
+            write(v, size: CGSize(width: SetupMetrics.width, height: SetupMetrics.height), to: out.appendingPathComponent("\(name).png"))
+        }
+        let highlighted = SetupModel(states: mixed)
+        highlighted.highlight = .accessibility
+        write(SetupView(model: highlighted).tint(Brand.accent),
+              size: CGSize(width: SetupMetrics.width, height: SetupMetrics.height), to: out.appendingPathComponent("setup-highlight.png"))
+
+        for (name, st) in [("settings-permissions-ok", fake(.granted)), ("control-panel-limited", mixed)] {
+            let panel = ControlPanelView(model: model, settings: model.settings,
+                                         permissions: Permissions.summary(st.mapValues(\.status)), tab: 1)
                 .tint(Brand.accent)
             let size = NSHostingView(rootView: panel).fittingSize
             write(panel, size: size, to: out.appendingPathComponent("\(name).png"))

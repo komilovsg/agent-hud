@@ -80,6 +80,8 @@ final class AppModel: ObservableObject {
     var onRequestNeedsAttention: ((AgentSession) -> Void)?
     /// Open the "Agent map" window (held by AppDelegate).
     var onOpenMap: (() -> Void)?
+    /// Open the setup window (held by AppDelegate), optionally highlighting one permission.
+    var onOpenSetup: ((PermissionKind?) -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -90,6 +92,7 @@ final class AppModel: ObservableObject {
     init(settings: Settings) {
         self.settings = settings
         sender = PromptSender(settings: settings)
+        sender.onNeedAccessibility = { [weak self] in self?.onOpenSetup?(.accessibility) }
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
     }
 
@@ -431,6 +434,8 @@ final class AppModel: ObservableObject {
     @Published var mapTab = 0
 
     func openMap() { onOpenMap?() }
+
+    func openSetup(_ kind: PermissionKind? = nil) { onOpenSetup?(kind) }
 
     func openReportTab() {
         mapTab = 1

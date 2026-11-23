@@ -32,6 +32,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     }
 
     private var shownWaiting = -1
+    private var permissions: Permissions.Summary?
 
     private func updateButton() {
         guard let b = item.button else { return }
@@ -74,21 +75,24 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: b.bounds, of: b, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        Task { @MainActor [weak self] in
+            let states = await PermissionProbe.states()
+            self?.permissions = Permissions.summary(states.mapValues(\.status))
+            self?.refresh()
+        }
     }
 
     /// Config and launch-at-login statuses are read on every open (and after actions).
     private func panel() -> ControlPanelView {
         var installed: [AgentKind: Bool] = [:]
         var present: [AgentKind: Bool] = [:]
-        var needsUpdate: [AgentKind: Bool] = [:]
         for k in AgentKind.allCases {
             installed[k] = HookSetup.isInstalled(k)
             present[k] = HookSetup.agentPresent(k)
-            needsUpdate[k] = HookSetup.needsUpdate(k)
         }
         return ControlPanelView(model: model, settings: model.settings, actions: actions(),
-                                installed: installed, present: present, needsUpdate: needsUpdate,
-                                loginItem: LoginItem.isEnabled)
+                                installed: installed, present: present,
+                                loginItem: LoginItem.isEnabled, permissions: permissions)
     }
 
     private func refresh() {
@@ -154,6 +158,10 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         a.openMap = { [weak self] in
             self?.closePopover()
             self?.model.openMap()
+        }
+        a.openSetup = { [weak self] in
+            self?.closePopover()
+            self?.model.openSetup()
         }
         a.openSummary = { [weak self] in
             guard let self else { return }

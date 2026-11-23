@@ -12,6 +12,7 @@ struct PanelActions {
     var resetPosition: () -> Void = {}
     var openLog: () -> Void = {}
     var openMap: () -> Void = {}
+    var openSetup: () -> Void = {}
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
     var quickReport: () -> Void = {}
@@ -27,11 +28,9 @@ struct ControlPanelView: View {
     var installed: [AgentKind: Bool] = [:]
     /// Which agents are present on the machine: the others are not shown in the panel.
     var present: [AgentKind: Bool] = [:]
-    /// Agents whose installed hooks are an older form (no Pause / Stop yet).
-    var needsUpdate: [AgentKind: Bool] = [:]
     var loginItem = false
-    /// Whether this app may type into other apps (Accessibility); read when the panel is built.
-    var accessibilityTrusted = PromptSender.isTrusted
+    /// Permission summary; nil until the first check finishes.
+    var permissions: Permissions.Summary?
     @State var tab = 0
     @State private var quickText = ""
 
@@ -137,17 +136,6 @@ struct ControlPanelView: View {
                     if i > 0 { Rectangle().fill(Brand.line).frame(height: 1) }
                     AgentRow(kind: kind, installed: installed[kind] ?? false,
                              toggle: { on in on ? actions.connect(kind) : actions.disconnect(kind) })
-                    if installed[kind] ?? false, needsUpdate[kind] ?? false {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 11)).foregroundStyle(Brand.inkSubtle)
-                            Text("Hooks need an update to enable Pause and Stop")
-                                .font(Brand.body(11)).foregroundStyle(Brand.ink)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 8)
-                            Button("Update") { actions.connect(kind) }.controlSize(.small)
-                        }
-                        .padding(.bottom, 10)
-                    }
                 }
             }
         }
@@ -194,7 +182,7 @@ struct ControlPanelView: View {
                     BrandToggleRow(title: "Send from the card by typing into the editor",
                                    hint: "Needs the Accessibility permission. Off: the text is copied and the session opens.",
                                    isOn: $settings.sendByTyping)
-                    accessibilityRow
+                    permissionsRow
                     Divider().overlay(Brand.line).padding(.vertical, 4)
                     FieldLabel(title: "Time to answer", hint: "then it goes to the agent")
                     BrandSegmented(options: [(120, "2 MIN"), (300, "5 MIN"), (600, "10 MIN"), (1800, "30 MIN")],
@@ -217,17 +205,18 @@ struct ControlPanelView: View {
         }
     }
 
-    /// Accessibility status for typing from the card, with a way to the system pane when it is missing.
-    private var accessibilityRow: some View {
-        HStack(spacing: 6) {
-            Circle().fill(accessibilityTrusted ? Brand.success : Brand.warning).frame(width: 7, height: 7)
-            Text(accessibilityTrusted ? "Accessibility: granted" : "Accessibility: not granted")
-                .font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
-                .lineLimit(1).fixedSize()
-            Spacer(minLength: 4)
-            if !accessibilityTrusted {
-                GhostButton(title: "Settings", symbol: "gearshape", action: PromptSender.openAccessibilitySettings)
+    /// Permissions: the setup window button and, when something needed now is missing, what is off because of it.
+    private var permissionsRow: some View {
+        HStack(alignment: .center, spacing: 8) {
+            if let first = permissions?.missingNow.first {
+                Text("Limited: \(first.limitedWithout)")
+                    .font(Brand.body(11)).foregroundStyle(Brand.warning)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Permissions").font(Brand.body(13)).foregroundStyle(Brand.ink)
             }
+            Spacer(minLength: 4)
+            GhostButton(title: "Permissions…", symbol: "checkmark.shield", action: actions.openSetup)
         }
         .padding(.bottom, 2)
     }

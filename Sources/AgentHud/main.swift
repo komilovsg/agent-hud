@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var hud: HUDController!
     var menu: StatusMenu!
     var map: AgentMapController!
+    var setup: SetupController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLoader.register()
@@ -33,18 +34,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hud = HUDController(model: model)
         menu = StatusMenu(model: model, hud: hud)
         map = AgentMapController(model: model)
+        setup = SetupController(settings: settings)
         model.onRequestNeedsAttention = { [weak self] s in self?.notifyIfHidden(s) }
         model.onOpenMap = { [weak self] in self?.map.show() }
+        model.onOpenSetup = { [weak self] kind in self?.setup.show(highlight: kind) }
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 
-        // First launch: offer to connect (not in test mode with its own socket).
+        // First launch (also the first launch of an install that predates the setup window): show the setup window once.
+        // Not in test mode with its own socket. Opening it requests nothing.
         let testMode = ProcessInfo.processInfo.environment["AGENTHUD_SOCKET"] != nil
-        if !testMode, !UserDefaults.standard.bool(forKey: "askedInstall") {
-            UserDefaults.standard.set(true, forKey: "askedInstall")
-            for kind in AgentKind.allCases where HookSetup.agentPresent(kind) && !HookSetup.isInstalled(kind) {
-                HookSetup.install(kind, timeout: settings.hookTimeout)
-            }
+        let defaults = UserDefaults.standard
+        if CommandLine.arguments.contains("--setup") {
+            setup.show()
+        } else if !testMode, !defaults.bool(forKey: "setupShown") {
+            defaults.set(true, forKey: "setupShown")
+            defaults.set(true, forKey: "askedInstall")
+            setup.show()
         }
     }
 

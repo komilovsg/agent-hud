@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>AgentHUD switches to the terminal tab or window where the agent is running.</string>
+	<string>Agent HUD brings the Terminal or iTerm tab of an agent session to the front.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

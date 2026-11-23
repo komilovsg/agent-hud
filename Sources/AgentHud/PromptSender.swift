@@ -16,17 +16,14 @@ final class PromptSender {
     static let lostFocusMessage = "The editor lost focus — nothing was sent"
 
     private let settings: Settings
-    private var permissionAlertShown = false
+    private var permissionPromptShown = false
+    /// Called once when typing is on but Accessibility is missing: the app opens its setup window.
+    var onNeedAccessibility: (() -> Void)?
     private var busy = false
 
     init(settings: Settings) { self.settings = settings }
 
     static var isTrusted: Bool { AXIsProcessTrusted() }
-
-    static func openAccessibilitySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else { return }
-        NSWorkspace.shared.open(url)
-    }
 
     // MARK: - Send
 
@@ -38,7 +35,7 @@ final class PromptSender {
         guard kind.canCompose else { return .failed("This session can't be reached from the card") }
 
         let typingOn = settings.sendByTyping
-        if typingOn, !Self.isTrusted { showPermissionAlertOnce() }
+        if typingOn, !Self.isTrusted { showPermissionPromptOnce() }
         let trusted = Self.isTrusted
         let previous = NSWorkspace.shared.frontmostApplication
 
@@ -168,20 +165,10 @@ final class PromptSender {
 
     // MARK: - Permission
 
-    private func showPermissionAlertOnce() {
-        guard !permissionAlertShown else { return }
-        permissionAlertShown = true
-        let alert = NSAlert()
-        alert.messageText = "Allow typing into your editor?"
-        alert.informativeText = "To send from the card, Agent HUD needs the Accessibility permission to type into your editor. "
-            + "Until then the text is copied and the session opens, so you can paste it with ⌘V."
-        alert.addButton(withTitle: "Open System Settings")
-        alert.addButton(withTitle: "Not now")
-        NSApp.activate(ignoringOtherApps: true)
-        if alert.runModal() == .alertFirstButtonReturn {
-            let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(options)
-        }
+    private func showPermissionPromptOnce() {
+        guard !permissionPromptShown else { return }
+        permissionPromptShown = true
+        onNeedAccessibility?()
     }
 }
 

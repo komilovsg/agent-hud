@@ -46,7 +46,6 @@ enum PermissionProbe {
                                            : PermissionState(status: .granted)
     }
 
-    private static let systemEvents = "com.apple.systemevents"
     private static let terminalApps = ["com.apple.Terminal", "com.googlecode.iterm2"]
 
     private static func isRunning(_ bundleId: String) -> Bool {
@@ -56,13 +55,13 @@ enum PermissionProbe {
     /// Automation is per target app. Only running targets can be asked, so with no terminal open the answer is unknown.
     private static func automationState() -> PermissionState {
         let terminals = terminalApps.filter(isRunning)
-        guard !terminals.isEmpty else { return PermissionState(status: .unknown, detail: "Open Terminal to check") }
-        var targets = terminals
-        if isRunning(systemEvents) { targets.append(systemEvents) }
-        let results = targets.map { automationStatus(of: $0, ask: false) }
+        // macOS lists this app under Automation only after it has asked once, and it can only ask a running app.
+        let hint = "Only for sessions in Terminal or iTerm. Allow… opens Terminal and asks."
+        guard !terminals.isEmpty else { return PermissionState(status: .unknown, detail: hint) }
+        let results = terminals.map { automationStatus(of: $0, ask: false) }
         if results.contains(.notGranted) { return PermissionState(status: .notGranted) }
         if results.allSatisfy({ $0 == .granted }) { return PermissionState(status: .granted) }
-        return PermissionState(status: .unknown, detail: "Open Terminal to check")
+        return PermissionState(status: .unknown, detail: hint)
     }
 
     /// `AEDeterminePermissionToAutomateTarget`: with `ask` false it never shows the system prompt.
@@ -118,9 +117,23 @@ enum PermissionProbe {
             _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
         case .automation:
             // Ask for each running target; a target that already said no never prompts again, so send the user to the pane.
-            let targets = (terminalApps + [systemEvents]).filter(isRunning)
+            // The scripts only talk to terminals. With none running, start Terminal in the background first:
+            // the system prompt (and the entry in the Automation list) exists only for a running target.
+            var targets = terminalApps.filter(isRunning)
+            if targets.isEmpty, let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: terminalApps[0]) {
+                let cfg = NSWorkspace.OpenConfiguration()
+                cfg.activates = false
+                cfg.hides = true
+                NSWorkspace.shared.openApplication(at: url, configuration: cfg) { _, _ in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        if automationStatus(of: terminalApps[0], ask: true) != .granted { openSettingsPane(.automation) }
+                    }
+                }
+                return
+            }
             var needsPane = targets.isEmpty
-            for t in targets where automationStatus(of: t, ask: true) != .granted { needsPane = true }
+            targets = targets.filter { automationStatus(of: $0, ask: true) != .granted }
+            if !targets.isEmpty { needsPane = true }
             if needsPane { openSettingsPane(.automation) }
         case .notifications:
             guard Bundle.main.bundleIdentifier != nil else { openSettingsPane(.notifications); return }

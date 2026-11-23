@@ -210,7 +210,10 @@ struct PermissionRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 6) {
-                if state.status == .notGranted { SetupButton(title: allowTitle, primary: true, action: allow) }
+                // Automation can be asked even while its state is unknown: asking is what makes macOS list the app.
+                if state.status == .notGranted || (state.status == .unknown && info.kind == .automation) {
+                    SetupButton(title: allowTitle, primary: true, action: allow)
+                }
                 if state.status != .granted, info.kind != .hooks { SetupButton(title: "Open Settings", primary: false, action: openSettings) }
             }
         }

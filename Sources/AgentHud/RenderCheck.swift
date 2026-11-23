@@ -132,7 +132,7 @@ enum RenderCheck {
         var mixed = fake(.notGranted)
         mixed[.hooks] = PermissionState(status: .notGranted, detail: "Needs an update")
         mixed[.accessibility] = PermissionState(status: .granted)
-        mixed[.automation] = PermissionState(status: .unknown, detail: "Open Terminal to check")
+        mixed[.automation] = PermissionState(status: .unknown, detail: "Only for sessions in Terminal or iTerm. Allow… opens Terminal and asks.")
         let setups: [(String, [PermissionKind: PermissionState], Bool)] = [
             ("setup-all-granted", fake(.granted), false),
             ("setup-nothing-granted", fake(.notGranted), true),

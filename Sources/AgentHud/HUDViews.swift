@@ -148,6 +148,10 @@ struct AvatarButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Тянуть HUD можно и за саму иконку: кнопка забирает мышь, а в свёрнутом виде кроме иконок ухватиться не за что.
+        .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
+            if let e = NSApp.currentEvent, e.type == .leftMouseDragged { e.window?.performDrag(with: e) }
+        })
         .onHover { hover = $0 }
         .help(tooltip)
         .contextMenu {

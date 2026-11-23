@@ -241,9 +241,13 @@ final class AppModel: ObservableObject {
     func decide(_ requestId: String, _ decision: Decision) {
         guard let s = store.session(forRequest: requestId),
               let p = s.pending.first(where: { $0.id == requestId }), p.status == .open else { return }
+        let flags = RedFlags.matches(p)
+        var decision = decision
+        // Правило «всегда» для опасной команды не записываем, даже если окошко успело его предложить.
+        if !flags.isEmpty, case .allowWith = decision { decision = .allow }
         server?.reply(HookReply(requestId: requestId, decision: decision))
         store.markAnswered(requestId)
-        DecisionLog.append(session: s, request: p, decision: decision)
+        DecisionLog.append(session: s, request: p, decision: decision, redFlags: flags)
         if settings.activityLog {
             ActivityLog.append(ActivityRecord(kind: .decision, time: Date(), agent: s.kind.rawValue, session: s.sessionId,
                                               project: s.projectName, cwd: s.cwd,
@@ -331,6 +335,29 @@ final class AppModel: ObservableObject {
     }
 }
 
+/// Красные флаги: файл правил читается при каждой проверке (он крошечный), правки применяются без перезапуска.
+enum RedFlags {
+    static func load() -> RedFlagSet { RedFlagSet.load(from: AgentHUDPaths.redFlagsFile) }
+
+    static func matches(toolName: String, input: JSONValue) -> [RedFlagRule] {
+        // Не Bash — флагов нет, файл не трогаем.
+        guard toolName == "Bash" else { return [] }
+        return load().matches(toolName: toolName, input: input)
+    }
+
+    static func matches(_ request: PendingRequest) -> [RedFlagRule] {
+        switch request.kind {
+        case .permission(let tool, let input): return matches(toolName: tool, input: input)
+        }
+    }
+
+    /// Открыть файл правил в редакторе; если файла нет — сначала появятся встроенные правила.
+    static func openFile() {
+        _ = load()
+        NSWorkspace.shared.open(AgentHUDPaths.redFlagsFile)
+    }
+}
+
 /// Журнал решений: что разрешено/отклонено/отвечено и когда.
 enum DecisionLog {
     static func describe(session: AgentSession, request: PendingRequest) -> String {
@@ -340,7 +367,7 @@ enum DecisionLog {
         }
     }
 
-    static func append(session: AgentSession, request: PendingRequest, decision: Decision) {
+    static func append(session: AgentSession, request: PendingRequest, decision: Decision, redFlags: [RedFlagRule] = []) {
         let f = ISO8601DateFormatter()
         let what = describe(session: session, request: request)
         var detail = ""
@@ -349,6 +376,7 @@ enum DecisionLog {
         case .allowWith(let updates): detail = updates.compactMap(PermissionRules.describe).joined(separator: "; ")
         default: break
         }
+        if !redFlags.isEmpty { detail += " [red: \(redFlags.map(\.id).joined(separator: ","))]" }
         let line = [f.string(from: Date()), session.projectName, decision.logLabel, what, detail]
             .map { $0.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ") }
             .joined(separator: "\t") + "\n"

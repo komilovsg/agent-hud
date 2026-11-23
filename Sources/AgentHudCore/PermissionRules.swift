@@ -30,7 +30,10 @@ public enum PermissionRules {
         }
     }
 
-    public static func options(toolName: String, input: JSONValue, suggestions: [JSONValue]) -> [RuleOption] {
+    public static func options(toolName: String, input: JSONValue, suggestions: [JSONValue],
+                               redFlags: [RedFlagRule] = []) -> [RuleOption] {
+        // Опасную команду нельзя разрешить навсегда: ни шаблоном HUD, ни подсказкой агента.
+        guard redFlags.isEmpty else { return [] }
         var out: [RuleOption] = []
         func add(_ o: RuleOption) { if !out.contains(where: { $0.id == o.id }) { out.append(o) } }
 

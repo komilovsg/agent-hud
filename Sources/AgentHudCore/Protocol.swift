@@ -117,6 +117,8 @@ public enum AgentHUDPaths {
 
     public static var decisionsLog: URL { supportDirectory.appendingPathComponent("decisions.log") }
 
+    public static var redFlagsFile: URL { supportDirectory.appendingPathComponent("red-flags.json") }
+
     public static var hookSymlink: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/agenthud-hook")
     }

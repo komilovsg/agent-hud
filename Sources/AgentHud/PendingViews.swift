@@ -15,12 +15,20 @@ struct PermissionView: View {
     @FocusState private var reasonFocused: Bool
 
     var body: some View {
+        let flags = RedFlags.matches(toolName: tool, input: input)
+        let ruleOptions = ruleOptions(flags)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "hand.raised.fill").foregroundStyle(.orange)
+                Image(systemName: "hand.raised.fill").foregroundStyle(flags.isEmpty ? .orange : .red)
                 Text("Просит разрешение: \(toolTitle)").font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Countdown(deadline: request.deadline)
+            }
+            if !flags.isEmpty {
+                Label(flags.map(\.title).joined(separator: " · "), systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             ToolDetail(tool: tool, input: input, cwd: session.cwd)
             if denying {
@@ -37,9 +45,10 @@ struct PermissionView: View {
             } else {
                 // Главные действия — крупно и на всю ширину.
                 HStack(spacing: 8) {
-                    BigButton(title: "Разрешить", symbol: "checkmark", prominent: true) { model.decide(request.id, .allow) }
-                        .keyboardShortcut(.return, modifiers: .command)
-                        .help("Разрешить один раз (⌘↩)")
+                    // Опасная команда: без выделения и без ⌘↩ — чтобы не разрешить одной клавишей по привычке.
+                    BigButton(title: "Разрешить", symbol: "checkmark", prominent: flags.isEmpty) { model.decide(request.id, .allow) }
+                        .keyboardShortcut(flags.isEmpty ? KeyboardShortcut(.return, modifiers: .command) : nil)
+                        .help(flags.isEmpty ? "Разрешить один раз (⌘↩)" : "Разрешить один раз")
                     BigButton(title: "Отклонить…", symbol: "xmark", role: .destructive) { denying = true; reasonFocused = true }
                         .help("Отклонить; можно написать агенту почему")
                 }
@@ -57,7 +66,7 @@ struct PermissionView: View {
             }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.09)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(flags.isEmpty ? Color.orange.opacity(0.09) : Color.red.opacity(0.14)))
     }
 
     private var toolTitle: String {
@@ -65,8 +74,8 @@ struct PermissionView: View {
         return tool
     }
 
-    private var ruleOptions: [RuleOption] {
-        PermissionRules.options(toolName: tool, input: input, suggestions: request.suggestions)
+    private func ruleOptions(_ flags: [RedFlagRule]) -> [RuleOption] {
+        PermissionRules.options(toolName: tool, input: input, suggestions: request.suggestions, redFlags: flags)
     }
 
     private func deny() {

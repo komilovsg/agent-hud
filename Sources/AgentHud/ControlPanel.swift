@@ -193,9 +193,29 @@ struct ControlPanelView: View {
                         .onAppear { quickText = settings.quickPrompts.joined(separator: "; ") }
                         .onSubmit(commitQuickPrompts)
                         .onDisappear(perform: commitQuickPrompts)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 8)
+                    Divider().overlay(Brand.line)
+                    redFlagsRow.padding(.bottom, 6)
                 }
             }
+        }
+    }
+
+    /// Красные флаги: сколько правил действует, есть ли проблемы в файле, кнопка открыть файл.
+    private var redFlagsRow: some View {
+        let set = RedFlags.load()
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Красные флаги").font(Brand.body(13)).foregroundStyle(Brand.ink)
+                Text("правил: \(set.rules.count)").font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
+                if !set.problems.isEmpty {
+                    Label("проблем: \(set.problems.count)", systemImage: "exclamationmark.triangle.fill")
+                        .font(Brand.body(11, .medium)).foregroundStyle(Brand.danger)
+                        .help(set.problems.joined(separator: "\n"))
+                }
+            }
+            Spacer()
+            GhostButton(title: "Открыть файл", symbol: "doc.text", action: RedFlags.openFile)
         }
     }
 

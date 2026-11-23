@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Two permission requests</title>
+<desc id="d">Two drawn permission cards. The ordinary request for npm run build offers Allow, Deny… and Always. The red-flagged request for git push origin main is tinted red, names the rule, and offers only Allow and Deny….</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="460" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 410V436H1150 M50 436H24 V410" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="540" height="328" rx="18" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="82" cy="92" r="7" fill="#FBBF24"/>
+<text x="100" y="100" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Asks for permission: Bash</text>
+<rect x="76" y="124" width="484" height="56" rx="12" fill="#000000" fill-opacity="0.3"/>
+<text x="96" y="160" font-size="24" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">npm run build</text>
+<rect x="76" y="300" width="150" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.9"/>
+<text x="151.0" y="333.0" font-size="20" font-weight="600" fill="#0E0F24" fill-opacity="1" text-anchor="middle">Allow</text>
+<rect x="238" y="300" width="170" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<text x="323.0" y="333.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Deny…</text>
+<rect x="420" y="300" width="140" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<text x="490.0" y="333.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Always</text>
+<rect x="612" y="48" width="540" height="328" rx="18" fill="#F87171" fill-opacity="0.12" stroke="#F87171" stroke-opacity="0.8" stroke-width="2"/>
+<circle cx="646" cy="92" r="7" fill="#F87171"/>
+<text x="664" y="100" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Asks for permission: Bash</text>
+<rect x="640" y="124" width="484" height="56" rx="12" fill="#000000" fill-opacity="0.3"/>
+<text x="660" y="160" font-size="24" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">git push origin main</text>
+<g transform="translate(656 222) scale(1.1)"><path d="M0 -13L14 11H-14Z" fill="none" stroke="#F87171" stroke-width="3" stroke-linejoin="round"/><path d="M0 -4V3" stroke="#F87171" stroke-width="3" stroke-linecap="round"/><circle cx="0" cy="7.5" r="1.8" fill="#F87171"/></g>
+<text x="682" y="222" font-size="20" font-weight="600" fill="#F87171" fill-opacity="1" text-anchor="start">Push to a protected branch</text>
+<text x="682" y="250" font-size="20" font-weight="400" fill="#F87171" fill-opacity="1" text-anchor="start">(main, master, dev, develop)</text>
+<rect x="640" y="300" width="190" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.9"/>
+<text x="735.0" y="333.0" font-size="20" font-weight="600" fill="#0E0F24" fill-opacity="1" text-anchor="middle">Allow</text>
+<rect x="844" y="300" width="190" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<text x="939.0" y="333.0" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Deny…</text>
+<text x="318" y="418" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Ordinary request</text>
+<text x="882" y="418" font-size="22" font-weight="500" fill="#F87171" fill-opacity="1" text-anchor="middle">Red flag: no always-allow</text>
+</svg>

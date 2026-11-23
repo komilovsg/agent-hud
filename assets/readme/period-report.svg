@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Period report</title>
+<desc id="d">Drawn mock-up of the period report: range presets on the left with Since 15:00 yesterday selected, and a Markdown report preview on the right with a project, a branch, a merge request link and two tasks.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="460" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 410V436H1150 M50 436H24 V410" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="300" height="364" rx="18" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="76" y="96" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Period</text>
+<rect x="76" y="120" width="244" height="52" rx="26" fill="#338EF7" fill-opacity="0.9"/>
+<text x="198" y="154" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Since 15:00 yesterday</text>
+<rect x="76" y="188" width="244" height="52" rx="26" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="2"/>
+<text x="198" y="222" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Today</text>
+<rect x="76" y="256" width="244" height="52" rx="26" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="2"/>
+<text x="198" y="290" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Yesterday</text>
+<rect x="76" y="324" width="244" height="52" rx="26" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.3" stroke-width="2"/>
+<text x="198" y="358" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Last 7 days</text>
+<rect x="372" y="48" width="780" height="364" rx="18" fill="#000000" fill-opacity="0.35" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="400" y="92" font-size="20" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"># Agent report · Nov 22, 15:00 — Nov 23, 10:00</text>
+<text x="400" y="128" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">**Total:** 2 tasks in 1 project · agents worked 22 min</text>
+<text x="400" y="172" font-size="20" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">## acme-web</text>
+<text x="400" y="206" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.75" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">2 tasks · 22 min</text>
+<text x="400" y="244" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Branches: `feature/login-form`</text>
+<text x="400" y="278" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Links:</text>
+<text x="400" y="310" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">- https://gitlab.example.com/acme/web/-/merge_requests/42</text>
+<text x="400" y="348" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.75" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">- **Nov 22, 16:10** add login form — done in 14 min</text>
+<text x="400" y="382" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.75" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">- **Nov 23, 09:20** fix token refresh — done in 8 min</text>
+</svg>

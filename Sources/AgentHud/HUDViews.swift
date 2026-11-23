@@ -1,7 +1,7 @@
 import AgentHudCore
 import SwiftUI
 
-/// Флаг для рендера превью в PNG: материалы (blur) в ImageRenderer не рисуются.
+/// Flag for rendering the preview to PNG: materials (blur) are not drawn in ImageRenderer.
 private struct SolidBackgroundKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
     var solidBackground: Bool {
@@ -35,11 +35,11 @@ extension View {
     func glass(_ radius: CGFloat = 14) -> some View { modifier(Glass(radius: radius)) }
 }
 
-// MARK: - Корень HUD
+// MARK: - HUD root
 
-/// Плавное появление и исчезновение без анимации размеров. Пружинные анимации раскладки меняли размер
-/// содержимого на каждом кадре, и окно HUD подстраивалось ~74 раза в секунду с дробными размерами —
-/// HUD мерцал, а иконки дёргались. Прозрачность размер не меняет: окно подстраивается один раз.
+/// Smooth appearance and disappearance without size animation. Spring layout animations changed the content
+/// size on every frame, and the HUD window resized ~74 times a second with fractional sizes -
+/// the HUD flickered and the icons jittered. Opacity doesn't change size: the window resizes once.
 enum HUDFade {
     static let card = AnyTransition.opacity.animation(.easeOut(duration: 0.14))
     static let avatar = AnyTransition.opacity.animation(.easeOut(duration: 0.18))
@@ -58,17 +58,17 @@ struct HUDRootView: View {
                     .transition(HUDFade.card)
             }
         }
-        .padding(14)   // место под тень
+        .padding(14)   // room for the shadow
         .fixedSize()
         .tint(Brand.accent)
         .onGeometryChange(for: CGSize.self) { $0.size } action: { onSize($0) }
-        // Содержимое прижато к углу-якорю. Если окно на кадр разошлось с содержимым по размеру,
-        // содержимое не уезжает к центру окна (раньше оно на этот кадр смещалось на полразницы).
+        // The content is pinned to the anchor corner. If the window is a frame off from the content in size,
+        // the content doesn't drift to the window center (it used to shift by half the difference for that frame).
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: left ? .topLeading : .topTrailing)
     }
 }
 
-/// Сколько места окошку сессии по высоте: экран минус строка меню, ряд иконок и поля.
+/// How much height the session window gets: the screen minus the menu bar, the icon row and margins.
 enum HUDMetrics {
     @MainActor static var maxCardHeight: CGFloat {
         let screen = NSScreen.main?.visibleFrame.height ?? 800
@@ -76,15 +76,15 @@ enum HUDMetrics {
     }
 }
 
-// MARK: - Ряд персонажей
+// MARK: - Character row
 
 struct AvatarRow: View {
     @ObservedObject var model: AppModel
     static let maxShown = 6
 
     var body: some View {
-        // Порядок устойчивый — по времени появления. Раньше ждущие прыгали в начало ряда и обратно
-        // на каждом запросе разрешения, и иконки постоянно менялись местами.
+        // The order is stable - by time of appearance. Previously the waiting ones jumped to the start of the row and back
+        // on every permission request, and the icons kept swapping places.
         let sorted = Self.ordered(model.visibleSessions)
         let shown = Array(sorted.prefix(Self.maxShown))
         let overflow = Array(sorted.dropFirst(Self.maxShown))
@@ -106,7 +106,7 @@ struct AvatarRow: View {
                         .foregroundStyle(overflowWaits ? Color.orange : Color.primary)
                         .frame(width: 30, height: 40)
                 }
-                .help(overflowWaits ? "Среди остальных сессий кто-то ждёт тебя" : "Остальные сессии")
+                .help(overflowWaits ? "Someone among the other sessions is waiting for you" : "Other sessions")
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
@@ -149,7 +149,7 @@ struct AvatarButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        // Тянуть HUD можно и за саму иконку: кнопка забирает мышь, а в свёрнутом виде кроме иконок ухватиться не за что.
+        // The HUD can be dragged by the icon itself too: the button grabs the mouse, and when collapsed there is nothing but the icons to grab.
         .simultaneousGesture(DragGesture(minimumDistance: 4).onChanged { _ in
             if let e = NSApp.currentEvent, e.type == .leftMouseDragged { e.window?.performDrag(with: e) }
         })
@@ -157,8 +157,8 @@ struct AvatarButton: View {
         .help(tooltip)
         .contextMenu {
             Button(session.host.openTitle) { model.open(session.id) }
-            Button("Карта агентов") { model.openMap() }
-            Button("Скрыть") { model.hide(session.id) }
+            Button("Agent map") { model.openMap() }
+            Button("Hide") { model.hide(session.id) }
         }
     }
 
@@ -170,7 +170,7 @@ struct AvatarButton: View {
     }
 }
 
-// MARK: - Окошко сессии
+// MARK: - Session window
 
 struct SessionCard: View {
     @ObservedObject var model: AppModel
@@ -187,14 +187,14 @@ struct SessionCard: View {
                     }
                 }
                 .id(p.id)
-                // Запрос с кнопками раскладывается первым; сжимается лента шагов, а не он.
+                // A request with buttons is laid out first; the steps feed shrinks, not it.
                 .layoutPriority(1)
             } else if let p = session.expiredPending {
                 ExpiredView(model: model, session: session, request: p)
             } else if session.state.needsUser {
                 Notice(icon: session.host.placeSymbol, color: .orange,
-                       text: "Агент ждёт ответа \(session.host.placeIn).",
-                       actions: [("Открыть", { model.open(session.id) })])
+                       text: "The agent is waiting for a reply \(session.host.placeIn).",
+                       actions: [("Open", { model.open(session.id) })])
             }
             if let msg = session.lastMessage, session.state == .done || session.state == .error {
                 LastMessageView(text: msg, failed: session.state == .error)
@@ -208,8 +208,8 @@ struct SessionCard: View {
         }
         .padding(12)
         .frame(width: 360, alignment: .leading)
-        // Не выше экрана: при огромном вводе (например, длинный скрипт) кнопки уезжали за нижний край.
-        // Сжимаются прокручиваемые части — подробности запроса и лента шагов.
+        // No taller than the screen: with a huge input (e.g. a long script) the buttons ran off the bottom edge.
+        // The scrollable parts shrink - the request details and the steps feed.
         .frame(maxHeight: HUDMetrics.maxCardHeight, alignment: .top)
         .glass(14)
     }
@@ -242,9 +242,9 @@ struct SessionCard: View {
             Spacer(minLength: 4)
             HStack(spacing: 2) {
                 IconButton(symbol: "arrow.up.forward.app", help: session.host.openTitle) { model.open(session.id) }
-                IconButton(symbol: "map", help: "Карта агентов: все сессии и что они делают") { model.openMap() }
-                IconButton(symbol: "eye.slash", help: "Скрыть") { model.hide(session.id) }
-                IconButton(symbol: "xmark", help: "Закрыть окошко") { model.select(nil) }
+                IconButton(symbol: "map", help: "Agent map: all sessions and what they are doing") { model.openMap() }
+                IconButton(symbol: "eye.slash", help: "Hide") { model.hide(session.id) }
+                IconButton(symbol: "xmark", help: "Close") { model.select(nil) }
                     .keyboardShortcut(.cancelAction)
             }
         }
@@ -259,7 +259,7 @@ struct SessionCard: View {
     }
 }
 
-/// Следующая задача для сессии в VS Code: текст попадёт в поле ввода её чата, отправляешь сам.
+/// Next task for a VS Code session: the text goes into its chat's input field, you send it yourself.
 struct NextPromptBar: View {
     @ObservedObject var model: AppModel
     let session: AgentSession
@@ -268,13 +268,13 @@ struct NextPromptBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                TextField("Следующая задача…", text: $text)
+                TextField("Next task…", text: $text)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12))
                     .onSubmit(send)
                 Button(action: send) { Image(systemName: "arrow.up.forward.app") }
                     .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .help("Открыть сессию в VS Code с этим текстом в поле ввода (отправишь сам)")
+                    .help("Open the session in VS Code with this text in the input field (you send it yourself)")
             }
             if !model.settings.quickPrompts.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -286,7 +286,7 @@ struct NextPromptBar: View {
                                     .background(Capsule().fill(Color.accentColor.opacity(0.12)))
                             }
                             .buttonStyle(.plain)
-                            .help("Вставить «\(p)» в поле ввода сессии")
+                            .help("Insert \"\(p)\" into the session's input field")
                         }
                     }
                 }
@@ -369,7 +369,7 @@ struct LastMessageView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if text.count > 160 || text.filter({ $0 == "\n" }).count > 2 {
-                Button(expanded ? "Свернуть" : "Показать целиком") { expanded.toggle() }
+                Button(expanded ? "Collapse" : "Show all") { expanded.toggle() }
                     .buttonStyle(.link).font(.system(size: 11))
             }
         }
@@ -379,7 +379,7 @@ struct LastMessageView: View {
     }
 }
 
-// MARK: - Лента шагов
+// MARK: - Steps feed
 
 struct StepsList: View {
     let session: AgentSession
@@ -387,7 +387,7 @@ struct StepsList: View {
     var body: some View {
         let steps = Array(session.steps.suffix(60))
         if steps.isEmpty {
-            Text(session.state == .idle || session.state == .starting ? "Ждёт задачу" : "Шагов пока нет")
+            Text(session.state == .idle || session.state == .starting ? "Idle" : "No steps yet")
                 .font(.system(size: 11)).foregroundStyle(.tertiary)
         } else {
             ScrollViewReader { proxy in
@@ -409,7 +409,7 @@ struct StepsList: View {
     }
 }
 
-/// Красная точка на иконке сессии, если есть зависшие фоновые задачи.
+/// A red dot on the session icon if there are stuck background tasks.
 struct HungBadge: View {
     let session: AgentSession
 
@@ -419,23 +419,23 @@ struct HungBadge: View {
                 if session.hungCount(at: ctx.date) > 0 {
                     Circle().fill(Color.red).frame(width: 9, height: 9)
                         .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1))
-                        .help("Есть фоновые задачи дольше часа")
+                        .help("Background tasks running for over an hour")
                 }
             }
         }
     }
 }
 
-/// Фоновые команды и субагенты сессии с возрастом; зависшие — красным.
+/// Background commands and subagents of the session with their age; stuck ones in red.
 struct BackgroundList: View {
-    // Имя уточнено: в Foundation на новых macOS есть свой BackgroundTask.
+    // The name is qualified: newer macOS versions of Foundation have their own BackgroundTask.
     let tasks: [AgentHudCore.BackgroundTask]
 
     var body: some View {
-        // Возраст обновляется раз в 30 секунд: событий от фоновой задачи может не быть часами.
+        // Age updates every 30 seconds: a background task may produce no events for hours.
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             VStack(alignment: .leading, spacing: 3) {
-                Text("Фон").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                Text("Background").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                 ForEach(tasks.suffix(8)) { t in
                     let hung = t.isHung(at: ctx.date)
                     HStack(spacing: 6) {
@@ -454,7 +454,7 @@ struct BackgroundList: View {
                     .frame(height: 18)
                 }
                 if tasks.count > 8 {
-                    Text("и ещё \(tasks.count - 8)").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text("and \(tasks.count - 8) more").font(.system(size: 10)).foregroundStyle(.tertiary)
                 }
             }
         }
@@ -499,17 +499,17 @@ struct StepRow: View {
 
 enum Fmt {
     static func duration(_ ms: Int) -> String {
-        if ms < 1000 { return "\(ms) мс" }
+        if ms < 1000 { return "\(ms) ms" }
         let s = Double(ms) / 1000
-        if s < 60 { return String(format: "%.1f с", s) }
-        return "\(Int(s) / 60) мин \(Int(s) % 60) с"
+        if s < 60 { return String(format: "%.1f s", s) }
+        return "\(Int(s) / 60) min \(Int(s) % 60) s"
     }
 
     static func elapsed(from a: Date, to b: Date) -> String {
         let s = max(0, Int(b.timeIntervalSince(a)))
-        if s < 60 { return "только что" }
-        if s < 3600 { return "\(s / 60) мин" }
-        return "\(s / 3600) ч \(s % 3600 / 60) мин"
+        if s < 60 { return "just now" }
+        if s < 3600 { return "\(s / 60) min" }
+        return "\(s / 3600) h \(s % 3600 / 60) min"
     }
 
     static func icon(for tool: String) -> String {

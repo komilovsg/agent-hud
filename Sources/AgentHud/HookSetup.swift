@@ -2,8 +2,8 @@ import AgentHudCore
 import AppKit
 import Foundation
 
-/// Подключение AgentHUD к агентам: симлинк хука и правка их конфига
-/// (`~/.claude/settings.json`) с показом изменений и бэкапом.
+/// Connecting AgentHUD to agents: a hook symlink and editing their config
+/// (`~/.claude/settings.json`) with a preview of changes and a backup.
 @MainActor
 enum HookSetup {
     static func isInstalled(_ kind: AgentKind) -> Bool {
@@ -11,18 +11,18 @@ enum HookSetup {
         return HookInstaller.isInstalled(in: v)
     }
 
-    /// Агент установлен на машине (есть его папка настроек).
+    /// The agent is installed on this machine (its settings folder exists).
     static func agentPresent(_ kind: AgentKind) -> Bool {
         FileManager.default.fileExists(atPath: kind.hooksFile.deletingLastPathComponent().path)
     }
 
     static func trustNote(_ kind: AgentKind) -> String {
         switch kind {
-        case .claude: return "Уже открытые сессии Claude Code подхватят хуки сами."
+        case .claude: return "Claude Code sessions that are already open will pick up the hooks on their own."
         }
     }
 
-    // MARK: - Без диалогов (CLI)
+    // MARK: - No dialogs (CLI)
 
     @discardableResult
     static func connect(_ kind: AgentKind, timeout: Int) throws -> HookInstaller.FileResult {
@@ -36,7 +36,7 @@ enum HookSetup {
         try HookInstaller.apply(file: kind.hooksFile) { HookInstaller.uninstall(from: $0) }
     }
 
-    /// Где лежит настоящий бинарник хука: внутри .app или рядом с бинарником приложения (сборка из исходников).
+    /// Where the real hook binary lives: inside the .app or next to the app binary (build from source).
     static func bundledHook() -> URL? {
         let candidates = [
             Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/agenthud-hook"),
@@ -45,11 +45,11 @@ enum HookSetup {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    /// `~/.local/bin/agenthud-hook` → бинарник из приложения. Путь в settings.json не меняется при обновлениях.
+    /// `~/.local/bin/agenthud-hook` -> the binary from the app. The path in settings.json doesn't change across updates.
     static func ensureSymlink() throws -> URL {
         let link = AgentHUDPaths.hookSymlink
         guard let target = bundledHook() else {
-            throw NSError(domain: "AgentHUD", code: 1, userInfo: [NSLocalizedDescriptionKey: "Не найден бинарник agenthud-hook рядом с приложением."])
+            throw NSError(domain: "AgentHUD", code: 1, userInfo: [NSLocalizedDescriptionKey: "agenthud-hook binary not found next to the app."])
         }
         let fm = FileManager.default
         try fm.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -65,26 +65,26 @@ enum HookSetup {
             let link = try ensureSymlink()
             let installer = HookInstaller(agent: kind, hookPath: link.path, timeout: timeout)
             let (before, after) = try HookInstaller.preview(file: file) { installer.install(into: $0) }
-            guard before != after else { info("Уже подключено", "Хуки Agent HUD в \(tilde(file.path)) уже на месте."); return }
+            guard before != after else { info("Already connected", "Agent HUD hooks are already in \(tilde(file.path))."); return }
             let summary = """
-            В \(tilde(file.path)) добавятся хуки Agent HUD (по одному на событие). Ваши хуки (herdr, Orca, плагины) останутся как есть.
+            Agent HUD hooks (one per event) will be added to \(tilde(file.path)). Your own hooks (herdr, Orca, plugins) stay as they are.
 
-            Перед записью будет сделана копия файла: \(file.lastPathComponent).agenthud-backup-<дата>.
+            The file will be backed up before writing: \(file.lastPathComponent).agenthud-backup-<date>.
 
-            Время на ответ в HUD: \(timeout / 60) мин. Потом запрос уходит в терминал.
+            Time to answer in the HUD: \(timeout / 60) min. After that the request goes to the terminal.
 
             \(trustNote(kind))
 
-            Хук: \(tilde(link.path))
+            Hook: \(tilde(link.path))
 
-            Что добавится:
+            What will be added:
             \(installer.plannedEntries().pretty())
             """
-            guard confirm("Подключить Agent HUD к \(kind.displayName)?", summary, ok: "Подключить") else { return }
+            guard confirm("Connect Agent HUD to \(kind.displayName)?", summary, ok: "Connect") else { return }
             let r = try HookInstaller.apply(file: file) { installer.install(into: $0) }
-            info("Готово", "Хуки подключены. \(trustNote(kind))\n\nКопия старого файла: \(r.backup.map { tilde($0.path) } ?? "не понадобилась")")
+            info("Done", "Hooks connected. \(trustNote(kind))\n\nBackup of the old file: \(r.backup.map { tilde($0.path) } ?? "not needed")")
         } catch {
-            info("Не получилось подключить", error.localizedDescription, style: .critical)
+            info("Couldn't connect", error.localizedDescription, style: .critical)
         }
     }
 
@@ -92,16 +92,16 @@ enum HookSetup {
         let file = kind.hooksFile
         do {
             let (before, after) = try HookInstaller.preview(file: file) { HookInstaller.uninstall(from: $0) }
-            guard before != after else { info("Нечего отключать", "Хуков Agent HUD в \(tilde(file.path)) нет."); return }
-            guard confirm("Отключить Agent HUD от \(kind.displayName)?", "Из \(tilde(file.path)) будут удалены только записи Agent HUD. Перед записью будет сделана копия файла.", ok: "Отключить") else { return }
+            guard before != after else { info("Nothing to disconnect", "No Agent HUD hooks in \(tilde(file.path))."); return }
+            guard confirm("Disconnect Agent HUD from \(kind.displayName)?", "Only Agent HUD entries will be removed from \(tilde(file.path)). The file will be backed up before writing.", ok: "Disconnect") else { return }
             let r = try disconnect(kind)
-            info("Отключено", "Записи Agent HUD удалены.\n\nКопия: \(r.backup.map { tilde($0.path) } ?? "—")")
+            info("Disconnected", "Agent HUD entries removed.\n\nBackup: \(r.backup.map { tilde($0.path) } ?? "—")")
         } catch {
-            info("Не получилось отключить", error.localizedDescription, style: .critical)
+            info("Couldn't disconnect", error.localizedDescription, style: .critical)
         }
     }
 
-    // MARK: - Диалоги
+    // MARK: - Dialogs
 
     static func confirm(_ title: String, _ text: String, ok: String) -> Bool {
         NSApp.activate(ignoringOtherApps: true)
@@ -119,7 +119,7 @@ enum HookSetup {
         sv.borderType = .bezelBorder
         a.accessoryView = sv
         a.addButton(withTitle: ok)
-        a.addButton(withTitle: "Отмена")
+        a.addButton(withTitle: "Cancel")
         return a.runModal() == .alertFirstButtonReturn
     }
 

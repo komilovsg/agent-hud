@@ -1,16 +1,16 @@
 import Foundation
 
-/// Имена проектов для HUD: полное имя и короткая метка под иконкой агента.
-/// Когда все сессии — один агент (иконки одинаковые), отличать их приходится по проекту.
+/// Project names for the HUD: the full name and a short label under the agent icon.
+/// When all sessions are one agent (identical icons), they have to be told apart by project.
 public enum ProjectNames {
-    /// Безликие имена папок: для них показываем и родительскую папку («hrm/front»).
+    /// Faceless folder names: for them we show the parent folder too ("hrm/front").
     static let generic: Set<String> = [
         "front", "frontend", "back", "backend", "app", "apps", "web", "client", "server", "src",
         "mobile", "api", "ui", "packages", "main", "admin", "site",
     ]
 
     public static func displayName(cwd: String) -> String {
-        // Пустой путь URL превратил бы в текущую папку процесса.
+        // An empty path would turn into the process's current folder as a URL.
         guard !cwd.isEmpty else { return "" }
         let url = URL(fileURLWithPath: cwd)
         let base = url.lastPathComponent
@@ -28,11 +28,11 @@ public enum ProjectNames {
             .map(String.init)
     }
 
-    /// Короткие метки для набора проектов. Первое слово, общее для нескольких проектов («acme-mobile-app»,
-    /// «acme-web-client»), у них отбрасывается → «mobile», «web»; совпадения уточняются следующим словом
-    /// («hrm-front», «hrm-v2»). Проект без «родни» сохраняет полное имя: «agent-hub», а не «agent».
-    /// Набор лучше передавать устойчивый (все известные проекты), тогда метки не меняются,
-    /// когда сессии приходят и уходят.
+    /// Short labels for a set of projects. The first word shared by several projects ("acme-mobile-app",
+    /// "acme-web-client") is dropped -> "mobile", "web"; collisions are refined with the next word
+    /// ("hrm-front", "hrm-v2"). A project without "relatives" keeps its full name: "agent-hub", not "agent".
+    /// It is better to pass a stable set (all known projects), then the labels do not change
+    /// as sessions come and go.
     public static func shortLabels(for cwds: [String], maxLength: Int = 10) -> [String: String] {
         let unique = Array(Set(cwds.filter { !$0.isEmpty })).sorted()
         var names: [String: [String]] = [:]
@@ -55,8 +55,8 @@ public enum ProjectNames {
             }
         }
         func label(_ c: String) -> String { parts[c]!.prefix(taken[c]!).joined(separator: "-") }
-        // Уточняем, пока есть совпадения и есть чем уточнять. Совпавшие уточняются одновременно,
-        // иначе первая метка уйдёт вперёд, а вторая останется короткой.
+        // Refine while there are collisions and something to refine with. Colliding ones are refined at the same time,
+        // otherwise the first label would move ahead and the second would stay short.
         for _ in 0..<4 {
             var current: [String: String] = [:]
             for c in unique { current[c] = label(c) }
@@ -73,7 +73,7 @@ public enum ProjectNames {
         s.count > n ? String(s.prefix(n - 1)) + "…" : s
     }
 
-    /// Стабильный оттенок цвета проекта (0…1) — один и тот же в HUD, панели и на карте.
+    /// Stable hue of the project color (0...1) - the same in the HUD, the panel and on the map.
     public static func hue(cwd: String) -> Double {
         Double(stableHash("project:" + cwd) % 360) / 360
     }

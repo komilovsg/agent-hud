@@ -2,8 +2,8 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-/// Unix-сокет, на который `agenthud-hook` шлёт события.
-/// Вся работа с дескрипторами — на своей очереди; колбэки — на главном потоке.
+/// Unix socket that `agenthud-hook` sends events to.
+/// All descriptor work runs on its own queue; callbacks run on the main thread.
 final class SocketServer {
     enum StartError: Error, CustomStringConvertible {
         case alreadyRunning
@@ -11,7 +11,7 @@ final class SocketServer {
 
         var description: String {
             switch self {
-            case .alreadyRunning: return "Agent HUD уже запущен."
+            case .alreadyRunning: return "Agent HUD is already running."
             case .system(let s): return s
             }
         }
@@ -34,9 +34,9 @@ final class SocketServer {
     private var connections: [ObjectIdentifier: Connection] = [:]
     private var byRequest: [String: Connection] = [:]
 
-    /// Пришло сообщение от хука.
+    /// A message arrived from the hook.
     var onMessage: ((HookMessage) -> Void)?
-    /// Хук отключился, не дождавшись ответа (ответили в терминале или просрочка).
+    /// The hook disconnected without waiting for a reply (answered in the terminal, or timed out).
     var onClosed: ((String) -> Void)?
 
     init(path: String) { self.path = path }
@@ -52,7 +52,7 @@ final class SocketServer {
             }
             unlink(path)
         }
-        guard var addr = SocketIO.makeAddress(path) else { throw StartError.system("Слишком длинный путь сокета: \(path)") }
+        guard var addr = SocketIO.makeAddress(path) else { throw StartError.system("Socket path is too long: \(path)") }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw StartError.system("socket(): \(errno)") }
         let old = umask(0o077)
@@ -83,7 +83,7 @@ final class SocketServer {
         }
     }
 
-    /// Ответить хуку и закрыть соединение. Если хук уже ушёл — ничего не делает.
+    /// Reply to the hook and close the connection. Does nothing if the hook has already gone.
     func reply(_ reply: HookReply) {
         queue.async { [weak self] in
             guard let self, let c = self.byRequest[reply.requestId], !c.replied else { return }
@@ -93,7 +93,7 @@ final class SocketServer {
         }
     }
 
-    // MARK: - Внутреннее
+    // MARK: - Internals
 
     private func acceptAll() {
         while true {
@@ -136,7 +136,7 @@ final class SocketServer {
                 continue
             }
             if n == 0 {
-                // Хук закрыл соединение.
+                // The hook closed the connection.
                 if let rid = c.requestId, !c.replied {
                     DispatchQueue.main.async { [weak self] in self?.onClosed?(rid) }
                 }

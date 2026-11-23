@@ -2,14 +2,14 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Плавающая панель без активации приложения: не крадёт фокус у терминала,
-/// видна на всех рабочих столах и поверх полноэкранных окон.
+/// A floating panel without app activation: it doesn't steal focus from the terminal,
+/// is visible on all desktops and above full-screen windows.
 final class HUDPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
 
-/// Хостинг SwiftUI, который принимает первый клик даже без фокуса.
+/// SwiftUI hosting that accepts the first click even without focus.
 final class FirstClickHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
@@ -22,9 +22,9 @@ final class HUDController: NSObject, NSWindowDelegate {
     private var settingFrame = false
     private var cancellables = Set<AnyCancellable>()
     private var settleTask: Task<Void, Never>?
-    /// Сколько раз окно реально меняло рамку (для --uitest: в покое и при открытии окошка — единицы, не десятки).
+    /// How many times the window actually changed its frame (for --uitest: at rest and when a window opens - a handful, not dozens).
     private(set) var framesApplied = 0
-    /// Прозрачные поля вокруг содержимого под тень (padding в HUDRootView).
+    /// Transparent margins around the content for the shadow (padding in HUDRootView).
     static let shadowPad: CGFloat = 14
 
     init(model: AppModel) {
@@ -56,7 +56,7 @@ final class HUDController: NSObject, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateVisibility() }
             .store(in: &cancellables)
-        // Карточку открыли кликом — даём панели фокус клавиатуры (для ⌘↩, Esc и поля ответа).
+        // The card was opened by a click - give the panel keyboard focus (for ⌘↩, Esc and the reply field).
         model.$selectedKey
             .receive(on: RunLoop.main)
             .sink { [weak self] key in
@@ -84,7 +84,7 @@ final class HUDController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Переставить окно по текущим настройкам (после смены якоря из кода, для --uitest).
+    /// Reposition the window per current settings (after an anchor change from code, for --uitest).
     func refreshPlacement() { placeWindow() }
 
     func resetPosition() {
@@ -94,23 +94,23 @@ final class HUDController: NSObject, NSWindowDelegate {
     }
 
     private func contentSizeChanged(_ s: CGSize) {
-        // Целые точки: дробные размеры (хвосты анимаций) не должны дёргать окно.
+        // Whole points: fractional sizes (animation tails) must not jerk the window.
         let r = CGSize(width: ceil(s.width), height: ceil(s.height))
         guard r.width > 0, r.height > 0, r != size else { return }
         size = r
         placeWindow()
     }
 
-    /// Угол-якорь держим в одной точке: у правого края — правый верхний (окошко растёт влево и вниз),
-    /// у левого — левый верхний (растёт вправо и вниз). Рамку прижимаем к видимой части экрана:
-    /// содержимое не уходит за края и под строку меню, тень может выходить за край.
+    /// The anchor corner is kept at one point: at the right edge - top-right (the window grows left and down),
+    /// at the left - top-left (grows right and down). The frame is pinned to the visible part of the screen:
+    /// content doesn't go past the edges or under the menu bar; the shadow may extend past the edge.
     private func placeWindow() {
         let left = model.settings.anchorLeft
-        // По умолчанию — основной экран (со строкой меню), а не NSScreen.main: тот означает «экран с фокусом»,
-        // и при двух мониторах HUD перепрыгивал на другой экран при каждом изменении размера.
+        // By default - the main screen (with the menu bar), not NSScreen.main: that one means "the screen with focus",
+        // and with two monitors the HUD jumped to the other screen on every size change.
         guard let defaultScreen = NSScreen.screens.first ?? NSScreen.main else { return }
         var anchor = model.settings.anchor ?? Self.defaultAnchor(defaultScreen.visibleFrame, left: left)
-        // Якорь вне всех экранов (отключили монитор) — в угол по умолчанию.
+        // Anchor outside all screens (a monitor was disconnected) - to the default corner.
         if !NSScreen.screens.contains(where: { $0.frame.insetBy(dx: -4, dy: -4).contains(anchor) }) {
             anchor = Self.defaultAnchor(defaultScreen.visibleFrame, left: left)
         }
@@ -129,8 +129,8 @@ final class HUDController: NSObject, NSWindowDelegate {
         CGPoint(x: left ? vf.minX + 2 : vf.maxX - 2, y: vf.maxY + 2)
     }
 
-    /// Рамка внутри видимой части экрана с допуском на прозрачные поля под тень.
-    /// Если окно выше экрана, побеждает верх: ряд иконок и кнопки запроса важнее хвоста ленты.
+    /// Frame inside the visible part of the screen with a tolerance for the transparent shadow margins.
+    /// If the window is taller than the screen, the top wins: the icon row and request buttons matter more than the feed tail.
     static func clamp(_ f: NSRect, to vf: NSRect, pad: CGFloat) -> NSRect {
         var r = f
         let area = vf.insetBy(dx: -pad, dy: -pad)
@@ -141,8 +141,8 @@ final class HUDController: NSObject, NSWindowDelegate {
         return r
     }
 
-    /// Пока HUD тащат, ничего не трогаем; когда отпустили — решаем, у какого края он теперь,
-    /// запоминаем угол-якорь и возвращаем рамку в пределы экрана (не за край и не на строку меню).
+    /// While the HUD is being dragged we touch nothing; once released we decide which edge it is now at,
+    /// remember the anchor corner and bring the frame back within the screen (not past the edge or onto the menu bar).
     nonisolated func windowDidMove(_ notification: Notification) {
         MainActor.assumeIsolated {
             guard !self.settingFrame else { return }
@@ -162,7 +162,7 @@ final class HUDController: NSObject, NSWindowDelegate {
         let vf = screen.visibleFrame
         let left = f.midX < vf.midX
         if model.settings.anchorLeft != left { model.settings.anchorLeft = left }
-        // Сам угол-якорь — в пределах экрана: ряд иконок не остаётся на строке меню или за краем.
+        // The anchor corner itself is within the screen: the icon row doesn't stay on the menu bar or past the edge.
         let area = vf.insetBy(dx: -Self.shadowPad, dy: -Self.shadowPad)
         let x = left ? max(area.minX, min(f.minX, area.maxX - 80)) : min(area.maxX, max(f.maxX, area.minX + 80))
         let y = min(area.maxY, max(f.maxY, area.minY + 80))

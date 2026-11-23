@@ -1,11 +1,11 @@
 import Foundation
 
-/// Правило «красного флага»: опасная Bash-команда. Запрос с флагом показывается красным,
-/// и «Разрешить всегда» для него не предлагается.
+/// "Red flag" rule: a dangerous Bash command. A request with a flag is shown in red,
+/// and "Allow always" is not offered for it.
 public struct RedFlagRule: Equatable, Sendable {
     public var id: String
     public var title: String
-    /// NSRegularExpression без учёта регистра; ищется в любом месте полной строки команды.
+    /// Case-insensitive NSRegularExpression; searched anywhere in the full command line.
     public var pattern: String
 
     public init(id: String, title: String, pattern: String) {
@@ -15,10 +15,10 @@ public struct RedFlagRule: Equatable, Sendable {
     }
 }
 
-/// Набор правил из файла пользователя (`red-flags.json`) или встроенный.
+/// A set of rules from the user's file (`red-flags.json`) or the built-in one.
 public struct RedFlagSet: Sendable {
     public var rules: [RedFlagRule]
-    /// Что не так с файлом правил — текстом для пользователя.
+    /// What is wrong with the rules file - as text for the user.
     public var problems: [String]
 
     public init(rules: [RedFlagRule], problems: [String] = []) {
@@ -26,7 +26,7 @@ public struct RedFlagSet: Sendable {
         self.problems = problems
     }
 
-    /// Все правила, под которые попадает команда. Флаги есть только у Bash.
+    /// All rules the command matches. Only Bash has flags.
     public func matches(toolName: String, input: JSONValue) -> [RedFlagRule] {
         guard toolName == "Bash", let cmd = input["command"]?.stringValue else { return [] }
         let range = NSRange(cmd.startIndex..., in: cmd)
@@ -40,10 +40,10 @@ public struct RedFlagSet: Sendable {
         try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
 
-    // MARK: Файл
+    // MARK: File
 
-    /// Читает правила. Любая беда с файлом — встроенные правила плюс описание проблемы:
-    /// сломанный файл не должен молча выключать защиту.
+    /// Reads the rules. Any trouble with the file - built-in rules plus a description of the problem:
+    /// a broken file must not silently turn the protection off.
     public static func load(from url: URL) -> RedFlagSet {
         let fm = FileManager.default
         guard fm.fileExists(atPath: url.path) else {
@@ -51,21 +51,21 @@ public struct RedFlagSet: Sendable {
             try? Data((defaultsJSON.pretty() + "\n").utf8).write(to: url, options: .atomic)
             return RedFlagSet(rules: defaults)
         }
-        // Файл пользователя не перезаписываем: он сам его исправит.
+        // We do not overwrite the user's file: they will fix it themselves.
         let name = url.lastPathComponent
         guard let data = try? Data(contentsOf: url) else {
-            return RedFlagSet(rules: defaults, problems: ["\(name) не читается — действуют встроенные правила"])
+            return RedFlagSet(rules: defaults, problems: ["\(name) cannot be read - built-in rules are in effect"])
         }
         let json: JSONValue
         do {
             json = try JSONValue.parse(data)
         } catch {
-            return RedFlagSet(rules: defaults, problems: ["\(name): \(error) — действуют встроенные правила"])
+            return RedFlagSet(rules: defaults, problems: ["\(name): \(error) - built-in rules are in effect"])
         }
         guard let list = json["rules"]?.arrayValue else {
-            return RedFlagSet(rules: defaults, problems: ["\(name): нет массива rules — действуют встроенные правила"])
+            return RedFlagSet(rules: defaults, problems: ["\(name): no rules array - built-in rules are in effect"])
         }
-        // Пустой массив — осознанный выбор пользователя: правил нет.
+        // An empty array is a deliberate user choice: no rules.
         var rules: [RedFlagRule] = []
         var problems: [String] = []
         for (i, entry) in list.enumerated() {
@@ -73,11 +73,11 @@ public struct RedFlagSet: Sendable {
             let label = id.isEmpty ? "№\(i + 1)" : id
             guard !id.isEmpty, let title = entry["title"]?.stringValue, !title.isEmpty,
                   let pattern = entry["pattern"]?.stringValue, !pattern.isEmpty else {
-                problems.append("Правило \(label): нужны непустые id, title и pattern — пропущено")
+                problems.append("Rule \(label): non-empty id, title and pattern are required - skipped")
                 continue
             }
             guard regex(pattern) != nil else {
-                problems.append("Правило \(label): неверное регулярное выражение — пропущено")
+                problems.append("Rule \(label): invalid regular expression - skipped")
                 continue
             }
             rules.append(RedFlagRule(id: id, title: title, pattern: pattern))
@@ -92,49 +92,49 @@ public struct RedFlagSet: Sendable {
         return ["version": 1, "rules": .array(list)]
     }
 
-    // MARK: Встроенные правила
+    // MARK: Built-in rules
 
-    /// Начало имени команды: не хвост другого слова (`perform`, `legit`), но путь (`/bin/rm`) годится.
+    /// Start of a command name: not the tail of another word (`perform`, `legit`), but a path (`/bin/rm`) is fine.
     private static let cmd = #"(?<![\w.-])"#
-    /// Остаток одной простой команды: за `;`, `&`, `|` и перевод строки не заходим.
+    /// The rest of a single simple command: we do not cross `;`, `&`, `|` and a newline.
     private static let seg = #"[^;&|\n]*?"#
-    /// Конец слова-аргумента.
+    /// End of an argument word.
     private static let end = #"(?=$|[\s;&|)"'])"#
-    /// `git push`, в том числе `git -C dir push`.
+    /// `git push`, including `git -C dir push`.
     private static let gitPush = cmd + #"git\s+(?:"# + seg + #"\s)?push"#
 
     public static let defaults: [RedFlagRule] = [
         RedFlagRule(
             id: "push-protected",
-            title: "Пуш в защищённую ветку (main, master, dev, develop)",
-            // Ветка — отдельное слово или правая часть refspec (`HEAD:main`); `feature/dev-tools` и `develop-2` не подходят.
+            title: "Push to a protected branch (main, master, dev, develop)",
+            // The branch is a separate word or the right part of a refspec (`HEAD:main`); `feature/dev-tools` and `develop-2` do not match.
             pattern: gitPush + #"\s(?:"# + seg + #"[\s"'])?\+?(?:[^\s:;&|]*:)?(?:refs/heads/)?(?:main|master|dev|develop)"# + end
         ),
         RedFlagRule(
             id: "force",
-            title: "Принудительная операция (--force, push -f, +refspec)",
+            title: "Forced operation (--force, push -f, +refspec)",
             pattern: #"(?<![\w-])--force(?:-with-lease|-if-includes)?(?=$|[\s=;&|)"'])"#
                 + "|" + gitPush + #"\s(?:"# + seg + #"\s)?(?:-[a-z]*f[a-z]*"# + end + #"|\+[^\s;&|]+)"#
         ),
         RedFlagRule(
             id: "mr-create",
-            title: "Создание или слияние merge request / pull request",
+            title: "Creating or merging a merge request / pull request",
             pattern: #"(?:(?<![\w-])-o\s*|--push-option[=\s]\s*)["']?merge_request\."#
                 + "|" + cmd + #"glab\s+(?:"# + seg + #"\s)?mr\s+(?:create|new|merge|update|approve)"# + end
                 + "|" + cmd + #"gh\s+(?:"# + seg + #"\s)?pr\s+(?:create|merge)"# + end
         ),
         RedFlagRule(
             id: "rm-rf",
-            title: "Рекурсивное удаление без подтверждения (rm -rf)",
-            // Два независимых условия на одну команду: есть рекурсия и есть force, в любом порядке и виде.
+            title: "Recursive delete without confirmation (rm -rf)",
+            // Two independent conditions on one command: there is recursion and there is force, in any order and form.
             pattern: cmd + #"rm(?=\s)"#
                 + #"(?=[^;&|\n]*\s(?:-[a-z]*r[a-z]*|--recursive)"# + end + ")"
                 + #"(?=[^;&|\n]*\s(?:-[a-z]*f[a-z]*|--force)"# + end + ")"
         ),
         RedFlagRule(
             id: "db-migrate",
-            title: "Миграция или запись в базу данных",
-            // У psql/pg_restore флаг — явный адрес сервера. `-h`/`-p` с учётом регистра: `-H` и `-P` у psql значат другое.
+            title: "Database migration or write",
+            // For psql/pg_restore the flag is an explicit server address. `-h`/`-p` are case-sensitive: `-H` and `-P` mean something else in psql.
             pattern: cmd + #"alembic\s+(?:"# + seg + #"\s)?(?:upgrade|downgrade)(?![\w-])"#
                 + "|" + cmd + #"prisma\s+(?:"# + seg + #"\s)?migrate\s+(?:deploy|reset)(?![\w-])"#
                 + "|" + cmd + #"artisan\s+(?:"# + seg + #"\s)?migrate(?!\w)"#

@@ -3,7 +3,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// Иконка в строке меню со счётчиком ожидающих и панель управления (поповер на SwiftUI).
+/// Menu bar icon with a counter of waiting requests and the control panel (a SwiftUI popover).
 @MainActor
 final class StatusMenu: NSObject, NSPopoverDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -36,7 +36,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     private func updateButton() {
         guard let b = item.button else { return }
         let waiting = model.visibleSessions.filter { $0.state.needsUser }.count
-        // Перерисовываем значок в строке меню, только когда меняется число ждущих, а не на каждом событии.
+        // Redraw the menu bar icon only when the number of waiting requests changes, not on every event.
         guard waiting != shownWaiting else { return }
         shownWaiting = waiting
         let img = NSImage(systemSymbolName: waiting > 0 ? "circle.hexagongrid.fill" : "circle.hexagongrid",
@@ -45,18 +45,18 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         b.image = img
         b.imagePosition = .imageLeading
         b.title = waiting > 0 ? " \(waiting)" : ""
-        b.toolTip = waiting > 0 ? "Agent HUD: ждут тебя — \(waiting)" : "Agent HUD"
+        b.toolTip = waiting > 0 ? "Agent HUD: \(waiting) waiting for you" : "Agent HUD"
     }
 
-    // MARK: - Поповер
+    // MARK: - Popover
 
     var isShown: Bool { popover.isShown }
     var shownSize: CGSize { popover.contentViewController?.view.fittingSize ?? .zero }
     func close() { closePopover() }
     var windowVisible: Bool { popover.contentViewController?.view.window?.isVisible ?? false }
 
-    /// Закрыть без анимации: анимированное закрытие NSPopover иногда не срабатывает,
-    /// пока идёт анимация показа.
+    /// Close without animation: the animated close of an NSPopover sometimes doesn't work
+    /// while the show animation is running.
     private func closePopover() {
         popover.animates = false
         popover.close()
@@ -76,7 +76,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         popover.contentViewController?.view.window?.makeKey()
     }
 
-    /// Статусы конфигов и автозапуска читаются при каждом открытии (и после действий).
+    /// Config and launch-at-login statuses are read on every open (and after actions).
     private func panel() -> ControlPanelView {
         var installed: [AgentKind: Bool] = [:]
         var present: [AgentKind: Bool] = [:]
@@ -93,7 +93,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         host.rootView = panel()
     }
 
-    /// Диалоги (NSAlert) показываем после закрытия поповера, иначе он перекрывает их.
+    /// Dialogs (NSAlert) are shown after the popover closes, otherwise it covers them.
     private func afterClose(_ body: @escaping @MainActor () -> Void) {
         closePopover()
         Task { @MainActor in body() }
@@ -125,12 +125,12 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self.model.settings.hookTimeout = seconds
             let kinds = AgentKind.allCases.filter { HookSetup.isInstalled($0) }
             guard !kinds.isEmpty else { self.refresh(); return }
-            // Время зашито в команду хука — переустанавливаем с подтверждением.
+            // The time is baked into the hook command - reinstall with confirmation.
             self.afterClose { for k in kinds { HookSetup.install(k, timeout: seconds) } }
         }
         a.setLoginItem = { [weak self] on in
             do { try LoginItem.set(on) } catch {
-                self?.afterClose { HookSetup.info("Не получилось изменить автозапуск", error.localizedDescription, style: .warning) }
+                self?.afterClose { HookSetup.info("Couldn't change launch at login", error.localizedDescription, style: .warning) }
                 return
             }
             self?.refresh()

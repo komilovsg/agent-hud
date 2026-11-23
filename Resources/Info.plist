@@ -23,10 +23,10 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>AgentHUD переключает на вкладку терминала или окно, где работает агент.</string>
+	<string>AgentHUD switches to the terminal tab or window where the agent is running.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Локальная сборка для личного использования.</string>
+	<string>Local build for personal use.</string>
 </dict>
 </plist>

@@ -1,27 +1,51 @@
 # Agent HUD
 
-A small macOS heads-up display for Claude Code. It floats above your windows and shows what every session is
-doing, lets you allow or deny a permission request without switching to the editor, and takes you back to the
-right window in one click.
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%" alt="Agent HUD: drawn mock-up of the floating window">
+</p>
 
 Based on [AgentHUD](https://github.com/vladilenm/agent-hud) by Vladilen Minin (MIT).
 
-## What it does
+A small macOS heads-up display for Claude Code. It floats above your windows, shows what every session is
+doing, and takes you back to the right window in one click. The pictures here are drawings of the interface.
 
-- **Sessions at a glance.** One avatar per session with its state: working, waiting for you, done, idle. Click
-  for the step feed and the subagent tree. Drag the HUD anywhere by an avatar.
-- **Permission requests.** Allow, deny with a reason, or hand the request back to the terminal or VS Code.
-- **Red flags.** Dangerous commands are shown in red with the reason, and "always allow" is never offered for
-  them. Out of the box: pushing to `main` / `master` / `dev` / `develop`, `--force`, creating or merging a merge
-  or pull request, `rm -rf`, database migrations. The rules live in a JSON file you can edit.
-- **Background tasks.** Every background shell and background agent of a session with its age. Anything older
-  than an hour is highlighted, so a forgotten dev server or a stuck agent is easy to spot.
-- **Report for a period.** One click gives a Markdown report for any time range, grouped by project, with the
-  branches and merge request links that appeared in commands.
+## Permission requests and red flags
 
-The interface is in Russian for now. English is planned.
+Allow, deny with a reason, or hand the request back to where the agent runs. Dangerous commands are shown in
+red with the reason, and "always allow" is never offered for them. Out of the box: pushing to `main` / `master`
+/ `dev` / `develop`, `--force`, creating or merging a merge or pull request, `rm -rf`, database migrations. The
+rules live in a JSON file you can edit.
 
-## Privacy
+<p align="center">
+  <img src="assets/readme/permission-red-flag.svg" width="100%" alt="An ordinary request and a red-flagged git push request without Always">
+</p>
+
+## Background tasks
+
+Every background shell and background agent of a session, with its age. Anything older than an hour is
+highlighted, so a forgotten dev server or a stuck agent is easy to spot.
+
+<p align="center">
+  <img src="assets/readme/background-tasks.svg" width="100%" alt="Three background tasks; the oldest is shown in red">
+</p>
+
+## Report for a period
+
+One click gives a Markdown report for any time range, grouped by project, with the branches and merge request
+links that appeared in commands.
+
+<p align="center">
+  <img src="assets/readme/period-report.svg" width="100%" alt="Range presets and a Markdown report preview">
+</p>
+
+Each session also gets one avatar with its state: working, waiting for you, done, idle. Click it for the step
+feed and the subagent tree. Drag the HUD anywhere by an avatar.
+
+## How it works
+
+<p align="center">
+  <img src="assets/readme/how-it-works.svg" width="100%" alt="Claude Code, agenthud-hook, Unix socket, Agent HUD, decision back">
+</p>
 
 Everything stays on your Mac. The app has no network code. The hook talks to the app over a Unix socket that
 only your user can open, and the activity log is a local file you can switch off in the settings.
@@ -30,7 +54,7 @@ only your user can open, and the activity log is a local file you can switch off
 
 - macOS 15 or later
 - Swift 6 toolchain (Xcode or Command Line Tools)
-- Claude Code
+- Claude Code in the terminal, VS Code or Cursor
 
 ## Install
 

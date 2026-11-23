@@ -4,8 +4,8 @@ import Combine
 import Foundation
 import os
 
-/// Служебный лог: только тип агента, событие и состояние — без промптов и команд.
-/// Смотреть: log stream --predicate 'subsystem == "dev.agenthud"'
+/// Service log: only the agent type, the event and the state - no prompts or commands.
+/// View with: log stream --predicate 'subsystem == "dev.agenthud"'
 let hudLog = Logger(subsystem: "dev.agenthud", category: "events")
 
 enum AvatarStyle: String, CaseIterable, Identifiable {
@@ -13,15 +13,15 @@ enum AvatarStyle: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .logo: return "Логотипы"
-        case .blob: return "Капля"
-        case .bot: return "Бот"
-        case .pixel: return "Пиксель"
+        case .logo: return "Logos"
+        case .blob: return "Blob"
+        case .bot: return "Bot"
+        case .pixel: return "Pixel"
         }
     }
 }
 
-/// Настройки в UserDefaults.
+/// Settings in UserDefaults.
 final class Settings: ObservableObject {
     private let d = UserDefaults.standard
 
@@ -33,18 +33,18 @@ final class Settings: ObservableObject {
     @Published var hookTimeout: Int { didSet { d.set(hookTimeout, forKey: "hookTimeout") } }
     @Published var notifications: Bool { didSet { d.set(notifications, forKey: "notifications") } }
     @Published var animations: Bool { didSet { d.set(animations, forKey: "animations") } }
-    /// Подпись проекта под иконкой агента (когда агент один, иконки одинаковые).
+    /// Project label under the agent icon (when there is only one agent, the icons look the same).
     @Published var projectLabels: Bool { didSet { d.set(projectLabels, forKey: "projectLabels") } }
-    /// Журнал активности для сводки за день и вкладки «Сегодня» (только локально).
+    /// Activity log for the daily summary and the "Today" tab (local only).
     @Published var activityLog: Bool { didSet { d.set(activityLog, forKey: "activityLog") } }
-    /// Быстрые промпты для сессий в VS Code (вставляются в поле ввода сессии).
+    /// Quick prompts for VS Code sessions (inserted into the session's input field).
     @Published var quickPrompts: [String] { didSet { d.set(quickPrompts, forKey: "quickPrompts") } }
-    /// HUD прижат к левому краю экрана: якорь — левый верхний угол, окошко раскрывается вправо.
+    /// HUD is pinned to the left screen edge: the anchor is the top-left corner, the window expands to the right.
     @Published var anchorLeft: Bool { didSet { d.set(anchorLeft, forKey: "anchorLeft") } }
 
-    static let defaultQuickPrompts = ["Продолжай", "Прогони тесты и почини, что упало", "Проверь линтер и типы", "Сделай коммит"]
+    static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
-    /// Верхний угол HUD в координатах экрана (правый, а при `anchorLeft` — левый); nil — по умолчанию.
+    /// HUD top corner in screen coordinates (right one, or left one with `anchorLeft`); nil - default.
     var anchor: CGPoint? {
         get {
             guard d.object(forKey: "anchorX") != nil else { return nil }
@@ -58,7 +58,7 @@ final class Settings: ObservableObject {
 
     init() {
         avatarStyle = AvatarStyle(rawValue: d.string(forKey: "avatarStyle") ?? "") ?? .logo
-        // Логотипы агентов стали стилем по умолчанию — один раз переключаем и тех, у кого был выбран персонаж.
+        // Agent logos became the default style - switch once, including users who had a character selected.
         if !d.bool(forKey: "logoStyleIntroduced") {
             d.set(true, forKey: "logoStyleIntroduced")
             avatarStyle = .logo
@@ -78,12 +78,12 @@ final class Settings: ObservableObject {
     }
 }
 
-/// Состояние приложения: сессии, выбранная карточка, связь с сокетом.
+/// App state: sessions, the selected card, the socket connection.
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var store = SessionStore()
     @Published var selectedKey: String?
-    /// Карточку открыли кликом (можно забрать фокус клавиатуры) или сама открылась на запрос.
+    /// The card was opened by a click (it may take keyboard focus) or opened itself on a request.
     @Published var selectedByUser = false
 
     let settings: Settings
@@ -92,11 +92,11 @@ final class AppModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var notified = Set<String>()
     var onRequestNeedsAttention: ((AgentSession) -> Void)?
-    /// Открыть окно «Карта агентов» (его держит AppDelegate).
+    /// Open the "Agent map" window (held by AppDelegate).
     var onOpenMap: (() -> Void)?
-    /// Все папки проектов, встреченные за время работы, плюс открытые окна VS Code. Метки проектов
-    /// считаются по этому набору, а не по видимым сейчас сессиям — иначе метки менялись бы
-    /// каждый раз, когда сессия появляется или пропадает.
+    /// All project folders seen while running, plus open VS Code windows. Project labels
+    /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
+    /// every time a session appears or goes away.
     private var knownProjects = Set<String>()
     private var editorFolders = Set<String>()
     private var editorFoldersReadAt = Date.distantPast
@@ -106,7 +106,7 @@ final class AppModel: ObservableObject {
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
     }
 
-    // MARK: - Запуск
+    // MARK: - Startup
 
     func start(socketPath: String = AgentHUDPaths.socketPath) throws {
         let s = SocketServer(path: socketPath)
@@ -120,7 +120,7 @@ final class AppModel: ObservableObject {
     }
 
     func stop() {
-        // Отпустить все ждущие хуки — агенты спросят в терминале.
+        // Release all waiting hooks - agents will ask in the terminal.
         for s in store.sessions.values {
             for p in s.pending where p.status == .open {
                 server?.reply(HookReply(requestId: p.id, decision: .passthrough))
@@ -129,12 +129,12 @@ final class AppModel: ObservableObject {
         server?.stop()
     }
 
-    // MARK: - События
+    // MARK: - Events
 
     func handle(_ m: HookMessage) {
         let adapter = Adapters.adapter(for: m.agent)
         let now = Date()
-        // Все события сообщения применяем к копии и публикуем один раз: каждая публикация — перерисовка HUD.
+        // Apply all events of a message to a copy and publish once: every publish is a HUD redraw.
         var next = store
         var released: [String] = []
         for e in adapter.events(from: m, now: now) {
@@ -154,8 +154,8 @@ final class AppModel: ObservableObject {
         scheduleAutoClose()
     }
 
-    /// Окошко, которое открылось само на запрос, закрывается, когда запрос решён (в HUD, в VS Code или в терминале).
-    /// С паузой: если агент сразу спросит следующее, окошко не мигает закрытием-открытием.
+    /// A window that opened itself on a request closes once the request is resolved (in the HUD, in VS Code or in the terminal).
+    /// With a delay: if the agent immediately asks the next thing, the window doesn't flicker closed and open.
     private var autoCloseTask: Task<Void, Never>?
     static let autoCloseDelay: Duration = .seconds(1)
 
@@ -175,10 +175,10 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Промпт и конец хода — в журнал активности (для сводки за день и вкладки «Сегодня»).
+    /// A prompt and the end of a turn go to the activity log (for the daily summary and the "Today" tab).
     private func logActivity(_ e: AgentEvent, session: AgentSession?) {
         guard settings.activityLog, let s = session else { return }
-        // Ветки и ссылки — и из команд субагентов; остальное пишем только для основного агента.
+        // Branches and links - also from subagent commands; everything else is recorded only for the main agent.
         if case .toolFinished(let tool, let input, _, _, let failed, _) = e.body {
             guard tool == "Bash", !failed else { return }
             let command = input["command"]?.stringValue ?? ""
@@ -206,7 +206,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Уже записанные ветки и ссылки по сессиям — чтобы не дублировать записи `ref`.
+    /// Branches and links already recorded per session - to avoid duplicate `ref` records.
     private var loggedRefs: [String: Set<String>] = [:]
 
     private func requestArrived(_ key: String) {
@@ -229,11 +229,11 @@ final class AppModel: ObservableObject {
     private func tick() {
         let now = Date()
         let minutes = settings.autoHideDoneMinutes
-        // Работаем с копией и публикуем, только если что-то изменилось, —
-        // иначе SwiftUI перерисовывал бы HUD каждую секунду.
+        // Work on a copy and publish only if something changed -
+        // otherwise SwiftUI would redraw the HUD every second.
         var next = store
         next.tick(now: now, autoHideDoneAfter: minutes > 0 ? TimeInterval(minutes * 60) : nil)
-        // Процесс агента умер без SessionEnd (закрыли вкладку терминала).
+        // The agent process died without SessionEnd (the terminal tab was closed).
         var released: [String] = []
         for s in next.sessions.values where s.baseState != .ended {
             if let pid = s.host.agentPid, now.timeIntervalSince(s.lastEventAt) > 5, !HostProbe.isAlive(pid) {
@@ -245,7 +245,7 @@ final class AppModel: ObservableObject {
         rememberProjects(now: now)
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
         scheduleAutoClose()
-        // Уведомление, если запрос висит дольше 10 с, а HUD не виден.
+        // Notify if a request has been pending for over 10 s and the HUD is not visible.
         for s in store.sessions.values {
             guard let p = s.activePending, !notified.contains(p.id), now.timeIntervalSince(p.createdAt) > 10 else { continue }
             notified.insert(p.id)
@@ -253,14 +253,14 @@ final class AppModel: ObservableObject {
         }
     }
 
-    // MARK: - Действия пользователя
+    // MARK: - User actions
 
     func decide(_ requestId: String, _ decision: Decision) {
         guard let s = store.session(forRequest: requestId),
               let p = s.pending.first(where: { $0.id == requestId }), p.status == .open else { return }
         let flags = RedFlags.matches(p)
         var decision = decision
-        // Правило «всегда» для опасной команды не записываем, даже если окошко успело его предложить.
+        // An "always" rule for a dangerous command is not saved, even if the window managed to offer it.
         if !flags.isEmpty, case .allowWith = decision { decision = .allow }
         server?.reply(HookReply(requestId: requestId, decision: decision))
         store.markAnswered(requestId)
@@ -271,7 +271,7 @@ final class AppModel: ObservableObject {
                                               text: DecisionLog.describe(session: s, request: p), detail: decision.logLabel))
         }
         if case .passthrough = decision { TerminalFocus.focus(s) }
-        // Ждёт ещё кто-то — показываем его запрос сразу; иначе окошко, открытое самим запросом, закроется с паузой.
+        // Someone else is waiting - show their request right away; otherwise a window opened by a request closes with a delay.
         if selectedKey == s.id, store.session(s.id)?.activePending == nil,
            let other = store.visibleSessions.first(where: { $0.id != s.id && $0.activePending != nil }) {
             selectedKey = other.id
@@ -302,13 +302,13 @@ final class AppModel: ObservableObject {
 
     func unhide(_ key: String) { store.unhide(key) }
 
-    /// Следующий промпт для сессии в VS Code: откроется её чат с текстом в поле ввода (отправляешь сам).
+    /// Next prompt for a VS Code session: its chat opens with the text in the input field (you send it yourself).
     func prefillPrompt(_ key: String, _ text: String) {
         guard let s = store.session(key), s.host.canPrefillPrompt else { return }
         TerminalFocus.focusEditor(s, prompt: text)
     }
 
-    /// Короткие метки проектов для видимых сессий («mobile», «web»…), устойчивые к приходу и уходу сессий.
+    /// Short project labels for visible sessions ("mobile", "web"...), stable as sessions come and go.
     var projectShortLabels: [String: String] {
         let visible = store.visibleSessions.map(\.cwd)
         let universe = knownProjects.union(editorFolders).union(visible)
@@ -316,7 +316,7 @@ final class AppModel: ObservableObject {
         return all.filter { visible.contains($0.key) }
     }
 
-    /// Запомнить папки сессий и раз в полминуты перечитать окна VS Code (для меток проектов).
+    /// Remember session folders and re-read VS Code windows every half minute (for project labels).
     private func rememberProjects(now: Date) {
         for s in store.sessions.values where !s.cwd.isEmpty { knownProjects.insert(s.cwd) }
         guard now.timeIntervalSince(editorFoldersReadAt) > 30 else { return }
@@ -324,7 +324,7 @@ final class AppModel: ObservableObject {
         editorFolders = EditorWorkspaces.openFolders()
     }
 
-    /// Вкладка карты агентов: 0 — «Сейчас», 1 — «Сегодня».
+    /// Agent map tab: 0 - "Now", 1 - "Today".
     @Published var mapTab = 0
 
     func openMap() { onOpenMap?() }
@@ -334,7 +334,7 @@ final class AppModel: ObservableObject {
         onOpenMap?()
     }
 
-    /// Отчёт за период в Markdown: файл `reports/<от>_<до>.md` в папке приложения.
+    /// Period report in Markdown: file `reports/<from>_<to>.md` in the app folder.
     @discardableResult
     func writeReport(from: Date, to: Date) -> URL {
         let md = PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to)
@@ -346,7 +346,7 @@ final class AppModel: ObservableObject {
         return url
     }
 
-    /// Сводка за день в Markdown: файл в папке приложения (его же можно открыть или скопировать).
+    /// Daily summary in Markdown: a file in the app folder (it can also be opened or copied).
     @discardableResult
     func writeSummary(day: Date = Date()) -> URL {
         let md = DailySummary.markdown(DailySummary.build(ActivityLog.read(day: day)), day: day)
@@ -356,7 +356,7 @@ final class AppModel: ObservableObject {
         return url
     }
 
-    // MARK: - Для демо и превью
+    // MARK: - For demo and preview
 
     func inject(_ events: [AgentEvent]) {
         var next = store
@@ -372,12 +372,12 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// Красные флаги: файл правил читается при каждой проверке (он крошечный), правки применяются без перезапуска.
+/// Red flags: the rules file is read on every check (it is tiny), edits apply without a restart.
 enum RedFlags {
     static func load() -> RedFlagSet { RedFlagSet.load(from: AgentHUDPaths.redFlagsFile) }
 
     static func matches(toolName: String, input: JSONValue) -> [RedFlagRule] {
-        // Не Bash — флагов нет, файл не трогаем.
+        // Not Bash - no flags, leave the file alone.
         guard toolName == "Bash" else { return [] }
         return load().matches(toolName: toolName, input: input)
     }
@@ -388,14 +388,14 @@ enum RedFlags {
         }
     }
 
-    /// Открыть файл правил в редакторе; если файла нет — сначала появятся встроенные правила.
+    /// Open the rules file in the editor; if the file does not exist, the built-in rules appear first.
     static func openFile() {
         _ = load()
         NSWorkspace.shared.open(AgentHUDPaths.redFlagsFile)
     }
 }
 
-/// Журнал решений: что разрешено/отклонено/отвечено и когда.
+/// Decision log: what was allowed/denied/answered and when.
 enum DecisionLog {
     static func describe(session: AgentSession, request: PendingRequest) -> String {
         switch request.kind {

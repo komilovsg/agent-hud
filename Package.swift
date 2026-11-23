@@ -4,10 +4,10 @@ import PackageDescription
 
 let v5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
-// Swift Testing лежит не в стандартных путях, и где именно — зависит от активного тулчейна:
-// - только Command Line Tools: подключаем фреймворк явно (и компиляция, и rpath);
-// - Xcode (даже если CLT тоже стоят): компилятор находит Testing сам, нужен только rpath на фреймворк Xcode.
-// Брать фреймворк CLT под компилятором Xcode нельзя: версии макросов не совпадут, тесты не соберутся.
+// Swift Testing is not in the standard paths, and where it lives depends on the active toolchain:
+// - Command Line Tools only: link the framework explicitly (both compilation and rpath);
+// - Xcode (even if CLT is installed too): the compiler finds Testing itself, only an rpath to the Xcode framework is needed.
+// The CLT framework must not be used under the Xcode compiler: macro versions differ and the tests will not build.
 let fm = FileManager.default
 let developerDir: String = {
     if let d = ProcessInfo.processInfo.environment["DEVELOPER_DIR"], !d.isEmpty { return d }
@@ -34,8 +34,8 @@ let package = Package(
         .target(name: "AgentHudCore", swiftSettings: v5),
         .executableTarget(name: "agenthud-hook", dependencies: ["AgentHudCore"], swiftSettings: v5),
         .executableTarget(name: "AgentHud", dependencies: ["AgentHudCore"], swiftSettings: v5),
-        // Тесты — исполняемый таргет: без Xcode `swift test` не запускает Swift Testing,
-        // поэтому раннер вызываем сами: `swift run AgentHudCoreTests`.
+        // Tests are an executable target: without Xcode `swift test` does not run Swift Testing,
+        // so we call the runner ourselves: `swift run AgentHudCoreTests`.
         .executableTarget(
             name: "AgentHudCoreTests",
             dependencies: ["AgentHudCore"],

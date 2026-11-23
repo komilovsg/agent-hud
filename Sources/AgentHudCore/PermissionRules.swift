@@ -1,38 +1,38 @@
 import Foundation
 
-/// Варианты «Разрешить всегда» для запроса разрешения.
+/// "Allow always" options for a permission request.
 ///
-/// Claude Code принимает в ответе хука `updatedPermissions` — те же записи, что присылает
-/// в `permission_suggestions` (https://code.claude.com/docs/en/hooks, PermissionRequest).
-/// Подсказки агента часто — точная команда (`kill 41684 41849`), из-за чего список правил
-/// разрастается. Поэтому для простых команд добавляем шаблон по первым словам: `Bash(npm run *)`.
+/// Claude Code accepts `updatedPermissions` in the hook response - the same entries it sends
+/// in `permission_suggestions` (https://code.claude.com/docs/en/hooks, PermissionRequest).
+/// The agent's suggestions are often an exact command (`kill 41684 41849`), which makes the rule list
+/// grow. So for simple commands we add a pattern by the first words: `Bash(npm run *)`.
 public struct RuleOption: Equatable, Sendable, Identifiable {
     public var id: String { update.compact() }
     /// «Bash(npm run *)»
     public var title: String
-    /// «в этом проекте», «во всех проектах», «до конца сессии»
+    /// "in this project", "in all projects", "until the session ends"
     public var scope: String
-    /// Одна запись для `updatedPermissions`.
+    /// One entry for `updatedPermissions`.
     public var update: JSONValue
-    /// Шаблон, придуманный HUD (а не подсказка агента).
+    /// A pattern invented by the HUD (not an agent suggestion).
     public var generated: Bool
 }
 
 public enum PermissionRules {
-    /// Где хранится правило. https://code.claude.com/docs/en/hooks — «Permission update entries».
+    /// Where the rule is stored. https://code.claude.com/docs/en/hooks - "Permission update entries".
     public static func scopeTitle(_ destination: String?) -> String {
         switch destination {
-        case "session": return "до конца сессии"
-        case "localSettings": return "в этом проекте"
-        case "projectSettings": return "в проекте (общий файл)"
-        case "userSettings": return "во всех проектах"
+        case "session": return "until the session ends"
+        case "localSettings": return "in this project"
+        case "projectSettings": return "in this project (shared file)"
+        case "userSettings": return "in all projects"
         default: return destination ?? ""
         }
     }
 
     public static func options(toolName: String, input: JSONValue, suggestions: [JSONValue],
                                redFlags: [RedFlagRule] = []) -> [RuleOption] {
-        // Опасную команду нельзя разрешить навсегда: ни шаблоном HUD, ни подсказкой агента.
+        // A dangerous command must not be allowed forever: neither by a HUD pattern nor by an agent suggestion.
         guard redFlags.isEmpty else { return [] }
         var out: [RuleOption] = []
         func add(_ o: RuleOption) { if !out.contains(where: { $0.id == o.id }) { out.append(o) } }
@@ -47,7 +47,7 @@ public enum PermissionRules {
             guard let title = describe(s) else { continue }
             add(RuleOption(title: title, scope: scopeTitle(s["destination"]?.stringValue), update: s, generated: false))
         }
-        // MCP-инструменты: правило на весь инструмент (без ruleContent — иначе правило ничего не совпадёт).
+        // MCP tools: a rule for the whole tool (without ruleContent - otherwise the rule would match nothing).
         if toolName.hasPrefix("mcp__"), !out.contains(where: { $0.update["type"]?.stringValue == "addRules" }) {
             add(RuleOption(title: toolName, scope: scopeTitle("localSettings"),
                            update: addRule(tool: toolName, content: nil, destination: "localSettings"), generated: true))
@@ -62,7 +62,7 @@ public enum PermissionRules {
         return ["type": "addRules", "rules": [.object(rule)], "behavior": "allow", "destination": .string(destination)]
     }
 
-    /// Подпись для записи `updatedPermissions`. `nil` — запись не про «разрешить».
+    /// Label for an `updatedPermissions` entry. `nil` - the entry is not about "allow".
     public static func describe(_ entry: JSONValue) -> String? {
         switch entry["type"]?.stringValue {
         case "addRules", "replaceRules":
@@ -77,20 +77,20 @@ public enum PermissionRules {
             return rules.isEmpty ? nil : rules.joined(separator: ", ")
         case "setMode":
             switch entry["mode"]?.stringValue {
-            case "acceptEdits": return "Принимать правки файлов без вопросов"
-            case "default", "manual": return "Обычный режим"
-            case "plan": return "Режим планирования"
-            default: return nil   // остальные режимы (в том числе без вопросов) из HUD не включаем
+            case "acceptEdits": return "Accept file edits without asking"
+            case "default", "manual": return "Default mode"
+            case "plan": return "Planning mode"
+            default: return nil   // other modes (including no-questions ones) are not enabled from the HUD
             }
         case "addDirectories":
             let dirs = (entry["directories"]?.arrayValue ?? []).compactMap(\.stringValue)
-            return dirs.isEmpty ? nil : "Доступ к папке " + dirs.joined(separator: ", ")
+            return dirs.isEmpty ? nil : "Access to folder " + dirs.joined(separator: ", ")
         default:
             return nil
         }
     }
 
-    /// Первые слова, после которых обычно идёт аргумент: `npm run build` → `npm run *`.
+    /// First words that are usually followed by an argument: `npm run build` -> `npm run *`.
     static let subcommandTools: Set<String> = [
         "npm", "pnpm", "yarn", "bun", "npx", "bunx", "git", "gh", "docker", "kubectl", "go", "cargo", "swift",
         "pod", "expo", "eas", "flutter", "dart", "pip", "pip3", "brew", "make", "xcodebuild", "xcrun", "adb",
@@ -98,35 +98,35 @@ public enum PermissionRules {
         "tsc", "eslint", "prettier", "prisma", "supabase", "firebase", "react-native",
     ]
 
-    /// Команды, для которых шаблон слишком широк (выполняют произвольный код или опасны) — только точное правило.
+    /// Commands for which a pattern is too broad (they run arbitrary code or are dangerous) - only an exact rule.
     static let noPattern: Set<String> = [
         "rm", "sudo", "su", "dd", "chmod", "chown", "mkfs", "curl", "wget", "ssh", "scp", "rsync", "eval", "exec",
         "xargs", "env", "node", "python", "python3", "ruby", "perl", "php", "bash", "sh", "zsh", "fish", "osascript",
         "open", "mv", "cp", "tee", "find", "awk", "sed", "deno",
     ]
 
-    /// Эти инструменты выполняют произвольные подкоманды (push, run, exec…): правило HUD для них — только точная команда.
+    /// These tools run arbitrary subcommands (push, run, exec...): the HUD rule for them is only the exact command.
     static let exactOnly: Set<String> = ["git", "uv", "docker", "npx", "make"]
 
-    /// Шаблон для простой команды или `nil`, если шаблон не нужен или опасен.
+    /// Pattern for a simple command, or `nil` if a pattern is not needed or is dangerous.
     public static func bashPattern(_ command: String) -> String? {
         let cmd = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cmd.isEmpty else { return nil }
-        // Составные команды Claude Code проверяет по частям — шаблон на всю строку не поможет.
+        // Claude Code checks compound commands part by part - a pattern for the whole line would not help.
         for bad in ["&&", "||", ";", "|", "`", "$(", ">", "<", "\n", "&"] where cmd.contains(bad) { return nil }
         let words = cmd.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         guard let first = words.first, !first.contains("="), !first.hasPrefix("."), !first.hasPrefix("/"),
               !noPattern.contains(first) else { return nil }
         if exactOnly.contains(first) {
-            // Звёздочка в точной команде стала бы шаблоном.
+            // An asterisk in an exact command would become a pattern.
             return cmd.contains("*") ? nil : cmd
         }
         if subcommandTools.contains(first) {
-            // `git status` → `git status *` (совпадает и без аргументов). Флаг вторым словом — непонятно, что шаблонить.
+            // `git status` -> `git status *` (matches without arguments too). A flag as the second word - unclear what to pattern.
             guard words.count >= 2, !words[1].hasPrefix("-") else { return nil }
             return "\(first) \(words[1]) *"
         }
-        // `kill 41684 41849` → `kill *`. Одно слово — точное правило не хуже шаблона.
+        // `kill 41684 41849` -> `kill *`. A single word - an exact rule is no worse than a pattern.
         return words.count >= 2 ? "\(first) *" : nil
     }
 }

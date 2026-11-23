@@ -1,32 +1,32 @@
 import AgentHudCore
 import SwiftUI
 
-/// Подписи и иконки в зависимости от того, где идёт сессия: терминал, приложение или VS Code.
+/// Labels and icons depending on where the session runs: terminal, app or VS Code.
 extension HostInfo {
-    /// «в терминале», «в приложении», «в VS Code» — для фраз «агент ждёт ответа …».
+    /// "in the terminal", "in the app", "in VS Code" - for phrases like "the agent is waiting for a reply ...".
     var placeIn: String {
         switch place {
-        case .terminal: return isEditorTerminal ? "в терминале VS Code" : "в терминале"
-        case .desktopApp: return "в приложении"
-        case .editor: return "в VS Code"
+        case .terminal: return isEditorTerminal ? "in the VS Code terminal" : "in the terminal"
+        case .desktopApp: return "in the app"
+        case .editor: return "in \(editorName)"
         }
     }
 
-    /// «терминал», «приложение», «VS Code» — для «ушёл в …».
+    /// "the terminal", "the app", "VS Code" - for "went to ...".
     var placeTo: String {
         switch place {
-        case .terminal: return "терминал"
-        case .desktopApp: return "приложение"
-        case .editor: return "VS Code"
+        case .terminal: return "the terminal"
+        case .desktopApp: return "the app"
+        case .editor: return editorName
         }
     }
 
-    /// Кнопка «ответить там, где работает агент».
+    /// The "answer where the agent is running" button.
     var passthroughTitle: String {
         switch place {
-        case .terminal: return "В терминале"
-        case .desktopApp: return "В приложении"
-        case .editor: return "В VS Code"
+        case .terminal: return "In terminal"
+        case .desktopApp: return "In app"
+        case .editor: return "In \(editorName)"
         }
     }
 
@@ -40,24 +40,24 @@ extension HostInfo {
 
     var openTitle: String {
         switch place {
-        case .terminal: return isEditorTerminal ? "Открыть в VS Code" : "Открыть в терминале"
-        case .desktopApp: return "Открыть в приложении"
-        case .editor: return "Открыть в VS Code"
+        case .terminal: return isEditorTerminal ? "Open in VS Code" : "Open in terminal"
+        case .desktopApp: return "Open in app"
+        case .editor: return "Open in VS Code"
         }
     }
 
-    /// Можно ли отправить следующий промпт прямо из HUD (через ссылку расширения VS Code).
+    /// Whether the next prompt can be sent right from the HUD (via the VS Code extension link).
     var canPrefillPrompt: Bool { place == .editor }
 }
 
-/// Цвет проекта: один и тот же в HUD, панели и на карте агентов.
+/// Project color: the same in the HUD, the panel and the agent map.
 enum ProjectColor {
     static func color(_ cwd: String, saturation: Double = 0.62, brightness: Double = 0.86) -> Color {
         Color(hue: ProjectNames.hue(cwd: cwd), saturation: saturation, brightness: brightness)
     }
 }
 
-/// Метка проекта под иконкой агента: цветная капсула с коротким именем.
+/// Project label under the agent icon: a colored capsule with a short name.
 struct ProjectChip: View {
     let cwd: String
     let label: String
@@ -76,7 +76,7 @@ struct ProjectChip: View {
     }
 }
 
-/// Цветная точка проекта.
+/// Project color dot.
 struct ProjectDot: View {
     let cwd: String
     var size: CGFloat = 8

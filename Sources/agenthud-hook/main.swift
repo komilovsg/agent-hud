@@ -4,8 +4,8 @@ import Foundation
 
 // agenthud-hook <agent> <event|permission|question> [--timeout N]
 //
-// Правило: хук никогда не ломает сессию агента. Любая проблема → код 0 и пустой stdout,
-// и агент ведёт себя так, будто AgentHUD нет.
+// Rule: the hook never breaks the agent's session. Any problem -> exit code 0 and empty stdout,
+// and the agent behaves as if AgentHUD were not there.
 
 signal(SIGPIPE, SIG_IGN)
 
@@ -34,7 +34,7 @@ let started = Date()
 let deadline = mode.isSync ? HookTiming.deadline(now: started, hookTimeout: timeout) : nil
 let host = HostProbe.current()
 guard HostProbe.isInteractive(kind: kind, host: host, env: ProcessInfo.processInfo.environment) else {
-    passthrough()   // автоматизация (SDK, скрипт, служебный запрос) — HUD не вмешивается
+    passthrough()   // automation (SDK, script, service request) - the HUD does not interfere
 }
 let message = HookMessage(
     agent: kind, mode: mode,
@@ -45,7 +45,7 @@ let message = HookMessage(
 )
 
 guard let fd = SocketIO.connect(path: AgentHUDPaths.socketPath, timeoutMs: HookTiming.connectTimeoutMs) else {
-    passthrough()   // приложение не запущено
+    passthrough()   // the app is not running
 }
 guard SocketIO.writeAll(fd, message.encode()) else { close(fd); passthrough() }
 
@@ -54,13 +54,13 @@ guard mode.isSync, let deadline else {
     passthrough()
 }
 
-// Ждём решения пользователя. Если агент сам убьёт хук (ответили в терминале),
-// соединение закроется, и приложение снимет окошко.
+// Wait for the user's decision. If the agent kills the hook itself (answered in the terminal),
+// the connection closes and the app removes the popup.
 guard let line = SocketIO.readLine(fd, until: deadline),
       let reply = HookReply.decode(line),
       reply.requestId == message.requestId else {
     close(fd)
-    passthrough()   // просрочено или приложение закрылось
+    passthrough()   // expired or the app closed
 }
 close(fd)
 

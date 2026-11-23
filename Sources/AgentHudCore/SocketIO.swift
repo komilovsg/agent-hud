@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// Низкоуровневые операции с unix-сокетом: общие для хука и приложения.
+/// Low-level unix socket operations: shared by the hook and the app.
 public enum SocketIO {
     public static func makeAddress(_ path: String) -> sockaddr_un? {
         var addr = sockaddr_un()
@@ -17,7 +17,7 @@ public enum SocketIO {
         return addr
     }
 
-    /// Подключиться с таймаутом. nil — приложение не запущено.
+    /// Connect with a timeout. nil - the app is not running.
     public static func connect(path: String, timeoutMs: Int32) -> Int32? {
         guard var addr = makeAddress(path) else { return nil }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -44,7 +44,7 @@ public enum SocketIO {
         return fd
     }
 
-    /// Записать всё. false — соединение порвано.
+    /// Write everything. false - the connection is broken.
     @discardableResult
     public static func writeAll(_ fd: Int32, _ text: String) -> Bool {
         var data = Array(text.utf8)
@@ -66,7 +66,7 @@ public enum SocketIO {
         return true
     }
 
-    /// Прочитать одну строку до `deadline`. nil — таймаут или соединение закрыто.
+    /// Read one line until `deadline`. nil - timeout or the connection is closed.
     public static func readLine(_ fd: Int32, until deadline: Date, maxBytes: Int = 4 << 20) -> String? {
         var buf = [UInt8]()
         var chunk = [UInt8](repeating: 0, count: 65536)

@@ -1,8 +1,8 @@
 import Foundation
 
-/// Подключение и отключение хуков AgentHUD в конфиге агента
+/// Installing and removing AgentHUD hooks in the agent's config
 /// (`~/.claude/settings.json`).
-/// Чужие хуки не трогаем; свои узнаём по имени `agenthud-hook` в команде.
+/// Other people's hooks are left alone; ours are recognised by the name `agenthud-hook` in the command.
 public struct HookInstaller: Sendable {
     public static let marker = "agenthud-hook"
 
@@ -16,8 +16,8 @@ public struct HookInstaller: Sendable {
         self.timeout = timeout
     }
 
-    /// Подписка на событие. `matcher == nil` — у события нет матчера.
-    /// `fixedTimeout` — для событий с жёстким лимитом.
+    /// Event subscription. `matcher == nil` - the event has no matcher.
+    /// `fixedTimeout` - for events with a hard limit.
     struct Spec {
         let event: String
         let matcher: String?
@@ -69,7 +69,7 @@ public struct HookInstaller: Sendable {
         hookEntry(Spec(event: "", matcher: nil, mode: mode))
     }
 
-    /// Блоки, которые AgentHUD добавляет (для показа пользователю).
+    /// Blocks that AgentHUD adds (to show to the user).
     public func plannedEntries() -> JSONValue {
         var hooks = JSONObject()
         for spec in specs {
@@ -83,9 +83,9 @@ public struct HookInstaller: Sendable {
         return .object(hooks)
     }
 
-    // MARK: - Преобразования JSON
+    // MARK: - JSON transformations
 
-    /// Добавить хуки AgentHUD (старые записи AgentHUD сначала убираются — операция идемпотентна).
+    /// Add AgentHUD hooks (old AgentHUD entries are removed first - the operation is idempotent).
     public func install(into settings: JSONValue) -> JSONValue {
         var root = Self.uninstall(from: settings).objectValue ?? JSONObject()
         var hooks = root["hooks"]?.objectValue ?? JSONObject()
@@ -101,7 +101,7 @@ public struct HookInstaller: Sendable {
         return .object(root)
     }
 
-    /// Убрать только записи AgentHUD. Пустые группы и события удаляются, чужие — остаются как были.
+    /// Remove only AgentHUD entries. Empty groups and events are deleted, other people's are left as they were.
     public static func uninstall(from settings: JSONValue) -> JSONValue {
         guard var root = settings.objectValue else { return settings }
         guard var hooks = root["hooks"]?.objectValue else { return settings }
@@ -143,7 +143,7 @@ public struct HookInstaller: Sendable {
         return "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    // MARK: - Работа с файлом
+    // MARK: - Working with the file
 
     public struct FileResult: Sendable {
         public let backup: URL?
@@ -151,7 +151,7 @@ public struct HookInstaller: Sendable {
         public let after: String
     }
 
-    /// Что получится в файле — без записи.
+    /// What the file would contain - without writing.
     public static func preview(file: URL, transform: (JSONValue) -> JSONValue) throws -> (before: String, after: String) {
         let (value, before, trailingNewline) = try read(file)
         var after = transform(value).pretty()
@@ -159,14 +159,14 @@ public struct HookInstaller: Sendable {
         return (before, after)
     }
 
-    /// Бэкап → проверка → атомарная запись.
+    /// Backup -> validation -> atomic write.
     @discardableResult
     public static func apply(file: URL, now: Date = Date(), transform: (JSONValue) -> JSONValue) throws -> FileResult {
         let fm = FileManager.default
         let (value, before, trailingNewline) = try read(file)
         var after = transform(value).pretty()
         if trailingNewline { after += "\n" }
-        _ = try JSONValue.parse(after)   // результат обязан быть валидным JSON
+        _ = try JSONValue.parse(after)   // the result must be valid JSON
         guard after != before else { return FileResult(backup: nil, before: before, after: after) }
 
         var backup: URL?
@@ -202,5 +202,5 @@ public struct HookInstaller: Sendable {
     }
 }
 
-/// Старое имя — для совместимости.
+/// Old name - for compatibility.
 public typealias ClaudeHookInstaller = HookInstaller

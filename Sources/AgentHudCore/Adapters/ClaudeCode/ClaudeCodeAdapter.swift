@@ -52,7 +52,8 @@ public struct ClaudeCodeAdapter: AgentAdapter {
             return [make(.toolStarted(toolName: toolName, input: input, toolUseId: toolUseId))]
         case "PostToolUse":
             return [make(.toolFinished(toolName: toolName, input: input, toolUseId: toolUseId,
-                                       durationMs: p["duration_ms"]?.intValue, failed: false))]
+                                       durationMs: p["duration_ms"]?.intValue, failed: false,
+                                       backgroundId: Self.backgroundId(p["tool_response"])))]
         case "PostToolUseFailure":
             return [make(.toolFinished(toolName: toolName, input: input, toolUseId: toolUseId,
                                        durationMs: p["duration_ms"]?.intValue, failed: true))]
@@ -105,6 +106,14 @@ public struct ClaudeCodeAdapter: AgentAdapter {
     static func permissionOutput(_ decision: JSONValue) -> String {
         let out: JSONValue = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]]
         return out.compact()
+    }
+
+    /// Id фоновой задачи в ответе инструмента: у Bash — `backgroundTaskId`, у Agent — `agentId`; остальное — запасные имена.
+    static func backgroundId(_ response: JSONValue?) -> String? {
+        for k in ["backgroundTaskId", "agentId", "task_id", "shell_id", "bash_id", "agent_id"] {
+            if let s = response?[k]?.stringValue, !s.isEmpty { return s }
+        }
+        return nil
     }
 
     static func modelName(_ v: JSONValue?) -> String? {

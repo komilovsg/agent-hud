@@ -112,7 +112,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
             ("SessionStart", { if case .sessionStarted(let src, let model) = $0 { return src == "startup" && model == "claude-haiku-5-5" }; return false }),
             ("UserPromptSubmit", { if case .promptSubmitted(let p) = $0 { return p.hasPrefix("First use") }; return false }),
             ("PreToolUse-Bash", { if case .toolStarted(let t, _, let id) = $0 { return t == "Bash" && id != nil }; return false }),
-            ("PostToolUse-Bash", { if case .toolFinished(let t, _, _, let ms, let failed) = $0 { return t == "Bash" && ms != nil && !failed }; return false }),
+            ("PostToolUse-Bash", { if case .toolFinished(let t, _, _, let ms, let failed, _) = $0 { return t == "Bash" && ms != nil && !failed }; return false }),
             ("Stop", { if case .stopped(let msg, false) = $0 { return msg?.contains("Red") == true }; return false }),
             ("Notification-permission_prompt", { if case .notification("permission_prompt", _) = $0 { return true }; return false }),
         ]

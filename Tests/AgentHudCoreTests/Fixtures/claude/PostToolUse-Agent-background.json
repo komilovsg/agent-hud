@@ -1,0 +1,17 @@
+{
+  "session_id": "11111111-2222-3333-4444-555555555555",
+  "cwd": "/Users/dev/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "description": "Synthetic helper",
+    "prompt": "do nothing",
+    "run_in_background": true
+  },
+  "tool_response": {
+    "status": "async_launched",
+    "isAsync": true,
+    "agentId": "agentsyn1"
+  },
+  "tool_use_id": "toolu_synthetic_bg2"
+}

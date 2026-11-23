@@ -135,6 +135,7 @@ struct AvatarButton: View {
                 AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 34,
                            animated: model.settings.animations, kind: session.kind)
                     .padding(3)
+                    .overlay(alignment: .topTrailing) { HungBadge(session: session) }
                 if let projectLabel {
                     ProjectChip(cwd: session.cwd, label: projectLabel)
                         .frame(maxWidth: 66)
@@ -202,6 +203,7 @@ struct SessionCard: View {
                [.done, .idle, .error].contains(session.state) {
                 NextPromptBar(model: model, session: session)
             }
+            if !session.backgroundTasks.isEmpty { BackgroundList(tasks: session.backgroundTasks) }
             StepsList(session: session)
         }
         .padding(12)
@@ -404,6 +406,61 @@ struct StepsList: View {
                 }
             }
         }
+    }
+}
+
+/// Красная точка на иконке сессии, если есть зависшие фоновые задачи.
+struct HungBadge: View {
+    let session: AgentSession
+
+    var body: some View {
+        if !session.backgroundTasks.isEmpty {
+            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                if session.hungCount(at: ctx.date) > 0 {
+                    Circle().fill(Color.red).frame(width: 9, height: 9)
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1))
+                        .help("Есть фоновые задачи дольше часа")
+                }
+            }
+        }
+    }
+}
+
+/// Фоновые команды и субагенты сессии с возрастом; зависшие — красным.
+struct BackgroundList: View {
+    // Имя уточнено: в Foundation на новых macOS есть свой BackgroundTask.
+    let tasks: [AgentHudCore.BackgroundTask]
+
+    var body: some View {
+        // Возраст обновляется раз в 30 секунд: событий от фоновой задачи может не быть часами.
+        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Фон").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                ForEach(tasks.suffix(8)) { t in
+                    let hung = t.isHung(at: ctx.date)
+                    HStack(spacing: 6) {
+                        Image(systemName: hung ? "exclamationmark.triangle.fill" : (t.kind == .shell ? "terminal" : "person.2"))
+                            .font(.system(size: 10)).frame(width: 14)
+                            .foregroundStyle(hung ? Color.red : Color.secondary)
+                        Text(t.title)
+                            .font(.system(size: 11, design: t.kind == .shell ? .monospaced : .default))
+                            .lineLimit(1).truncationMode(.middle)
+                            .foregroundStyle(hung ? Color.red : Color.primary)
+                        Spacer(minLength: 4)
+                        Text(DailySummary.duration(Int(t.age(at: ctx.date))))
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(hung ? Color.red : Color.secondary)
+                    }
+                    .frame(height: 18)
+                }
+                if tasks.count > 8 {
+                    Text("и ещё \(tasks.count - 8)").font(.system(size: 10)).foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
     }
 }
 

@@ -1,0 +1,17 @@
+{
+  "session_id": "11111111-2222-3333-4444-555555555555",
+  "cwd": "/Users/dev/project",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "sleep 1000",
+    "run_in_background": true
+  },
+  "tool_response": {
+    "stdout": "",
+    "stderr": "",
+    "interrupted": false,
+    "backgroundTaskId": "bgtask1"
+  },
+  "tool_use_id": "toolu_synthetic_bg1"
+}

@@ -165,6 +165,32 @@ public struct Step: Identifiable, Equatable, Sendable {
     }
 }
 
+/// Фоновая команда или фоновый субагент, который ещё работает.
+public struct BackgroundTask: Identifiable, Equatable, Sendable {
+    public enum Kind: String, Sendable { case shell, agent }
+
+    public let id: String
+    public var kind: Kind
+    public var title: String
+    public var startedAt: Date
+    public var agentId: String?
+
+    /// Дольше этого фоновая задача считается зависшей.
+    public static let hungAfter: TimeInterval = 3600
+    public static let maxPerSession = 50
+
+    public init(id: String, kind: Kind, title: String, startedAt: Date, agentId: String? = nil) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.startedAt = startedAt
+        self.agentId = agentId
+    }
+
+    public func age(at now: Date) -> TimeInterval { max(0, now.timeIntervalSince(startedAt)) }
+    public func isHung(at now: Date) -> Bool { age(at: now) >= Self.hungAfter }
+}
+
 public enum PendingKind: Equatable, Sendable {
     case permission(toolName: String, toolInput: JSONValue)
 }
@@ -237,6 +263,8 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public var revealed = true
     /// Когда начался текущий (или последний) ход — для сводки и карты агентов.
     public var turnStartedAt: Date?
+    /// Фоновые команды и субагенты, которые ещё не завершились.
+    public var backgroundTasks: [BackgroundTask] = []
 
     public static let maxSteps = 200
 
@@ -294,6 +322,13 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
         let subagents = turnSteps.filter(\.isSubagent).count
         let duration = turnStartedAt.map { Int(max(0, (end ?? finishedAt ?? lastEventAt).timeIntervalSince($0))) }
         return TurnStats(tools: tools, files: files, subagents: subagents, durationSec: duration)
+    }
+
+    public func hungCount(at now: Date) -> Int { backgroundTasks.filter { $0.isHung(at: now) }.count }
+
+    /// Самая старая фоновая задача.
+    public func oldestBackground(at now: Date) -> BackgroundTask? {
+        backgroundTasks.max { $0.age(at: now) < $1.age(at: now) }
     }
 
     /// Стабильное «зерно» внешнего вида персонажа.

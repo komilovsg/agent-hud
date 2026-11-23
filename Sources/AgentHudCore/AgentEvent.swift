@@ -6,7 +6,8 @@ public struct AgentEvent: Equatable, Sendable {
         case sessionStarted(source: String?, model: String?)
         case promptSubmitted(String)
         case toolStarted(toolName: String, input: JSONValue, toolUseId: String?)
-        case toolFinished(toolName: String, input: JSONValue, toolUseId: String?, durationMs: Int?, failed: Bool)
+        /// `backgroundId` — id фоновой задачи из ответа инструмента (весь ответ не храним).
+        case toolFinished(toolName: String, input: JSONValue, toolUseId: String?, durationMs: Int?, failed: Bool, backgroundId: String? = nil)
         /// `suggestions` — правила «разрешать и дальше», которые предлагает сам агент (`permission_suggestions`).
         case permissionRequested(requestId: String, toolName: String, input: JSONValue, deadline: Date, suggestions: [JSONValue])
         case subagentStarted(agentId: String, agentType: String?)

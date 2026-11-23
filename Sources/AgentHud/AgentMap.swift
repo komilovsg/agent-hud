@@ -187,6 +187,7 @@ struct MapSessionCard: View {
             if let p = session.activePending { attention(p) }
             // Текущий шаг — последний лист дерева (со спиннером), отдельной строкой не дублируем.
             AgentTree(session: session)
+            if !session.backgroundTasks.isEmpty { backgroundLine }
             if let msg = session.lastMessage, session.state == .done || session.state == .error {
                 Text(msg).font(Brand.body(12)).foregroundStyle(Brand.inkMuted).lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -219,6 +220,17 @@ struct MapSessionCard: View {
         }
         .padding(8)
         .background(RoundedRectangle(cornerRadius: Brand.radiusMd).fill(Brand.warningSoft))
+    }
+
+    private var backgroundLine: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { ctx in
+            let oldest = session.oldestBackground(at: ctx.date)
+            let hung = session.hungCount(at: ctx.date) > 0
+            Text("Фон: \(session.backgroundTasks.count)" + (oldest.map { " · старшая \(DailySummary.duration(Int($0.age(at: ctx.date))))" } ?? ""))
+                .font(Brand.mono(10))
+                .foregroundStyle(hung ? Color.red : Brand.inkSubtle)
+                .lineLimit(1)
+        }
     }
 
     private var footer: some View {

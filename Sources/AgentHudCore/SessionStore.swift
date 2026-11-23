@@ -94,7 +94,7 @@ public struct SessionStore: Sendable, Equatable {
                 inputFingerprint: fingerprint(toolName: tool, input: input))
             if !s.steps.contains(where: { $0.id == step.id }) { s.steps.append(step) }
 
-        case .toolFinished(let tool, let input, let toolUseId, let durationMs, let failed):
+        case .toolFinished(let tool, let input, let toolUseId, let durationMs, let failed, let backgroundId):
             if s.baseState != .ended { s.baseState = .working }
             let fp = fingerprint(toolName: tool, input: input)
             let idx = s.steps.lastIndex { st in
@@ -112,6 +112,22 @@ public struct SessionStore: Sendable, Equatable {
                     agentId: e.agentId, inputFingerprint: fp))
             }
             released += Self.resolve(&s, toolName: tool, fingerprint: fp, command: Self.commandText(input))
+            if !failed {
+                if let kind = Self.backgroundKind(tool, input) {
+                    // Задача регистрируется по ответу инструмента: PostToolUse приходит сразу после запуска.
+                    let id = backgroundId ?? toolUseId ?? UUID().uuidString
+                    if !s.backgroundTasks.contains(where: { $0.id == id }) {
+                        s.backgroundTasks.append(BackgroundTask(
+                            id: id, kind: kind, title: summarizer.summarize(toolName: tool, input: input, cwd: s.cwd),
+                            startedAt: e.time, agentId: kind == .agent ? backgroundId : nil))
+                    }
+                    if s.backgroundTasks.count > BackgroundTask.maxPerSession {
+                        s.backgroundTasks.removeFirst(s.backgroundTasks.count - BackgroundTask.maxPerSession)
+                    }
+                } else if let target = Self.stopTarget(tool, input) {
+                    s.backgroundTasks.removeAll { $0.id == target || $0.agentId == target }
+                }
+            }
 
         case .permissionRequested(let rid, let tool, let input, let deadline, let suggestions):
             s.baseState = .working
@@ -139,6 +155,7 @@ public struct SessionStore: Sendable, Equatable {
                 s.steps[i].status = .ok
                 s.steps[i].durationMs = Int(e.time.timeIntervalSince(s.steps[i].startedAt) * 1000)
             }
+            s.backgroundTasks.removeAll { $0.agentId == aid || $0.id == aid }
             // Субагент закончил — его запросы больше никто не ждёт.
             let stale = s.pending.filter { $0.agentId == aid }
             s.pending.removeAll { $0.agentId == aid }
@@ -163,6 +180,7 @@ public struct SessionStore: Sendable, Equatable {
 
         case .sessionEnded:
             released += Self.resolveAll(&s)
+            s.backgroundTasks.removeAll()
             s.baseState = .ended
             s.finishedAt = e.time
 
@@ -260,6 +278,7 @@ public struct SessionStore: Sendable, Equatable {
         guard var s = sessions[key] else { return [] }
         s.baseState = .ended
         s.finishedAt = now
+        s.backgroundTasks.removeAll()
         let released = Self.resolveAll(&s)
         sessions[key] = s
         return released
@@ -324,6 +343,25 @@ public struct SessionStore: Sendable, Equatable {
         guard let i = s.pending.firstIndex(where: match) else { return [] }
         let p = s.pending.remove(at: i)
         return p.status == .open ? [p.id] : []
+    }
+
+    /// Запуск в фоне: Bash или Agent (раньше Task) с `run_in_background: true`.
+    static func backgroundKind(_ tool: String, _ input: JSONValue) -> BackgroundTask.Kind? {
+        guard input["run_in_background"]?.boolValue == true else { return nil }
+        switch tool {
+        case "Bash": return .shell
+        case "Agent", "Task": return .agent
+        default: return nil
+        }
+    }
+
+    /// Id задачи, которую останавливает инструмент (TaskStop, раньше KillShell/KillBash).
+    static func stopTarget(_ tool: String, _ input: JSONValue) -> String? {
+        guard ["TaskStop", "KillShell", "KillBash"].contains(tool) else { return nil }
+        for k in ["task_id", "shell_id", "bash_id", "id"] {
+            if let s = input[k]?.stringValue, !s.isEmpty { return s }
+        }
+        return nil
     }
 
     /// Текст команды из входа инструмента (Bash у Claude).

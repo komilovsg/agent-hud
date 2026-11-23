@@ -1,14 +1,14 @@
 import Foundation
 
-/// Адаптер Claude Code: хуки из `~/.claude/settings.json`.
-/// Документация: https://code.claude.com/docs/en/hooks
+/// Claude Code adapter: hooks from `~/.claude/settings.json`.
+/// Documentation: https://code.claude.com/docs/en/hooks
 public struct ClaudeCodeAdapter: AgentAdapter {
     public init() {}
 
     public var kind: AgentKind { .claude }
 
-    /// Инструменты, на которые хук разрешений не отвечает: вопрос и одобрение плана остаются
-    /// в обычном интерфейсе Claude Code.
+    /// Tools the permission hook does not answer for: the question and plan approval stay
+    /// in the regular Claude Code interface.
     static let permissionPassthroughTools: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
 
     public func shouldForward(mode: HookMode, payload: JSONValue) -> Bool {
@@ -92,12 +92,12 @@ public struct ClaudeCodeAdapter: AgentAdapter {
             return Self.permissionOutput(Self.allowDecision(payload: payload, updates: updates))
         case (.permission, .deny(let reason)):
             let given = (reason?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-            let msg = given ?? "Пользователь отклонил это действие в Agent HUD."
+            let msg = given ?? "The user denied this action in Agent HUD."
             return Self.permissionOutput(["behavior": "deny", "message": .string(msg)])
         }
     }
 
-    /// `allow` для PermissionRequest. Документация: `updatedPermissions` — правила и режим (можно вернуть одну из `permission_suggestions` без изменений).
+    /// `allow` for PermissionRequest. Documentation: `updatedPermissions` - rules and mode (one of the `permission_suggestions` can be returned unchanged).
     static func allowDecision(payload: JSONValue, updates: [JSONValue]) -> JSONValue {
         var d = JSONObject()
         d["behavior"] = "allow"
@@ -110,7 +110,7 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         return out.compact()
     }
 
-    /// Id фоновой задачи в ответе инструмента: у Bash — `backgroundTaskId`, у Agent — `agentId`; остальное — запасные имена.
+    /// Id of the background task in the tool response: Bash has `backgroundTaskId`, Agent has `agentId`; the rest are fallback names.
     static func backgroundId(_ response: JSONValue?) -> String? {
         for k in ["backgroundTaskId", "agentId", "task_id", "shell_id", "bash_id", "agent_id"] {
             if let s = response?[k]?.stringValue, !s.isEmpty { return s }
@@ -118,7 +118,7 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         return nil
     }
 
-    /// Ссылки на MR/PR из команды и stdout/stderr; остальной вывод отбрасывается.
+    /// MR/PR links from the command and stdout/stderr; the rest of the output is discarded.
     static func links(command: String?, response: JSONValue?) -> [String] {
         var text = command ?? ""
         if let s = response?.stringValue { text += "\n" + s }
@@ -131,7 +131,7 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         return v?["display_name"]?.stringValue ?? v?["id"]?.stringValue
     }
 
-    // MARK: - Краткая суть шага
+    // MARK: - Short gist of a step
 
     public func summarize(toolName: String, input: JSONValue, cwd: String?) -> String {
         func path(_ key: String = "file_path") -> String {
@@ -158,13 +158,13 @@ public struct ClaudeCodeAdapter: AgentAdapter {
             return "WebFetch " + (URL(string: url)?.host ?? url)
         case "WebSearch": return "WebSearch \"\(firstLine(input["query"]?.stringValue ?? "", max: 60))\""
         case "Task", "Agent":
-            return "Агент: " + firstLine(input["description"]?.stringValue ?? input["subagent_type"]?.stringValue ?? "")
-        case "TodoWrite": return "Обновил список задач"
-        case "Skill": return "Скилл " + (input["skill"]?.stringValue ?? "")
+            return "Agent: " + firstLine(input["description"]?.stringValue ?? input["subagent_type"]?.stringValue ?? "")
+        case "TodoWrite": return "Updated the task list"
+        case "Skill": return "Skill " + (input["skill"]?.stringValue ?? "")
         default:
             if toolName.hasPrefix("mcp__") {
                 let parts = toolName.split(separator: "_", omittingEmptySubsequences: true)
-                // mcp__server__tool → ["mcp", "server", "tool"...]; имя сервера может содержать "_"
+                // mcp__server__tool -> ["mcp", "server", "tool"...]; the server name may contain "_"
                 let comps = toolName.dropFirst(5).components(separatedBy: "__")
                 if comps.count >= 2 { return "\(comps[0]) · \(comps.dropFirst().joined(separator: "__"))" }
                 return parts.dropFirst().joined(separator: " ")

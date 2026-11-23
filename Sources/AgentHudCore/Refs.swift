@@ -1,10 +1,10 @@
 import Foundation
 
-/// Ветки и ссылки на merge/pull request, найденные в командах и выводе git.
-/// Чистые функции: только строки на входе, без чтения файлов.
+/// Branches and merge/pull request links found in commands and git output.
+/// Pure functions: only strings in, no file reading.
 public enum GitRefs {
-    /// Имена веток из git-команд (в том числе в составных `a && b ; c`).
-    /// `echo git checkout -b x` не считается: команда должна начинаться с `git`.
+    /// Branch names from git commands (including compound `a && b ; c`).
+    /// `echo git checkout -b x` does not count: the command must start with `git`.
     public static func branches(inCommand command: String) -> [String] {
         var out: [String] = []
         func add(_ s: String?) {
@@ -13,11 +13,11 @@ public enum GitRefs {
         }
         for segment in segments(command) {
             var t = segment
-            // Присваивания окружения в начале: FOO=1 git ...
+            // Environment assignments at the start: FOO=1 git ...
             while let f = t.first, f.contains("="), !f.hasPrefix("-"), f.first != "=" { t.removeFirst() }
             guard t.first == "git" else { continue }
             t.removeFirst()
-            // Глобальные опции до подкоманды: -C dir, -c k=v, --no-pager и т. п.
+            // Global options before the subcommand: -C dir, -c k=v, --no-pager, etc.
             while let f = t.first, f.hasPrefix("-") {
                 t.removeFirst()
                 if f == "-C" || f == "-c" || f == "--git-dir" || f == "--work-tree", !t.isEmpty { t.removeFirst() }
@@ -34,8 +34,8 @@ public enum GitRefs {
         return out
     }
 
-    /// Ссылки на merge/pull request в произвольном тексте (команда, stdout, stderr).
-    /// Ссылка «создать MR» после push сохраняется без лишних параметров, кроме ветки-источника.
+    /// Merge/pull request links in arbitrary text (command, stdout, stderr).
+    /// A "create MR" link after push is kept without extra parameters, except the source branch.
     public static func links(inText text: String) -> [String] {
         var out: [String] = []
         for m in urlRegex.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
@@ -47,7 +47,7 @@ public enum GitRefs {
         return out
     }
 
-    /// Ветки-источники из ссылок «создать MR» (`merge_request[source_branch]=…`).
+    /// Source branches from "create MR" links (`merge_request[source_branch]=...`).
     public static func branches(inText text: String) -> [String] {
         var out: [String] = []
         for link in links(inText: text) {
@@ -57,7 +57,7 @@ public enum GitRefs {
         return out
     }
 
-    // MARK: - Разбор
+    // MARK: - Parsing
 
     private static let urlRegex = try! NSRegularExpression(pattern: #"https?://[^\s"'<>]+"#)
     private static let mrNumber = try! NSRegularExpression(pattern: #"^(https?://[^/?#\s]+/[^?#\s]*?/merge_requests/\d+)"#)
@@ -90,7 +90,7 @@ public enum GitRefs {
         return value.removingPercentEncoding.flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    /// Команда → сегменты по `&&`, `||`, `;`, `|`, переводам строк; каждый — слова.
+    /// Command -> segments by `&&`, `||`, `;`, `|`, newlines; each one is words.
     private static func segments(_ command: String) -> [[String]] {
         var s = command
         for sep in ["&&", "||", ";", "|", "\n"] { s = s.replacingOccurrences(of: sep, with: "\u{1}") }
@@ -110,7 +110,7 @@ public enum GitRefs {
         if let i = args.firstIndex(where: { creators.contains($0) }) {
             return i + 1 < args.count ? [args[i + 1]] : []
         }
-        // Всё после `--` — пути; `git checkout X -- file` восстанавливает файл, ветки нет.
+        // Everything after `--` is paths; `git checkout X -- file` restores a file, no branch.
         if args.contains("--") { return [] }
         let positional = args.filter { !$0.hasPrefix("-") }
         return positional.count == 1 ? positional : []

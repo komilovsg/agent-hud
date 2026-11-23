@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentHudCore
 
-// MARK: - Красные флаги
+// MARK: - Red flags
 
 @Suite struct RedFlagTests {
     let set = RedFlagSet(rules: RedFlagSet.defaults)
@@ -11,7 +11,7 @@ import Testing
         set.matches(toolName: "Bash", input: ["command": .string(cmd)]).map(\.id)
     }
 
-    /// Правило → команды, которые оно ловит, и команды, которые оно ловить не должно.
+    /// Rule -> commands it catches, and commands it must not catch.
     static let table: [(id: String, hit: [String], miss: [String])] = [
         ("push-protected", [
             "git push origin main",
@@ -143,8 +143,8 @@ import Testing
         #expect(Self.table.map(\.id) == RedFlagSet.defaults.map(\.id))
         for row in Self.table {
             #expect(row.hit.count >= 3 && row.miss.count >= 3)
-            for cmd in row.hit { #expect(ids(cmd).contains(row.id), "\(row.id) должен ловить: \(cmd)") }
-            for cmd in row.miss { #expect(!ids(cmd).contains(row.id), "\(row.id) не должен ловить: \(cmd)") }
+            for cmd in row.hit { #expect(ids(cmd).contains(row.id), "\(row.id) must catch: \(cmd)") }
+            for cmd in row.miss { #expect(!ids(cmd).contains(row.id), "\(row.id) must not catch: \(cmd)") }
         }
     }
 
@@ -159,7 +159,7 @@ import Testing
         #expect(ids("git push --force origin main") == ["push-protected", "force"])
         #expect(ids("git push -f -o merge_request.create origin HEAD:main") == ["push-protected", "force", "mr-create"])
         #expect(ids("sudo rm -rf / && alembic upgrade head") == ["rm-rf", "db-migrate"])
-        // Упоминание в кавычках внутри настоящей команды тоже считается: кавычки не разбираем.
+        // A mention in quotes inside a real command counts too: we do not parse quotes.
         #expect(ids("git commit -m \"then git push origin main\"") == ["push-protected"])
     }
 
@@ -168,7 +168,7 @@ import Testing
         for tool in ["Write", "Edit", "Read", "WebFetch", "mcp__x__run", "bash", ""] {
             #expect(set.matches(toolName: tool, input: input).isEmpty, "\(tool)")
         }
-        #expect(set.matches(toolName: "Bash", input: ["description": "rm -rf /"]).isEmpty)   // нет command
+        #expect(set.matches(toolName: "Bash", input: ["description": "rm -rf /"]).isEmpty)   // no command
         #expect(set.matches(toolName: "Bash", input: input).map(\.id) == ["rm-rf"])
     }
 
@@ -177,7 +177,7 @@ import Testing
         #expect(Set(RedFlagSet.defaults.map(\.id)) == ["push-protected", "force", "mr-create", "rm-rf", "db-migrate"])
     }
 
-    // MARK: Файл
+    // MARK: File
 
     func tempDir() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("agenthud-redflags-\(UUID().uuidString)")
@@ -192,8 +192,8 @@ import Testing
         let json = try JSONValue.parse(Data(contentsOf: file))
         #expect(json["version"] == 1)
         #expect(json["rules"]?.arrayValue?.count == RedFlagSet.defaults.count)
-        #expect(try String(contentsOf: file, encoding: .utf8).contains("\n  \"rules\": ["))   // читаемый JSON
-        // Записанный файл читается обратно теми же правилами (экранирование регулярных выражений не теряется).
+        #expect(try String(contentsOf: file, encoding: .utf8).contains("\n  \"rules\": ["))   // readable JSON
+        // The written file reads back with the same rules (regex escaping is not lost).
         let again = RedFlagSet.load(from: file)
         #expect(again.rules == RedFlagSet.defaults && again.problems.isEmpty)
     }
@@ -210,7 +210,7 @@ import Testing
             #expect(loaded.problems.count == 1, "\(broken)")
             #expect(try String(contentsOf: file, encoding: .utf8) == broken)
         }
-        // Вместо файла — папка: не читается, правила встроенные.
+        // A folder instead of a file: cannot be read, built-in rules apply.
         let unreadable = dir.appendingPathComponent("as-dir.json")
         try FileManager.default.createDirectory(at: unreadable, withIntermediateDirectories: true)
         let loaded = RedFlagSet.load(from: unreadable)
@@ -224,17 +224,17 @@ import Testing
         let file = dir.appendingPathComponent("red-flags.json")
         let text = """
         {"version": 1, "rules": [
-          {"id": "ok", "title": "Деплой", "pattern": "\\\\bdeploy\\\\b"},
-          {"id": "bad-regex", "title": "Сломано", "pattern": "(unclosed"},
-          {"id": "no-pattern", "title": "Без шаблона"},
-          {"title": "Без id", "pattern": "x"},
-          {"id": "empty", "title": "Пусто", "pattern": ""},
-          "мусор"
+          {"id": "ok", "title": "Deploy", "pattern": "\\\\bdeploy\\\\b"},
+          {"id": "bad-regex", "title": "Broken", "pattern": "(unclosed"},
+          {"id": "no-pattern", "title": "No pattern"},
+          {"title": "No id", "pattern": "x"},
+          {"id": "empty", "title": "Empty", "pattern": ""},
+          "junk"
         ]}
         """
         try text.write(to: file, atomically: true, encoding: .utf8)
         let loaded = RedFlagSet.load(from: file)
-        #expect(loaded.rules == [RedFlagRule(id: "ok", title: "Деплой", pattern: "\\bdeploy\\b")])
+        #expect(loaded.rules == [RedFlagRule(id: "ok", title: "Deploy", pattern: "\\bdeploy\\b")])
         #expect(loaded.problems.count == 5)
         #expect(loaded.problems[0].contains("bad-regex"))
         #expect(loaded.problems[1].contains("no-pattern"))
@@ -255,7 +255,7 @@ import Testing
         #expect(loaded.matches(toolName: "Bash", input: ["command": "rm -rf /"]).isEmpty)
     }
 
-    // MARK: «Разрешить всегда»
+    // MARK: "Allow always"
 
     @Test func flaggedRequestHasNoAlwaysOptions() throws {
         let suggestions = try fixture("permission-PermissionRequest")["permission_suggestions"]?.arrayValue ?? []
@@ -263,11 +263,11 @@ import Testing
         let input: JSONValue = ["command": "git push origin main"]
         let flags = set.matches(toolName: "Bash", input: input)
         #expect(!flags.isEmpty)
-        // Без флага: шаблон HUD и подсказка агента на месте, как раньше.
+        // Without a flag: the HUD pattern and the agent suggestion are in place, as before.
         let plain = PermissionRules.options(toolName: "Bash", input: input, suggestions: suggestions)
         #expect(plain.count == 3)
         #expect(PermissionRules.options(toolName: "Bash", input: input, suggestions: suggestions, redFlags: []) == plain)
-        // С флагом пропадает всё.
+        // With a flag everything disappears.
         #expect(PermissionRules.options(toolName: "Bash", input: input, suggestions: suggestions, redFlags: flags).isEmpty)
         #expect(PermissionRules.options(toolName: "Bash", input: input, suggestions: [], redFlags: flags).isEmpty)
     }

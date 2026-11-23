@@ -1,8 +1,8 @@
 import Foundation
 
-/// Запись журнала активности: промпт, конец хода, решение в HUD.
-/// Журнал — по файлу на день: `~/Library/Application Support/AgentHUD/activity/ГГГГ-ММ-ДД.jsonl`.
-/// Только локально; из него строится сводка за день (для стендапа) и вкладка «Сегодня» на карте агентов.
+/// Activity log entry: a prompt, the end of a turn, a decision in the HUD.
+/// The log is one file per day: `~/Library/Application Support/AgentHUD/activity/YYYY-MM-DD.jsonl`.
+/// Local only; the daily summary (for standups) and the "Today" tab of the agent map are built from it.
 public struct ActivityRecord: Equatable, Sendable {
     public enum Kind: String, Sendable { case prompt, stop, decision, ref }
 
@@ -12,9 +12,9 @@ public struct ActivityRecord: Equatable, Sendable {
     public var session: String
     public var project: String
     public var cwd: String
-    /// Промпт, итоговое сообщение агента, суть решения или ветка/ссылка (для `ref`).
+    /// A prompt, the agent's final message, the gist of a decision, or a branch/link (for `ref`).
     public var text: String
-    /// Для решения — что решили («разрешено», «отклонено»…); для `ref` — «branch» или «link».
+    /// For a decision - what was decided ("allowed", "denied"...); for `ref` - "branch" or "link".
     public var detail: String?
     public var failed = false
     public var stats: TurnStats?
@@ -106,7 +106,7 @@ public enum ActivityLog {
         }
     }
 
-    /// Записи всех дней, пересекающих отрезок, с `from <= time <= to`, по времени.
+    /// Entries of all days that intersect the interval, with `from <= time <= to`, by time.
     public static func read(from: Date, to: Date) -> [ActivityRecord] {
         guard from <= to else { return [] }
         let cal = Calendar.current
@@ -123,7 +123,7 @@ public enum ActivityLog {
     }
 }
 
-// MARK: - Сводка за день
+// MARK: - Daily summary
 
 public struct DayTurn: Equatable, Sendable {
     public var session: String
@@ -147,11 +147,11 @@ public struct DayProject: Equatable, Sendable {
 }
 
 public enum DailySummary {
-    /// Записи дня → проекты с ходами (промпт → итог), в порядке первой активности.
+    /// Entries of a day -> projects with turns (prompt -> result), in order of first activity.
     public static func build(_ records: [ActivityRecord]) -> [DayProject] {
         var projects: [String: DayProject] = [:]
         var order: [String] = []
-        var open: [String: (project: String, index: Int)] = [:]   // session → незакрытый ход
+        var open: [String: (project: String, index: Int)] = [:]   // session -> unfinished turn
 
         func project(_ r: ActivityRecord) -> String {
             let key = r.cwd.isEmpty ? r.project : r.cwd
@@ -177,9 +177,9 @@ public enum DailySummary {
                     open[r.session] = nil
                 }
             case .decision:
-                projects[key]!.decisions[r.detail ?? "решение", default: 0] += 1
+                projects[key]!.decisions[r.detail ?? "decision", default: 0] += 1
             case .ref:
-                break   // ветки и ссылки собирает PeriodReport
+                break   // branches and links are collected by PeriodReport
             }
         }
         return order.compactMap { projects[$0] }.filter { !$0.turns.isEmpty || !$0.decisions.isEmpty }
@@ -187,68 +187,65 @@ public enum DailySummary {
 
     public static func markdown(_ projects: [DayProject], day: Date) -> String {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "ru_RU")
-        df.dateFormat = "d MMMM yyyy"
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "MMM d, yyyy"
         let tf = DateFormatter()
-        tf.dateFormat = "HH:mm"
+        tf.locale = Locale(identifier: "en_US_POSIX"); tf.dateFormat = "HH:mm"
 
-        var out = "# Сводка агентов · \(df.string(from: day))\n\n"
-        guard !projects.isEmpty else { return out + "За этот день агенты ничего не делали.\n" }
+        var out = "# Daily summary · \(df.string(from: day))\n\n"
+        guard !projects.isEmpty else { return out + "No agent activity on this day.\n" }
 
         let turns = projects.reduce(0) { $0 + $1.turns.count }
         let worked = projects.reduce(0) { $0 + $1.workedSec }
         let edits = projects.reduce(0) { $0 + $1.edits }
         let commands = projects.reduce(0) { $0 + $1.commands }
         let decisions = projects.reduce(0) { $0 + $1.decisions.values.reduce(0, +) }
-        var total = "**Итого:** \(turns) \(plural(turns, "задача", "задачи", "задач")) в \(projects.count) \(plural(projects.count, "проекте", "проектах", "проектах"))"
-        if worked > 0 { total += " · агенты работали \(duration(worked))" }
-        total += " · правок файлов: \(edits) · команд: \(commands)"
-        if decisions > 0 { total += " · решений в HUD: \(decisions)" }
+        var total = "**Total:** \(turns) \(plural(turns, "task", "tasks")) in \(projects.count) \(plural(projects.count, "project", "projects"))"
+        if worked > 0 { total += " · agents worked \(duration(worked))" }
+        total += " · file edits: \(edits) · commands: \(commands)"
+        if decisions > 0 { total += " · HUD decisions: \(decisions)" }
         out += total + "\n"
 
         for p in projects {
             out += "\n## \(p.name)\n\n"
-            var line = "\(p.turns.count) \(plural(p.turns.count, "задача", "задачи", "задач"))"
+            var line = "\(p.turns.count) \(plural(p.turns.count, "task", "tasks"))"
             if p.workedSec > 0 { line += " · \(duration(p.workedSec))" }
-            line += " · правок: \(p.edits) · команд: \(p.commands)"
+            line += " · edits: \(p.edits) · commands: \(p.commands)"
             out += line + "\n\n"
             for t in p.turns {
                 let prompt = oneLine(t.prompt, 120)
                 var status: String
-                if t.end == nil { status = "не завершена" }
-                else if t.failed { status = "ошибка" }
-                else { status = "готово" + (t.stats.durationSec.map { " за \(duration($0))" } ?? "") }
+                if t.end == nil { status = "not finished" }
+                else if t.failed { status = "failed" }
+                else { status = "done" + (t.stats.durationSec.map { " in \(duration($0))" } ?? "") }
                 var counters: [String] = []
-                if t.stats.edits > 0 { counters.append("правок \(t.stats.edits)") }
-                if t.stats.commands > 0 { counters.append("команд \(t.stats.commands)") }
-                if t.stats.subagents > 0 { counters.append("субагентов \(t.stats.subagents)") }
+                if t.stats.edits > 0 { counters.append("edits \(t.stats.edits)") }
+                if t.stats.commands > 0 { counters.append("commands \(t.stats.commands)") }
+                if t.stats.subagents > 0 { counters.append("subagents \(t.stats.subagents)") }
                 if !counters.isEmpty { status += " · " + counters.joined(separator: " · ") }
-                out += "- **\(tf.string(from: t.start))** \(prompt.isEmpty ? "(без текста)" : prompt) — \(status)\n"
-                if let m = t.message, !m.isEmpty { out += "  - Итог: \(oneLine(m, 200))\n" }
+                out += "- **\(tf.string(from: t.start))** \(prompt.isEmpty ? "(no text)" : prompt) — \(status)\n"
+                if let m = t.message, !m.isEmpty { out += "  - Result: \(oneLine(m, 200))\n" }
                 if !t.stats.files.isEmpty {
                     let names = t.stats.files.prefix(4).map { ($0 as NSString).lastPathComponent }
-                    out += "  - Файлы: \(names.joined(separator: ", "))" + (t.stats.files.count > 4 ? " +\(t.stats.files.count - 4)" : "") + "\n"
+                    out += "  - Files: \(names.joined(separator: ", "))" + (t.stats.files.count > 4 ? " +\(t.stats.files.count - 4)" : "") + "\n"
                 }
             }
             if !p.decisions.isEmpty {
                 let d = p.decisions.keys.sorted().map { "\($0) \(p.decisions[$0]!)" }.joined(separator: " · ")
-                out += "\nРешения в HUD: \(d)\n"
+                out += "\nHUD decisions: \(d)\n"
             }
         }
         return out
     }
 
     public static func duration(_ sec: Int) -> String {
-        if sec < 60 { return "меньше минуты" }
-        if sec < 3600 { return "\(sec / 60) мин" }
-        return "\(sec / 3600) ч \(String(format: "%02d", sec % 3600 / 60)) мин"
+        if sec < 60 { return "\(sec) s" }
+        if sec < 3600 { return "\(sec / 60) min" }
+        return "\(sec / 3600) h \(String(format: "%02d", sec % 3600 / 60)) min"
     }
 
-    public static func plural(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
-        let m10 = n % 10, m100 = n % 100
-        if m10 == 1 && m100 != 11 { return one }
-        if (2...4).contains(m10) && !(12...14).contains(m100) { return few }
-        return many
+    public static func plural(_ n: Int, _ one: String, _ other: String) -> String {
+        n == 1 ? one : other
     }
 
     static func oneLine(_ s: String, _ max: Int) -> String {
@@ -257,7 +254,7 @@ public enum DailySummary {
     }
 }
 
-// MARK: - Отчёт за период
+// MARK: - Period report
 
 public struct PeriodProject: Equatable, Sendable {
     public var project: DayProject
@@ -265,16 +262,16 @@ public struct PeriodProject: Equatable, Sendable {
     public var links: [String] = []
 }
 
-/// Пресеты отрезков; `now` и календарь передаются снаружи.
+/// Interval presets; `now` and the calendar are passed in from outside.
 public enum ReportPreset: CaseIterable, Sendable {
     case since15Yesterday, today, yesterday, week
 
     public var title: String {
         switch self {
-        case .since15Yesterday: return "С 15:00 вчера"
-        case .today: return "Сегодня"
-        case .yesterday: return "Вчера"
-        case .week: return "7 дней"
+        case .since15Yesterday: return "Since 15:00 yesterday"
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .week: return "Last 7 days"
         }
     }
 
@@ -292,11 +289,11 @@ public enum ReportPreset: CaseIterable, Sendable {
 }
 
 public enum PeriodReport {
-    /// Записи → проекты за отрезок. Записи должны включать промпты ходов, начатых до `from`
-    /// (см. `load`): ход, начатый раньше, но законченный внутри отрезка, попадает в отчёт.
+    /// Entries -> projects over the interval. Entries must include the prompts of turns started before `from`
+    /// (see `load`): a turn started earlier but finished inside the interval makes it into the report.
     public static func build(_ records: [ActivityRecord], from: Date? = nil, to: Date? = nil) -> [PeriodProject] {
         func inRange(_ d: Date) -> Bool { (from.map { d >= $0 } ?? true) && (to.map { d <= $0 } ?? true) }
-        // Решения и ссылки считаем только внутри отрезка; промпты и стопы нужны для сопоставления ходов.
+    // Decisions and links are counted only inside the interval; prompts and stops are needed to match turns.
         let recs = records.filter { $0.kind == .prompt || $0.kind == .stop || inRange($0.time) }
         var result: [PeriodProject] = []
         for var p in DailySummary.build(recs) {
@@ -312,7 +309,7 @@ public enum PeriodReport {
         return result
     }
 
-    /// Читает журнал с запасом назад (промпты ходов, начатых до `from`) и строит отчёт.
+    /// Reads the log with a margin backwards (prompts of turns started before `from`) and builds the report.
     public static func load(from: Date, to: Date) -> [PeriodProject] {
         let lookback = from.addingTimeInterval(-24 * 3600)
         return build(ActivityLog.read(from: lookback, to: to), from: from, to: to)
@@ -320,38 +317,38 @@ public enum PeriodReport {
 
     public static func markdown(_ projects: [PeriodProject], from: Date, to: Date) -> String {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "ru_RU")
-        df.dateFormat = "d MMM HH:mm"
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "MMM d, HH:mm"
         let tf = DateFormatter()
-        tf.dateFormat = "HH:mm"
+        tf.locale = Locale(identifier: "en_US_POSIX"); tf.dateFormat = "HH:mm"
         let multiDay = !Calendar.current.isDate(from, inSameDayAs: to)
 
-        var out = "# Отчёт агентов · \(df.string(from: from)) — \(df.string(from: to))\n\n"
-        guard !projects.isEmpty else { return out + "За этот период агенты ничего не делали.\n" }
+        var out = "# Agent report · \(df.string(from: from)) — \(df.string(from: to))\n\n"
+        guard !projects.isEmpty else { return out + "No agent activity in this period.\n" }
 
         let turns = projects.reduce(0) { $0 + $1.project.turns.count }
         let worked = projects.reduce(0) { $0 + $1.project.workedSec }
-        var total = "**Итого:** \(turns) \(DailySummary.plural(turns, "задача", "задачи", "задач")) в \(projects.count) \(DailySummary.plural(projects.count, "проекте", "проектах", "проектах"))"
-        if worked > 0 { total += " · агенты работали \(DailySummary.duration(worked))" }
+        var total = "**Total:** \(turns) \(DailySummary.plural(turns, "task", "tasks")) in \(projects.count) \(DailySummary.plural(projects.count, "project", "projects"))"
+        if worked > 0 { total += " · agents worked \(DailySummary.duration(worked))" }
         out += total + "\n"
 
         for item in projects {
             let p = item.project
             out += "\n## \(p.name)\n\n"
-            var line = "\(p.turns.count) \(DailySummary.plural(p.turns.count, "задача", "задачи", "задач"))"
+            var line = "\(p.turns.count) \(DailySummary.plural(p.turns.count, "task", "tasks"))"
             if p.workedSec > 0 { line += " · \(DailySummary.duration(p.workedSec))" }
             out += line + "\n"
-            if !item.branches.isEmpty { out += "\nВетки: " + item.branches.map { "`\($0)`" }.joined(separator: ", ") + "\n" }
-            if !item.links.isEmpty { out += "\nСсылки:\n" + item.links.map { "- \($0)" }.joined(separator: "\n") + "\n" }
+            if !item.branches.isEmpty { out += "\nBranches: " + item.branches.map { "`\($0)`" }.joined(separator: ", ") + "\n" }
+            if !item.links.isEmpty { out += "\nLinks:\n" + item.links.map { "- \($0)" }.joined(separator: "\n") + "\n" }
             out += "\n"
             for t in p.turns {
                 let prompt = DailySummary.oneLine(t.prompt, 120)
                 var status: String
-                if t.end == nil { status = "не завершена" }
-                else if t.failed { status = "ошибка" }
-                else { status = "готово" + (t.stats.durationSec.map { " за \(DailySummary.duration($0))" } ?? "") }
+                if t.end == nil { status = "not finished" }
+                else if t.failed { status = "failed" }
+                else { status = "done" + (t.stats.durationSec.map { " in \(DailySummary.duration($0))" } ?? "") }
                 let when = multiDay ? df.string(from: t.start) : tf.string(from: t.start)
-                out += "- **\(when)** \(prompt.isEmpty ? "(без текста)" : prompt) — \(status)\n"
+                out += "- **\(when)** \(prompt.isEmpty ? "(no text)" : prompt) — \(status)\n"
             }
         }
         return out

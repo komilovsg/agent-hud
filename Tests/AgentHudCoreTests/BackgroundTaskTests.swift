@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentHudCore
 
-// MARK: - Фоновые задачи
+// MARK: - Background tasks
 
 @Suite struct BackgroundTaskTests {
     let sid = "bg-session"
@@ -36,7 +36,7 @@ import Testing
         let ag = try #require(events(try message("PostToolUse-Agent-background")).first)
         guard case .toolFinished("Agent", _, _, _, _, let b) = ag.body else { Issue.record("\(ag.body)"); return }
         #expect(b == "agentsyn1")
-        // Обычный Bash без фонового id.
+        // Plain Bash without a background id.
         let plain = try #require(events(try message("PostToolUse-Bash")).first)
         guard case .toolFinished(_, _, _, _, _, let c) = plain.body else { Issue.record("\(plain.body)"); return }
         #expect(c == nil)

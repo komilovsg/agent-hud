@@ -1,11 +1,11 @@
 import Foundation
 
-/// JSON с сохранением порядка ключей и исходного вида чисел.
-/// Нужен, чтобы править `~/.claude/settings.json`, не перемешивая чужие настройки.
+/// JSON that preserves key order and the original form of numbers.
+/// Needed to edit `~/.claude/settings.json` without shuffling other people's settings.
 public enum JSONValue: Equatable, Sendable {
     case null
     case bool(Bool)
-    case number(String)          // исходный текст числа: "3650", "1.5e3"
+    case number(String)          // original text of the number: "3650", "1.5e3"
     case string(String)
     case array([JSONValue])
     case object(JSONObject)
@@ -56,7 +56,7 @@ public struct JSONObject: Equatable, Sendable {
     public var keys: [String] { entries.map(\.key) }
     public var isEmpty: Bool { entries.isEmpty }
 
-    /// Присваивание `nil` удаляет ключ. Новый ключ добавляется в конец, существующий меняется на месте.
+    /// Assigning `nil` deletes the key. A new key is appended at the end, an existing one is changed in place.
     public subscript(key: String) -> JSONValue? {
         get { entries.first(where: { $0.key == key })?.value }
         set {
@@ -81,12 +81,12 @@ extension JSONValue: ExpressibleByStringLiteral, ExpressibleByBooleanLiteral, Ex
     public init(nilLiteral: ()) { self = .null }
 }
 
-// MARK: - Разбор
+// MARK: - Parsing
 
 public struct JSONParseError: Error, CustomStringConvertible {
     public let offset: Int
     public let reason: String
-    public var description: String { "JSON: \(reason) (байт \(offset))" }
+    public var description: String { "JSON: \(reason) (byte \(offset))" }
 }
 
 extension JSONValue {
@@ -99,7 +99,7 @@ extension JSONValue {
         p.skipWhitespace()
         let v = try p.parseValue(depth: 0)
         p.skipWhitespace()
-        guard p.i == p.bytes.count else { throw p.error("лишние символы после значения") }
+        guard p.i == p.bytes.count else { throw p.error("extra characters after the value") }
         return v
     }
 
@@ -115,14 +115,14 @@ extension JSONValue {
 
         mutating func expect(_ literal: String) throws {
             for b in literal.utf8 {
-                guard i < bytes.count, bytes[i] == b else { throw error("ожидалось \(literal)") }
+                guard i < bytes.count, bytes[i] == b else { throw error("expected \(literal)") }
                 i += 1
             }
         }
 
         mutating func parseValue(depth: Int) throws -> JSONValue {
-            guard depth < 512 else { throw error("слишком глубокая вложенность") }
-            guard i < bytes.count else { throw error("неожиданный конец") }
+            guard depth < 512 else { throw error("nesting too deep") }
+            guard i < bytes.count else { throw error("unexpected end") }
             switch bytes[i] {
             case UInt8(ascii: "{"): return try parseObject(depth: depth)
             case UInt8(ascii: "["): return try parseArray(depth: depth)
@@ -141,19 +141,19 @@ extension JSONValue {
             if i < bytes.count, bytes[i] == UInt8(ascii: "}") { i += 1; return .object(obj) }
             while true {
                 skipWhitespace()
-                guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { throw error("ожидался ключ") }
+                guard i < bytes.count, bytes[i] == UInt8(ascii: "\"") else { throw error("expected a key") }
                 let key = try parseString()
                 skipWhitespace()
                 try expect(":")
                 skipWhitespace()
                 let value = try parseValue(depth: depth + 1)
-                // При дубликатах побеждает последний, как в JSON.parse.
+                // With duplicates the last one wins, as in JSON.parse.
                 obj[key] = value
                 skipWhitespace()
-                guard i < bytes.count else { throw error("неожиданный конец объекта") }
+                guard i < bytes.count else { throw error("unexpected end of object") }
                 if bytes[i] == UInt8(ascii: ",") { i += 1; continue }
                 if bytes[i] == UInt8(ascii: "}") { i += 1; return .object(obj) }
-                throw error("ожидалась , или }")
+                throw error("expected , or }")
             }
         }
 
@@ -166,15 +166,15 @@ extension JSONValue {
                 skipWhitespace()
                 arr.append(try parseValue(depth: depth + 1))
                 skipWhitespace()
-                guard i < bytes.count else { throw error("неожиданный конец массива") }
+                guard i < bytes.count else { throw error("unexpected end of array") }
                 if bytes[i] == UInt8(ascii: ",") { i += 1; continue }
                 if bytes[i] == UInt8(ascii: "]") { i += 1; return .array(arr) }
-                throw error("ожидалась , или ]")
+                throw error("expected , or ]")
             }
         }
 
         mutating func parseHex4() throws -> UInt32 {
-            guard i + 4 <= bytes.count else { throw error("обрезанный \\u") }
+            guard i + 4 <= bytes.count else { throw error("truncated \\u") }
             var v: UInt32 = 0
             for _ in 0..<4 {
                 let c = bytes[i]
@@ -183,7 +183,7 @@ extension JSONValue {
                 case 0x30...0x39: v |= UInt32(c - 0x30)
                 case 0x41...0x46: v |= UInt32(c - 0x41 + 10)
                 case 0x61...0x66: v |= UInt32(c - 0x61 + 10)
-                default: throw error("плохой \\u")
+                default: throw error("bad \\u")
                 }
                 i += 1
             }
@@ -194,12 +194,12 @@ extension JSONValue {
             i += 1
             var out = [UInt8]()
             while true {
-                guard i < bytes.count else { throw error("незакрытая строка") }
+                guard i < bytes.count else { throw error("unterminated string") }
                 let c = bytes[i]
                 if c == UInt8(ascii: "\"") { i += 1; break }
                 if c == UInt8(ascii: "\\") {
                     i += 1
-                    guard i < bytes.count else { throw error("обрезанное экранирование") }
+                    guard i < bytes.count else { throw error("truncated escape") }
                     let e = bytes[i]; i += 1
                     switch e {
                     case UInt8(ascii: "\""): out.append(0x22)
@@ -223,7 +223,7 @@ extension JSONValue {
                         }
                         let u = Unicode.Scalar(scalar) ?? "\u{FFFD}"
                         out.append(contentsOf: Array(String(Character(u)).utf8))
-                    default: throw error("неизвестное экранирование")
+                    default: throw error("unknown escape")
                     }
                 } else {
                     out.append(c); i += 1
@@ -235,25 +235,25 @@ extension JSONValue {
         mutating func parseNumber() throws -> JSONValue {
             let start = i
             while i < bytes.count, "+-0123456789.eE".utf8.contains(bytes[i]) { i += 1 }
-            guard i > start else { throw error("неожиданный символ") }
+            guard i > start else { throw error("unexpected character") }
             let text = String(decoding: bytes[start..<i], as: UTF8.self)
-            guard Double(text) != nil else { throw error("плохое число \(text)") }
+            guard Double(text) != nil else { throw error("bad number \(text)") }
             return .number(text)
         }
     }
 }
 
-// MARK: - Запись
+// MARK: - Writing
 
 extension JSONValue {
-    /// Компактная запись в одну строку (для сокета и stdout хука).
+    /// Compact single-line output (for the socket and the hook's stdout).
     public func compact() -> String {
         var s = ""
         write(into: &s, indent: nil, level: 0)
         return s
     }
 
-    /// Запись с отступом в 2 пробела — как `JSON.stringify(x, null, 2)` и `jq`.
+    /// Output indented by 2 spaces - like `JSON.stringify(x, null, 2)` and `jq`.
     public func pretty(indent: Int = 2) -> String {
         var s = ""
         write(into: &s, indent: indent, level: 0)

@@ -1,8 +1,8 @@
 import Darwin
 import Foundation
 
-/// Определяет, где запущен агент: терминал (TTY, herdr) или десктопное приложение Claude.
-/// Работает через sysctl — без запуска внешних процессов, чтобы хук оставался быстрым.
+/// Detects where the agent is running: a terminal (TTY, herdr) or the Claude desktop app.
+/// Works through sysctl - without launching external processes, so the hook stays fast.
 public enum HostProbe {
     public struct ProcInfo: Equatable {
         public let pid: Int32
@@ -28,7 +28,7 @@ public enum HostProbe {
         return ProcInfo(pid: pid, ppid: ppid, tty: tty, name: name)
     }
 
-    /// Цепочка процессов от `start` вверх до launchd.
+    /// Process chain from `start` up to launchd.
     public static func chain(from start: Int32, limit: Int = 16) -> [ProcInfo] {
         var out: [ProcInfo] = []
         var pid = start
@@ -39,7 +39,7 @@ public enum HostProbe {
         return out
     }
 
-    /// Собрать HostInfo для текущего процесса хука.
+    /// Build HostInfo for the current hook process.
     public static func current(env: [String: String] = ProcessInfo.processInfo.environment) -> HostInfo {
         let chain = chain(from: getppid())
         let agent = agentProcess(in: chain)
@@ -60,21 +60,21 @@ public enum HostProbe {
         )
     }
 
-    /// Полный путь исполняемого файла процесса.
+    /// Full path of the process executable.
     public static func executablePath(pid: Int32) -> String? {
         var buf = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         let n = proc_pidpath(pid, &buf, UInt32(buf.count))
         return n > 0 ? String(cString: buf) : nil
     }
 
-    /// Бандл .app по пути исполняемого файла: «/Applications/Claude.app/Contents/MacOS/Claude» → «/Applications/Claude.app».
+    /// The .app bundle from an executable path: "/Applications/Claude.app/Contents/MacOS/Claude" -> "/Applications/Claude.app".
     public static func bundlePath(forExecutable path: String) -> String? {
         guard let r = path.range(of: ".app/Contents/MacOS/", options: .backwards) else { return nil }
         return String(path[..<r.lowerBound]) + ".app"
     }
 
-    /// Самое внешнее GUI-приложение в цепочке (Terminal, Claude…).
-    /// Внешнее — потому что сам Claude Code тоже лежит в бандле `claude.app` внутри данных приложения.
+    /// The outermost GUI app in the chain (Terminal, Claude...).
+    /// Outermost, because Claude Code itself also sits in a `claude.app` bundle inside the app's data.
     static func hostApp(in chain: [ProcInfo]) -> (bundleId: String, name: String)? {
         for p in chain.reversed() {
             guard let exe = executablePath(pid: p.pid), let bundle = bundlePath(forExecutable: exe),
@@ -89,23 +89,23 @@ public enum HostProbe {
 
     static let shells: Set<String> = ["sh", "bash", "zsh", "dash", "fish", "env", "-zsh", "-bash", "login"]
 
-    /// Агент запускает хук напрямую, но иногда через оболочку. Процесс Claude Code
-    /// при этом может называться номером версии («2.1.322»), поэтому по имени не ищем:
-    /// берём первого предка, который не оболочка.
+    /// The agent runs the hook directly, but sometimes through a shell. The Claude Code process
+    /// may then be named after a version number ("2.1.322"), so we do not search by name:
+    /// we take the first ancestor that is not a shell.
     public static func agentProcess(in chain: [ProcInfo]) -> ProcInfo? {
         chain.first { !shells.contains($0.name) } ?? chain.first
     }
 
-    /// HUD показывает сессии, за которыми сидит человек: терминал, VS Code и десктопное приложение Claude.
-    /// SDK, `claude -p` из скриптов и служебные запросы приложений идут мимо — иначе
-    /// синхронный хук подвешивал бы автоматизацию до ответа в HUD. `AGENTHUD_ANY_HOST=1` снимает фильтр (для тестов).
+    /// The HUD shows sessions with a human behind them: terminal, VS Code and the Claude desktop app.
+    /// The SDK, `claude -p` from scripts and apps' service requests bypass it - otherwise
+    /// the synchronous hook would hang automation until a reply in the HUD. `AGENTHUD_ANY_HOST=1` removes the filter (for tests).
     public static func isInteractive(kind: AgentKind, host: HostInfo, env: [String: String]) -> Bool {
         if env["AGENTHUD_ANY_HOST"] == "1" { return true }
         switch kind {
         case .claude:
             switch env["CLAUDE_CODE_ENTRYPOINT"] {
             case "claude-desktop":
-                // У настоящей сессии приложения есть свой id (local_…); у служебных запросов — нет.
+                // A real app session has its own id (local_...); service requests do not.
                 return env["CLAUDE_CODE_HOST_SESSION_ID"]?.isEmpty == false
             case HostInfo.vscodeEntrypoint:
                 // Chat panel of the Claude Code extension. No TTY; a GUI app in the process chain means a person is there.
@@ -114,7 +114,7 @@ public enum HostProbe {
             case nil, "cli":
                 return host.tty != nil
             default:
-                return false   // sdk-*, другие редакторы
+                return false   // sdk-*, other editors
             }
         }
     }

@@ -1,14 +1,14 @@
 import Foundation
 
-/// Режим вызова хука.
+/// Hook invocation mode.
 public enum HookMode: String, Sendable {
-    case event        // асинхронное событие, ответ не нужен
-    case permission   // запрос разрешения, ждём решения
+    case event        // asynchronous event, no reply needed
+    case permission   // permission request, waiting for a decision
 
     public var isSync: Bool { self != .event }
 }
 
-/// Сообщение от `agenthud-hook` к приложению. Одна JSON-строка в сокете.
+/// Message from `agenthud-hook` to the app. One JSON line on the socket.
 public struct HookMessage: Equatable, Sendable {
     public static let version = 1
 
@@ -17,7 +17,7 @@ public struct HookMessage: Equatable, Sendable {
     public var requestId: String
     public var deadline: Date?
     public var host: HostInfo
-    public var payload: JSONValue   // вход хука агента как есть
+    public var payload: JSONValue   // the agent's hook input as is
 
     public init(agent: AgentKind, mode: HookMode, requestId: String, deadline: Date?, host: HostInfo, payload: JSONValue) {
         self.agent = agent
@@ -55,7 +55,7 @@ public struct HookMessage: Equatable, Sendable {
     }
 }
 
-/// Ответ приложения хуку.
+/// The app's reply to the hook.
 public struct HookReply: Equatable, Sendable {
     public var requestId: String
     public var decision: Decision
@@ -98,7 +98,7 @@ public struct HookReply: Equatable, Sendable {
     }
 }
 
-/// Где живёт сокет приложения.
+/// Where the app's socket lives.
 public enum AgentHUDPaths {
     public static var supportDirectory: URL {
         if let override = ProcessInfo.processInfo.environment["AGENTHUD_SUPPORT_DIR"], !override.isEmpty {
@@ -128,8 +128,8 @@ public enum AgentHUDPaths {
     }
 }
 
-/// Запас времени: хук отпускает ожидание раньше своего `timeout`,
-/// чтобы агент не убил его и спросил пользователя в терминале.
+/// Time margin: the hook releases the wait earlier than its own `timeout`,
+/// so that the agent does not kill it and asks the user in the terminal.
 public enum HookTiming {
     public static let safetyMargin: TimeInterval = 5
     public static let defaultTimeout = 600

@@ -13,20 +13,20 @@
   "tool_input": {
     "questions": [
       {
-        "question": "Какой цвет вы предпочитаете?",
-        "header": "Цвет",
+        "question": "Which color do you prefer?",
+        "header": "Color",
         "options": [
           {
             "label": "Red",
-            "description": "Красный"
+            "description": "Red"
           },
           {
             "label": "Green",
-            "description": "Зелёный"
+            "description": "Green"
           },
           {
             "label": "Blue",
-            "description": "Синий"
+            "description": "Blue"
           }
         ],
         "multiSelect": false

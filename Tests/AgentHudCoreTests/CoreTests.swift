@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AgentHudCore
 
-// MARK: - Помощники
+// MARK: - Helpers
 
 func fixture(_ name: String) throws -> JSONValue {
     let url = try #require(Bundle.module.url(forResource: "Fixtures/claude/\(name)", withExtension: "json"))
@@ -29,7 +29,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
           "alpha": {
             "n": 3650,
             "f": 1.5e3,
-            "s": "привет \\"мир\\" \\n\\t/ \\u00e9 😀",
+            "s": "grüß \\"Welt\\" \\n\\t/ \\u00e9 😀",
             "arr": [],
             "obj": {}
           },
@@ -43,7 +43,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         let v = try JSONValue.parse(text)
         #expect(v.objectValue?.keys == ["zeta", "alpha", "list"])
         #expect(v["alpha"]?["n"] == .number("3650"))
-        #expect(v["alpha"]?["s"]?.stringValue == "привет \"мир\" \n\t/ é 😀")
+        #expect(v["alpha"]?["s"]?.stringValue == "grüß \"Welt\" \n\t/ é 😀")
         let again = try JSONValue.parse(v.pretty())
         #expect(again == v)
         #expect(v.pretty().contains("\"n\": 3650"))
@@ -73,7 +73,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Протокол
+// MARK: - Protocol
 
 @Suite struct ProtocolTests {
     @Test func messageRoundTrip() throws {
@@ -84,7 +84,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 
     @Test(arguments: [
-        Decision.allow, .deny(reason: "нельзя"), .deny(reason: nil),
+        Decision.allow, .deny(reason: "not allowed"), .deny(reason: nil),
         .passthrough,
         .allowWith([["type": "setMode", "mode": "acceptEdits", "destination": "session"]]),
     ])
@@ -104,7 +104,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Адаптер Claude Code
+// MARK: - Claude Code adapter
 
 @Suite struct ClaudeAdapterTests {
     @Test func mapsRealEvents() throws {
@@ -117,7 +117,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
             ("Notification-permission_prompt", { if case .notification("permission_prompt", _) = $0 { return true }; return false }),
         ]
         for (name, check) in cases {
-            let e = try #require(events(try message(name)).first, "нет события для \(name)")
+            let e = try #require(events(try message(name)).first, "no event for \(name)")
             #expect(check(e.body), "\(name): \(e.body)")
             #expect(e.sessionId == "11111111-2222-3333-4444-555555555555")
             #expect(e.cwd == "/Users/dev/project")
@@ -137,7 +137,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         var ask = try fixture("permission-PermissionRequest")
         ask["tool_name"] = "AskUserQuestion"
         #expect(!adapter.shouldForward(mode: .permission, payload: ask))
-        // Одобрение плана остаётся в обычном интерфейсе Claude Code.
+        // Plan approval stays in the regular Claude Code interface.
         ask["tool_name"] = "ExitPlanMode"
         #expect(!adapter.shouldForward(mode: .permission, payload: ask))
     }
@@ -148,9 +148,9 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(allow["hookSpecificOutput"]?["hookEventName"] == "PermissionRequest")
         #expect(allow["hookSpecificOutput"]?["decision"]?["behavior"] == "allow")
 
-        let deny = try JSONValue.parse(try #require(adapter.hookOutput(for: .deny(reason: "  опасно "), mode: .permission, payload: payload)))
+        let deny = try JSONValue.parse(try #require(adapter.hookOutput(for: .deny(reason: "  dangerous "), mode: .permission, payload: payload)))
         #expect(deny["hookSpecificOutput"]?["decision"]?["behavior"] == "deny")
-        #expect(deny["hookSpecificOutput"]?["decision"]?["message"] == "опасно")
+        #expect(deny["hookSpecificOutput"]?["decision"]?["message"] == "dangerous")
 
         let denyEmpty = try JSONValue.parse(try #require(adapter.hookOutput(for: .deny(reason: ""), mode: .permission, payload: payload)))
         #expect(denyEmpty["hookSpecificOutput"]?["decision"]?["message"]?.stringValue?.isEmpty == false)
@@ -168,12 +168,12 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(s("WebFetch", ["url": "https://example.com/x"]) == "WebFetch example.com")
         #expect(s("mcp__brain__search", ["query": "x"]) == "brain · search")
         #expect(s("mcp__claude-in-chrome__tabs_create_mcp", [:]) == "claude-in-chrome · tabs_create_mcp")
-        #expect(s("Task", ["description": "Найти баг"]) == "Агент: Найти баг")
+        #expect(s("Task", ["description": "Find the bug"]) == "Agent: Find the bug")
         #expect(s("Unknown", [:]) == "Unknown")
     }
 }
 
-// MARK: - Хранилище сессий
+// MARK: - Session store
 
 @Suite struct SessionStoreTests {
     func run(_ names: [(String, HookMode, String)], store: inout SessionStore, start: Date = t0) throws -> [String] {
@@ -205,7 +205,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         _ = try run([("PostToolUse-AskUserQuestion", .event, "d"), ("PreToolUse-Bash", .event, "e"),
                      ("permission-PermissionRequest", .permission, "p1")], store: &st)
         #expect(st.session(key)?.state == .waitingPermission)
-        // Уведомление permission_prompt не перебивает открытый запрос
+        // A permission_prompt notification does not override an open request
         _ = try run([("Notification-permission_prompt", .event, "n")], store: &st)
         #expect(st.session(key)?.activePending?.id == "p1")
         st.markAnswered("p1")
@@ -255,7 +255,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(st2.tick(now: t0.addingTimeInterval(100), autoHideDoneAfter: nil).isEmpty)
         #expect(st2.tick(now: t0.addingTimeInterval(597), autoHideDoneAfter: nil) == ["p1"])
         #expect(st2.session(key)?.state == .expired)
-        // Сессия пошла дальше — просроченное окошко исчезает
+        // The session moved on - the expired popup disappears
         _ = try run([("PostToolUse-Bash", .event, "x")], store: &st2, start: t0.addingTimeInterval(600))
         #expect(st2.session(key)?.state == .working)
     }
@@ -290,7 +290,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         _ = try run([("UserPromptSubmit", .event, "a"), ("Stop", .event, "b")], store: &st)
         st.tick(now: t0.addingTimeInterval(100), autoHideDoneAfter: 60)
         #expect(st.visibleSessions.isEmpty)
-        // Новый промпт снова показывает сессию
+        // A new prompt shows the session again
         _ = try run([("UserPromptSubmit", .event, "c")], store: &st, start: t0.addingTimeInterval(200))
         #expect(st.visibleSessions.count == 1)
     }
@@ -313,7 +313,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         p["hook_event_name"] = "SubagentStart"; p["agent_id"] = "ag1"; p["agent_type"] = "Explore"
         let m = HookMessage(agent: .claude, mode: .event, requestId: "s", deadline: nil, host: HostInfo(), payload: p)
         for e in events(m) { st.apply(e) }
-        #expect(st.session(key)?.steps.first?.summary == "Субагент: Explore")
+        #expect(st.session(key)?.steps.first?.summary == "Subagent: Explore")
         p["hook_event_name"] = "SubagentStop"
         for e in events(HookMessage(agent: .claude, mode: .event, requestId: "s2", deadline: nil, host: HostInfo(), payload: p), at: t0.addingTimeInterval(3)) {
             st.apply(e)
@@ -323,7 +323,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Установщик хуков
+// MARK: - Hook installer
 
 @Suite struct InstallerTests {
     let foreign = """
@@ -419,7 +419,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(r2.backup != nil)
         #expect(try String(contentsOf: file, encoding: .utf8) == foreign)
 
-        // Без изменений — без записи и без бэкапа
+        // No changes - no write and no backup
         let r3 = try ClaudeHookInstaller.apply(file: file) { $0 }
         #expect(r3.backup == nil)
     }
@@ -456,7 +456,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     @Test func labels() {
         #expect(HostInfo(termProgram: "Apple_Terminal", tty: "/dev/ttys001").label == "Terminal")
         #expect(HostInfo(tty: "/dev/ttys001", herdrPaneId: "p").label == "herdr")
-        // Терминал, запущенный из приложения, остаётся терминалом.
+        // A terminal launched from the app stays a terminal.
         #expect(HostInfo(termProgram: "Apple_Terminal", tty: "/dev/ttys001", appBundleId: HostInfo.claudeDesktop).label == "Terminal")
     }
 }
@@ -484,17 +484,17 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(HostProbe.isInteractive(kind: .claude, host: claudeApp,
                                         env: ["CLAUDE_CODE_ENTRYPOINT": "claude-desktop", "CLAUDE_CODE_HOST_SESSION_ID": "local_1"]))
         #expect(claudeApp.isDesktopApp && !tty.isDesktopApp)
-        #expect(claudeApp.label == "приложение Claude")
+        #expect(claudeApp.label == "Claude app")
     }
 
     @Test func automationIsSkipped() {
-        // Служебный запрос приложения Claude — без id сессии
+        // Service request of the Claude app - no session id
         #expect(!HostProbe.isInteractive(kind: .claude, host: claudeApp, env: ["CLAUDE_CODE_ENTRYPOINT": "claude-desktop"]))
         #expect(!HostProbe.isInteractive(kind: .claude, host: tty, env: ["CLAUDE_CODE_ENTRYPOINT": "sdk-cli"]))
         #expect(!HostProbe.isInteractive(kind: .claude, host: HostInfo(), env: ["CLAUDE_CODE_ENTRYPOINT": "cli"]))
-        // claude-vscode без процесса VS Code среди предков — не настоящая панель расширения.
+        // claude-vscode without a VS Code process among the ancestors - not a real extension panel.
         #expect(!HostProbe.isInteractive(kind: .claude, host: tty, env: ["CLAUDE_CODE_ENTRYPOINT": "claude-vscode"]))
-        // Скрипт: ни TTY, ни приложения
+        // Script: neither a TTY nor an app
         #expect(!HostProbe.isInteractive(kind: .claude, host: HostInfo(), env: [:]))
         #expect(HostProbe.isInteractive(kind: .claude, host: HostInfo(), env: ["AGENTHUD_ANY_HOST": "1"]))
     }
@@ -529,7 +529,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(vscode.label == "VS Code")
         let term = HostInfo(termProgram: "vscode", tty: "/dev/ttys009", entrypoint: "cli")
         #expect(term.isEditorTerminal && term.place == .terminal)
-        #expect(term.label == "терминал VS Code")
+        #expect(term.label == "terminal VS Code")
         #expect(HostInfo(appBundleId: HostInfo.claudeDesktop, hostSessionId: "local_1").place == .desktopApp)
         #expect(HostInfo(termProgram: "Apple_Terminal", tty: "/dev/ttys001").place == .terminal)
     }
@@ -541,18 +541,18 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Разрешить всегда
+// MARK: - Allow always
 
 @Suite struct PermissionRulesTests {
     @Test func bashPatterns() {
         #expect(PermissionRules.bashPattern("npm run build") == "npm run *")
         #expect(PermissionRules.bashPattern("pnpm run build") == "pnpm run *")
         #expect(PermissionRules.bashPattern("kill 41684 41849") == "kill *")
-        #expect(PermissionRules.bashPattern("ls") == nil)                       // одно слово — точное правило
-        #expect(PermissionRules.bashPattern("pnpm -C x build") == nil)          // флаг вторым словом
-        #expect(PermissionRules.bashPattern("npm test && npm run lint") == nil) // составная
-        #expect(PermissionRules.bashPattern("rm -rf dist") == nil)              // опасно шаблонить
-        #expect(PermissionRules.bashPattern("node -e 'x'") == nil)              // произвольный код
+        #expect(PermissionRules.bashPattern("ls") == nil)                       // single word - an exact rule
+        #expect(PermissionRules.bashPattern("pnpm -C x build") == nil)          // flag as the second word
+        #expect(PermissionRules.bashPattern("npm test && npm run lint") == nil) // compound
+        #expect(PermissionRules.bashPattern("rm -rf dist") == nil)              // dangerous to pattern
+        #expect(PermissionRules.bashPattern("node -e 'x'") == nil)              // arbitrary code
         #expect(PermissionRules.bashPattern("FOO=1 npm test") == nil)
         #expect(PermissionRules.bashPattern("cat a.txt | head") == nil)
     }
@@ -569,10 +569,10 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
                 #expect(!o.title.contains("*"), "\(cmd)")
             }
         }
-        // Звёздочка в самой команде стала бы шаблоном — правило не предлагаем.
+        // An asterisk in the command itself would become a pattern - we do not offer a rule.
         #expect(PermissionRules.bashPattern("git log --grep=* ") == nil)
         #expect(PermissionRules.options(toolName: "Bash", input: ["command": "make *"], suggestions: []).isEmpty)
-        // Составные команды по-прежнему без правила.
+        // Compound commands still get no rule.
         #expect(PermissionRules.bashPattern("git add . && git push") == nil)
         #expect(PermissionRules.bashPattern("make build | tee log") == nil)
     }
@@ -591,10 +591,10 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         let opts = PermissionRules.options(toolName: "Bash", input: .object(input),
                                            suggestions: payload["permission_suggestions"]?.arrayValue ?? [])
         #expect(opts.count == 3)
-        #expect(opts[0].title == "Bash(npm run *)" && opts[0].scope == "в этом проекте" && opts[0].generated)
+        #expect(opts[0].title == "Bash(npm run *)" && opts[0].scope == "in this project" && opts[0].generated)
         #expect(opts[1].update["destination"] == "userSettings")
         #expect(opts[2].generated == false && opts[2].title.hasPrefix("Bash(node -e"))
-        // Подсказку Claude возвращаем без изменений (так велит документация).
+        // The Claude suggestion is returned unchanged (as the documentation says).
         #expect(opts[2].update == payload["permission_suggestions"]?[0])
     }
 
@@ -607,7 +607,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
 
     @Test func describesEntries() {
         #expect(PermissionRules.describe(["type": "setMode", "mode": "acceptEdits", "destination": "session"])
-                == "Принимать правки файлов без вопросов")
+                == "Accept file edits without asking")
         #expect(PermissionRules.describe(["type": "setMode", "mode": "bypassPermissions", "destination": "session"]) == nil)
         #expect(PermissionRules.describe(["type": "addRules", "behavior": "deny", "rules": [["toolName": "Bash"]]]) == nil)
     }
@@ -620,7 +620,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         #expect(d["behavior"] == "allow")
         #expect(d["updatedPermissions"]?.arrayValue == [rule])
         #expect(d["updatedInput"] == nil)
-        #expect(Decision.allowWith([rule]).logLabel == "разрешено всегда")
+        #expect(Decision.allowWith([rule]).logLabel == "allowed always")
     }
 }
 
@@ -646,22 +646,22 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     @Test func singleAndUnrelated() {
         #expect(ProjectNames.shortLabels(for: ["/d/taklif"]) == ["/d/taklif": "taklif"])
         #expect(ProjectNames.shortLabels(for: ["/d/a-very-long-project-name"])["/d/a-very-long-project-name"]?.count == 10)
-        // Проекты без общего первого слова сохраняют полное имя.
+        // Projects without a shared first word keep the full name.
         let l = ProjectNames.shortLabels(for: ["/d/taklif", "/d/qr-menu", "/d/taklif"])
         #expect(l == ["/d/taklif": "taklif", "/d/qr-menu": "qr-menu"])
     }
 
     @Test func sharedPrefixOnlyAmongRelatives() {
         let l = ProjectNames.shortLabels(for: ["/d/agent-hub", "/d/acme-platform", "/d/acme-mobile-app/acme-mobile-app"])
-        #expect(l["/d/agent-hub"] == "agent-hub")              // раньше было бы «agent»
+        #expect(l["/d/agent-hub"] == "agent-hub")              // it used to be "agent"
         #expect(l["/d/acme-platform"] == "platform")
         #expect(l["/d/acme-mobile-app/acme-mobile-app"] == "mobile")
-        // Одиночный «родственник» префикс не теряет.
+        // A single "relative" does not lose the prefix.
         #expect(ProjectNames.shortLabels(for: ["/d/agent-hub", "/d/acme-platform"])["/d/acme-platform"] == "acme-plat…")
     }
 
     @Test func labelsAreStableWithinUniverse() {
-        // Метки считаются по устойчивому набору проектов: уход сессии не меняет метки остальных.
+        // Labels are computed from a stable set of projects: a session leaving does not change the others' labels.
         let universe = ["/d/acme-mobile", "/d/acme-web", "/d/acme-api", "/d/taklif"]
         let all = ProjectNames.shortLabels(for: universe)
         let fewer = ProjectNames.shortLabels(for: universe + ["/d/acme-web"])
@@ -675,7 +675,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Журнал активности и сводка
+// MARK: - Activity log and summary
 
 @Suite struct ActivityTests {
     func rec(_ k: ActivityRecord.Kind, _ dt: TimeInterval, _ sid: String, _ cwd: String, _ text: String,
@@ -685,7 +685,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 
     @Test func recordRoundTrip() {
-        let r = rec(.stop, 10, "s", "/p", "итог", failed: true,
+        let r = rec(.stop, 10, "s", "/p", "result", failed: true,
                     stats: TurnStats(tools: ["Edit": 2, "Bash": 1], files: ["a.ts"], subagents: 1, durationSec: 90))
         #expect(ActivityRecord(json: r.toJSON()) == r)
         #expect(ActivityRecord(json: ["kind": "nope"]) == nil)
@@ -694,17 +694,17 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     @Test func buildPairsPromptsWithStops() {
         let st = TurnStats(tools: ["Edit": 3, "Bash": 2], files: ["src/a.ts", "src/b.ts"], durationSec: 600)
         let days = DailySummary.build([
-            rec(.prompt, 0, "s1", "/d/mobile-app", "Почини экран"),
-            rec(.prompt, 30, "s2", "/d/web-client", "Обнови тексты"),
-            rec(.stop, 600, "s1", "/d/mobile-app", "Готово", stats: st),
-            rec(.decision, 100, "s1", "/d/mobile-app", "$ npm test", detail: "разрешено"),
-            rec(.prompt, 700, "s1", "/d/mobile-app", "Ещё задача"),
+            rec(.prompt, 0, "s1", "/d/mobile-app", "Fix the screen"),
+            rec(.prompt, 30, "s2", "/d/web-client", "Update the copy"),
+            rec(.stop, 600, "s1", "/d/mobile-app", "Done", stats: st),
+            rec(.decision, 100, "s1", "/d/mobile-app", "$ npm test", detail: "allowed"),
+            rec(.prompt, 700, "s1", "/d/mobile-app", "Another task"),
         ])
         #expect(days.map(\.name) == ["mobile-app", "web-client"])
         #expect(days[0].turns.count == 2)
-        #expect(days[0].turns[0].end != nil && days[0].turns[0].stats.edits == 3 && days[0].turns[0].message == "Готово")
+        #expect(days[0].turns[0].end != nil && days[0].turns[0].stats.edits == 3 && days[0].turns[0].message == "Done")
         #expect(days[0].turns[1].end == nil)
-        #expect(days[0].decisions == ["разрешено": 1])
+        #expect(days[0].decisions == ["allowed": 1])
         #expect(days[0].workedSec == 600 && days[0].commands == 2)
         #expect(days[1].turns[0].end == nil)
     }
@@ -712,25 +712,25 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     @Test func markdown() {
         let st = TurnStats(tools: ["Edit": 3, "Bash": 2], files: ["src/a.ts"], durationSec: 1500)
         let md = DailySummary.markdown(DailySummary.build([
-            rec(.prompt, 0, "s1", "/d/mobile-app", "Почини экран\nвторая строка"),
-            rec(.stop, 1500, "s1", "/d/mobile-app", "Готово, тесты зелёные", stats: st),
+            rec(.prompt, 0, "s1", "/d/mobile-app", "Fix the screen\nsecond line"),
+            rec(.stop, 1500, "s1", "/d/mobile-app", "Done, tests are green", stats: st),
         ]), day: t0)
-        #expect(md.hasPrefix("# Сводка агентов · "))
-        #expect(md.contains("**Итого:** 1 задача в 1 проекте · агенты работали 25 мин"))
+        #expect(md.hasPrefix("# Daily summary · "))
+        #expect(md.contains("**Total:** 1 task in 1 project · agents worked 25 min"))
         #expect(md.contains("## mobile-app"))
-        #expect(md.contains("Почини экран — готово за 25 мин · правок 3 · команд 2"))
-        #expect(!md.contains("вторая строка"))
-        #expect(md.contains("  - Итог: Готово, тесты зелёные"))
-        #expect(md.contains("  - Файлы: a.ts"))
-        #expect(DailySummary.markdown([], day: t0).contains("ничего не делали"))
+        #expect(md.contains("Fix the screen — done in 25 min · edits 3 · commands 2"))
+        #expect(!md.contains("second line"))
+        #expect(md.contains("  - Result: Done, tests are green"))
+        #expect(md.contains("  - Files: a.ts"))
+        #expect(DailySummary.markdown([], day: t0).contains("No agent activity"))
     }
 
     @Test func helpers() {
-        #expect(DailySummary.duration(30) == "меньше минуты")
-        #expect(DailySummary.duration(3720) == "1 ч 02 мин")
-        #expect(DailySummary.plural(1, "задача", "задачи", "задач") == "задача")
-        #expect(DailySummary.plural(3, "задача", "задачи", "задач") == "задачи")
-        #expect(DailySummary.plural(11, "задача", "задачи", "задач") == "задач")
+        #expect(DailySummary.duration(30) == "30 s")
+        #expect(DailySummary.duration(3720) == "1 h 02 min")
+        #expect(DailySummary.plural(1, "task", "tasks") == "task")
+        #expect(DailySummary.plural(3, "task", "tasks") == "tasks")
+        #expect(DailySummary.plural(11, "task", "tasks") == "tasks")
     }
 
     @Test func fileAppendAndRead() throws {
@@ -738,7 +738,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         supportDirLock.lock()
         setenv("AGENTHUD_SUPPORT_DIR", dir.path, 1)
         defer { unsetenv("AGENTHUD_SUPPORT_DIR"); try? FileManager.default.removeItem(at: dir); supportDirLock.unlock() }
-        let a = rec(.prompt, 0, "s", "/p", "раз"), b = rec(.stop, 5, "s", "/p", "два")
+        let a = rec(.prompt, 0, "s", "/p", "one"), b = rec(.stop, 5, "s", "/p", "two")
         ActivityLog.append(a)
         ActivityLog.append(b)
         #expect(ActivityLog.read(day: t0) == [a, b])
@@ -762,7 +762,7 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
     }
 }
 
-// MARK: - Мерцание: запросы, уведомления, скрытие (форк 0.2.1)
+// MARK: - Flicker: requests, notifications, hiding (fork 0.2.1)
 
 @Suite struct StaleStateTests {
     let sid = "11111111-2222-3333-4444-555555555555"
@@ -780,19 +780,19 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
 
     @Test func newRequestOfSameAgentSupersedesOld() {
         var st = SessionStore()
-        st.apply(ev(0, .promptSubmitted("задача")))
+        st.apply(ev(0, .promptSubmitted("task")))
         #expect(st.apply(perm("r1", "rm -rf a", 1)).isEmpty)
-        // Ответили «No» в VS Code: PostToolUse не будет. Следующий запрос того же агента снимает прошлый.
+        // Answered "No" in VS Code: there will be no PostToolUse. The next request from the same agent clears the previous one.
         #expect(st.apply(perm("r2", "ls", 2)) == ["r1"])
         #expect(st.session(key)?.pending.map(\.id) == ["r2"])
-        // Запрос субагента не вытесняет запрос основного агента — и наоборот.
+        // A subagent's request does not displace the main agent's request - and vice versa.
         #expect(st.apply(perm("s1", "npm test", 3, agent: "sub-1")).isEmpty)
         #expect(Set(st.session(key)?.pending.map(\.id) ?? []) == ["r2", "s1"])
     }
 
     @Test func subagentStopReleasesItsRequests() {
         var st = SessionStore()
-        st.apply(ev(0, .promptSubmitted("задача")))
+        st.apply(ev(0, .promptSubmitted("task")))
         st.apply(perm("s1", "npm test", 1, agent: "sub-1"))
         #expect(st.session(key)?.state == .waitingPermission)
         #expect(st.apply(ev(2, .subagentStopped(agentId: "sub-1"))) == ["s1"])
@@ -801,47 +801,47 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
 
     @Test func lateNotificationAfterStopIsIgnored() {
         var st = SessionStore()
-        st.apply(ev(0, .promptSubmitted("задача")))
-        st.apply(ev(1, .stopped(lastMessage: "готово", failed: false)))
+        st.apply(ev(0, .promptSubmitted("task")))
+        st.apply(ev(1, .stopped(lastMessage: "done", failed: false)))
         st.apply(ev(2, .notification(type: "permission_prompt", message: nil)))
-        #expect(st.session(key)?.state == .done)          // раньше: ложное «Ждёт разрешения» до следующей задачи
-        st.apply(ev(3, .promptSubmitted("ещё")))
+        #expect(st.session(key)?.state == .done)          // before: a false "Waiting for permission" until the next task
+        st.apply(ev(3, .promptSubmitted("more")))
         st.apply(ev(4, .notification(type: "permission_prompt", message: nil)))
-        #expect(st.session(key)?.state == .waitingPermission)   // посреди хода — по-прежнему ждёт
+        #expect(st.session(key)?.state == .waitingPermission)   // in the middle of a turn - still waiting
     }
 
     @Test func injectedPromptsDoNotBecomeTitles() {
         #expect(SessionStore.isInjectedPrompt("<task-notification>\n<task-id>x</task-id>"))
         #expect(SessionStore.isInjectedPrompt("  <command-name>/review</command-name>"))
-        #expect(!SessionStore.isInjectedPrompt("Почини <div> в шапке"))
-        #expect(!SessionStore.isInjectedPrompt("<Div> сломался"))
-        #expect(!SessionStore.isInjectedPrompt("обычный промпт"))
+        #expect(!SessionStore.isInjectedPrompt("Fix <div> in the header"))
+        #expect(!SessionStore.isInjectedPrompt("<Div> is broken"))
+        #expect(!SessionStore.isInjectedPrompt("a regular prompt"))
         var st = SessionStore()
-        st.apply(ev(0, .promptSubmitted("Почини экран вакансий")))
+        st.apply(ev(0, .promptSubmitted("Fix the jobs screen")))
         st.apply(ev(1, .promptSubmitted("<task-notification><task-id>b1</task-id></task-notification>")))
-        #expect(st.session(key)?.title == "Почини экран вакансий")
-        // Первая настоящая задача остаётся заголовком (ответы на вопросы агента его не затирают).
-        st.apply(ev(2, .promptSubmitted("красный")))
-        #expect(st.session(key)?.title == "Почини экран вакансий")
-        // Если HUD увидел сессию с середины и первой пришла вставка — заголовком станет первый живой промпт.
+        #expect(st.session(key)?.title == "Fix the jobs screen")
+        // The first real task stays the title (answers to agent questions do not overwrite it).
+        st.apply(ev(2, .promptSubmitted("red")))
+        #expect(st.session(key)?.title == "Fix the jobs screen")
+        // If the HUD saw the session from the middle and an insertion came first - the first live prompt becomes the title.
         var mid = SessionStore()
         mid.apply(ev(0, .promptSubmitted("<task-notification>x</task-notification>")))
         #expect(mid.session(key)?.title == "")
-        mid.apply(ev(1, .promptSubmitted("Сделай коммит")))
-        #expect(mid.session(key)?.title == "Сделай коммит")
+        mid.apply(ev(1, .promptSubmitted("Make a commit")))
+        #expect(mid.session(key)?.title == "Make a commit")
     }
 
     @Test func hiddenStaysHiddenUntilNewTaskOrRequest() {
         var st = SessionStore()
-        st.apply(ev(0, .promptSubmitted("задача")))
+        st.apply(ev(0, .promptSubmitted("task")))
         st.hide(key)
         st.apply(ev(1, .toolStarted(toolName: "Read", input: ["file_path": "/a"], toolUseId: "t1")))
         st.apply(ev(2, .toolFinished(toolName: "Read", input: ["file_path": "/a"], toolUseId: "t1", durationMs: 1, failed: false)))
-        #expect(st.session(key)?.hidden == true)     // раньше возвращалась на первом же шаге
+        #expect(st.session(key)?.hidden == true)     // before: came back on the very first step
         st.apply(perm("r1", "ls", 3))
-        #expect(st.session(key)?.hidden == false)    // ждёт тебя — показываем
+        #expect(st.session(key)?.hidden == false)    // it needs you - we show it
         st.hide(key)
-        st.apply(ev(4, .promptSubmitted("новая")))
+        st.apply(ev(4, .promptSubmitted("new")))
         #expect(st.session(key)?.hidden == false)
     }
 
@@ -849,10 +849,10 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         let vscode = HostInfo(appBundleId: HostInfo.vscode, entrypoint: HostInfo.vscodeEntrypoint)
         var st = SessionStore()
         st.apply(ev(0, .sessionStarted(source: "startup", model: nil), host: vscode))
-        #expect(st.visibleSessions.isEmpty)          // открытая панель Claude без задачи — не в HUD
-        st.apply(ev(1, .promptSubmitted("задача")))
+        #expect(st.visibleSessions.isEmpty)          // an open Claude panel without a task - not in the HUD
+        st.apply(ev(1, .promptSubmitted("task")))
         #expect(st.visibleSessions.count == 1)
-        // Терминальная сессия видна сразу, как раньше.
+        // A terminal session is visible at once, as before.
         var term = SessionStore()
         term.apply(ev(0, .sessionStarted(source: "startup", model: nil), host: HostInfo(tty: "/dev/ttys001")))
         #expect(term.visibleSessions.count == 1)

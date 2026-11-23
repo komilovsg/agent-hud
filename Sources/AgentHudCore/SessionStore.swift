@@ -1,13 +1,13 @@
 import Foundation
 
-/// Состояние всех сессий. Чистая структура без побочных эффектов — её легко тестировать.
+/// State of all sessions. A pure struct without side effects - easy to test.
 public struct SessionStore: Sendable, Equatable {
     public private(set) var sessions: [String: AgentSession] = [:]
     public private(set) var order: [String] = []
-    /// Служебные сессии приложений: их события игнорируем.
+    /// Service sessions of apps: their events are ignored.
     public private(set) var ignored: [String] = []
 
-    /// Сколько держать завершившуюся (`SessionEnd`) сессию перед удалением — для анимации.
+    /// How long to keep a finished (`SessionEnd`) session before removal - for the animation.
     public static let endedLinger: TimeInterval = 2
 
     public init() {}
@@ -16,7 +16,7 @@ public struct SessionStore: Sendable, Equatable {
         order.compactMap { sessions[$0] }.filter { !$0.hidden && $0.revealed }
     }
 
-    /// Запросы, которые ждут пользователя.
+    /// Requests waiting for the user.
     public var openRequestCount: Int {
         sessions.values.reduce(0) { $0 + $1.pending.filter { $0.status == .open }.count }
     }
@@ -27,15 +27,15 @@ public struct SessionStore: Sendable, Equatable {
         sessions.values.first { $0.pending.contains { $0.id == requestId } }
     }
 
-    // MARK: - События
+    // MARK: - Events
 
-    /// Применить событие. Возвращает id запросов, которые больше не актуальны
-    /// (ответили в терминале) — приложение отпустит их хуки.
+    /// Apply an event. Returns the ids of requests that are no longer relevant
+    /// (answered in the terminal) - the app will release their hooks.
     @discardableResult
     public mutating func apply(_ e: AgentEvent, adapter: AgentAdapter? = nil) -> [String] {
         let key = e.sessionKey
         if ignored.contains(key) {
-            // Служебная сессия: синхронные запросы сразу отпускаем.
+            // Service session: synchronous requests are released at once.
             switch e.body {
             case .permissionRequested(let rid, _, _, _, _): return [rid]
             default: return []
@@ -51,8 +51,8 @@ public struct SessionStore: Sendable, Equatable {
         var s = sessions[key] ?? AgentSession(kind: e.kind, sessionId: e.sessionId, cwd: e.cwd ?? "", now: e.time)
         if sessions[key] == nil {
             order.append(key)
-            // Сессия без задачи появляется в HUD только с первым делом (промпт, шаг, запрос):
-            // VS Code открывает сессию на каждую открытую панель Claude.
+            // A session without a task appears in the HUD only with the first activity (prompt, step, request):
+            // VS Code opens a session for every open Claude panel.
             if case .sessionStarted = e.body, e.host?.isEditor == true { s.revealed = false }
         }
         let summarizer = adapter ?? Adapters.adapter(for: e.kind)
@@ -62,8 +62,8 @@ public struct SessionStore: Sendable, Equatable {
         if let h = e.host { s.host = Self.merge(s.host, h) }
         s.lastEventAt = e.time
         if s.baseState == .ended, !Self.isEnd(e.body) { s.baseState = .idle }
-        // Скрытая сессия возвращается с новой задачей или когда ждёт тебя — не на каждом шаге:
-        // иначе в VS Code, где события идут постоянно, «Скрыть» не действовало дольше секунды.
+        // A hidden session comes back with a new task or when it needs you - not on every step:
+        // otherwise in VS Code, where events flow constantly, "Hide" did not hold for longer than a second.
         if Self.unhides(e.body) { s.hidden = false }
 
         var released: [String] = []
@@ -74,8 +74,8 @@ public struct SessionStore: Sendable, Equatable {
             if s.baseState == .starting { s.baseState = .idle }
 
         case .promptSubmitted(let text):
-            // Заголовок — первая настоящая задача. Служебные вставки (<task-notification>, <command-name>…) — не задача.
-            // Последний промпт заголовком не берём: им часто бывает короткий ответ на вопрос агента («красный»).
+            // The title is the first real task. Service insertions (<task-notification>, <command-name>...) are not a task.
+            // The last prompt is not taken as the title: it is often a short answer to an agent question ("red").
             if s.title.isEmpty, !Self.isInjectedPrompt(text) { s.title = Self.makeTitle(text) }
             s.revealed = true
             s.baseState = .working
@@ -114,7 +114,7 @@ public struct SessionStore: Sendable, Equatable {
             released += Self.resolve(&s, toolName: tool, fingerprint: fp, command: Self.commandText(input))
             if !failed {
                 if let kind = Self.backgroundKind(tool, input) {
-                    // Задача регистрируется по ответу инструмента: PostToolUse приходит сразу после запуска.
+                    // A task is registered from the tool response: PostToolUse comes right after the launch.
                     let id = backgroundId ?? toolUseId ?? UUID().uuidString
                     if !s.backgroundTasks.contains(where: { $0.id == id }) {
                         s.backgroundTasks.append(BackgroundTask(
@@ -133,8 +133,8 @@ public struct SessionStore: Sendable, Equatable {
             s.baseState = .working
             s.revealed = true
             if !s.pending.contains(where: { $0.id == rid }) {
-                // Агент спрашивает следующее — значит, на прошлый его запрос уже ответили
-                // (например, «No» в VS Code: PostToolUse тогда не придёт, и запрос висел бы до конца хода).
+                // The agent asks the next thing - so its previous request has already been answered
+                // (for example, "No" in VS Code: PostToolUse will not come then, and the request would hang until the end of the turn).
                 released += Self.resolveSuperseded(&s, agentId: e.agentId)
                 s.pending.append(PendingRequest(
                     id: rid, kind: .permission(toolName: tool, toolInput: input), createdAt: e.time,
@@ -145,7 +145,7 @@ public struct SessionStore: Sendable, Equatable {
         case .subagentStarted(let aid, let type):
             let id = "subagent:\(aid)"
             if !s.steps.contains(where: { $0.id == id }) {
-                s.steps.append(Step(id: id, toolName: "Subagent", summary: "Субагент: \(type ?? "general")",
+                s.steps.append(Step(id: id, toolName: "Subagent", summary: "Subagent: \(type ?? "general")",
                                     startedAt: e.time, isSubagent: true))
             }
             s.baseState = .working
@@ -156,7 +156,7 @@ public struct SessionStore: Sendable, Equatable {
                 s.steps[i].durationMs = Int(e.time.timeIntervalSince(s.steps[i].startedAt) * 1000)
             }
             s.backgroundTasks.removeAll { $0.agentId == aid || $0.id == aid }
-            // Субагент закончил — его запросы больше никто не ждёт.
+            // The subagent finished - nobody waits for its requests any more.
             let stale = s.pending.filter { $0.agentId == aid }
             s.pending.removeAll { $0.agentId == aid }
             released += stale.filter { $0.status == .open }.map(\.id)
@@ -172,7 +172,7 @@ public struct SessionStore: Sendable, Equatable {
             released += Self.resolveAll(&s)
 
         case .interrupted:
-            // Пользователь прервал ход (Esc): агент ждёт новую задачу.
+            // The user interrupted the turn (Esc): the agent waits for a new task.
             s.baseState = .idle
             s.finishedAt = e.time
             for i in s.steps.indices where s.steps[i].status == .running { s.steps[i].status = .failed }
@@ -188,8 +188,8 @@ public struct SessionStore: Sendable, Equatable {
             break
 
         case .notification(let type, _):
-            // Агент ждёт в самом терминале (например, после «ответить в терминале», вопроса или ExitPlanMode).
-            // Только посреди хода: уведомление приходит с задержкой и после конца хода включало ложное «ждёт».
+            // The agent waits in the terminal itself (for example, after "answer in the terminal", a question or ExitPlanMode).
+            // Only in the middle of a turn: the notification arrives with a delay and after the end of a turn it would turn on a false "waiting".
             if (type == "permission_prompt" || type == "elicitation_dialog"), s.activePending == nil,
                s.baseState == .working || s.baseState == .starting {
                 s.baseState = .waitingPermission
@@ -201,16 +201,16 @@ public struct SessionStore: Sendable, Equatable {
         return released
     }
 
-    // MARK: - Запросы
+    // MARK: - Requests
 
-    /// Пользователь ответил в HUD.
+    /// The user answered in the HUD.
     public mutating func markAnswered(_ requestId: String) {
         mutateSession(forRequest: requestId) { s in
             s.pending.removeAll { $0.id == requestId }
         }
     }
 
-    /// Хук отключился. До дедлайна — значит ответили в терминале, после — просрочка.
+    /// The hook disconnected. Before the deadline - answered in the terminal, after - expired.
     public mutating func connectionClosed(_ requestId: String, now: Date) {
         mutateSession(forRequest: requestId) { s in
             guard let i = s.pending.firstIndex(where: { $0.id == requestId }), s.pending[i].status == .open else { return }
@@ -222,8 +222,8 @@ public struct SessionStore: Sendable, Equatable {
         }
     }
 
-    /// Раз в секунду: просрочка запросов и уборка закончившихся сессий.
-    /// Возвращает id запросов, которые стали просроченными.
+    /// Once a second: expiring requests and cleaning up finished sessions.
+    /// Returns the ids of requests that have expired.
     @discardableResult
     public mutating func tick(now: Date, autoHideDoneAfter: TimeInterval?) -> [String] {
         var expired: [String] = []
@@ -253,14 +253,14 @@ public struct SessionStore: Sendable, Equatable {
         sessions[key] = s
     }
 
-    /// Вернуть скрытую сессию (карта агентов показывает и скрытые).
+    /// Bring back a hidden session (the agent map shows hidden ones too).
     public mutating func unhide(_ key: String) {
         guard var s = sessions[key] else { return }
         s.hidden = false
         sessions[key] = s
     }
 
-    /// Убрать просроченное окошко без скрытия сессии.
+    /// Remove an expired popup without hiding the session.
     public mutating func dismissExpired(_ key: String) {
         guard var s = sessions[key] else { return }
         s.pending.removeAll { $0.status == .expired }
@@ -273,7 +273,7 @@ public struct SessionStore: Sendable, Equatable {
         order.removeAll { $0 == key }
     }
 
-    /// Процесс агента умер без SessionEnd.
+    /// The agent process died without SessionEnd.
     public mutating func markEnded(_ key: String, now: Date) -> [String] {
         guard var s = sessions[key] else { return [] }
         s.baseState = .ended
@@ -284,7 +284,7 @@ public struct SessionStore: Sendable, Equatable {
         return released
     }
 
-    // MARK: - Внутреннее
+    // MARK: - Internal
 
     private mutating func mutateSession(forRequest rid: String, _ body: (inout AgentSession) -> Void) {
         guard let key = order.first(where: { sessions[$0]?.pending.contains { $0.id == rid } == true }),
@@ -293,7 +293,7 @@ public struct SessionStore: Sendable, Equatable {
         sessions[key] = s
     }
 
-    /// Сессия пошла дальше: открытые запросы сняты (ответили в терминале), просроченные убраны.
+    /// The session moved on: open requests are cleared (answered in the terminal), expired ones removed.
     private static func resolveAll(_ s: inout AgentSession) -> [String] {
         let released = s.pending.filter { $0.status == .open }.map(\.id)
         s.pending.removeAll()
@@ -301,8 +301,8 @@ public struct SessionStore: Sendable, Equatable {
         return released
     }
 
-    /// Новый запрос того же агента (основного или того же субагента) вытесняет его прошлые открытые запросы:
-    /// агент не спросит следующее, пока ему не ответили на предыдущее.
+    /// A new request from the same agent (the main one or the same subagent) displaces its previous open requests:
+    /// the agent will not ask the next one until the previous one is answered.
     private static func resolveSuperseded(_ s: inout AgentSession, agentId: String?) -> [String] {
         let old = s.pending.filter { $0.status == .open && $0.agentId == agentId }
         guard !old.isEmpty else { return [] }
@@ -310,7 +310,7 @@ public struct SessionStore: Sendable, Equatable {
         return old.map(\.id)
     }
 
-    /// События, с которыми скрытая сессия снова показывается.
+    /// Events with which a hidden session is shown again.
     static func unhides(_ b: AgentEvent.Body) -> Bool {
         switch b {
         case .promptSubmitted, .permissionRequested: return true
@@ -318,8 +318,8 @@ public struct SessionStore: Sendable, Equatable {
         }
     }
 
-    /// Вставки самого Claude Code в поток промптов: уведомления фоновых задач, слэш-команды, вывод команд.
-    /// Начинаются с тега вида `<task-notification>`; живой промпт так почти никогда не начинается.
+    /// Insertions by Claude Code itself into the prompt stream: background task notifications, slash commands, command output.
+    /// They start with a tag like `<task-notification>`; a live prompt almost never starts that way.
     public static func isInjectedPrompt(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard t.hasPrefix("<"), let close = t.firstIndex(of: ">") else { return false }
@@ -327,15 +327,15 @@ public struct SessionStore: Sendable, Equatable {
         return !tag.isEmpty && tag.count <= 40 && tag.allSatisfy { $0.isLowercase || $0 == "-" || $0 == "_" || $0.isNumber }
     }
 
-    /// Инструмент выполнился — снять запрос, который относился к нему.
+    /// The tool finished - clear the request that belonged to it.
     private static func resolve(_ s: inout AgentSession, toolName: String, fingerprint fp: String, command fpCommand: String? = nil) -> [String] {
         if s.baseState == .waitingPermission { s.baseState = .working }
         let match: (PendingRequest) -> Bool = { p in
             switch p.kind {
             case .permission(let t, let input):
                 if p.inputFingerprint == fp { return true }
-                // У команд сверяем саму команду: агент может добавить в запрос описание,
-                // а параллельно выполняются другие команды того же инструмента.
+                // For commands we compare the command itself: the agent may add a description to the request,
+                // while other commands of the same tool run in parallel.
                 if let want = Self.commandText(input), let got = fpCommand { return want == got }
                 return t == toolName
             }
@@ -345,7 +345,7 @@ public struct SessionStore: Sendable, Equatable {
         return p.status == .open ? [p.id] : []
     }
 
-    /// Запуск в фоне: Bash или Agent (раньше Task) с `run_in_background: true`.
+    /// Launch in the background: Bash or Agent (formerly Task) with `run_in_background: true`.
     static func backgroundKind(_ tool: String, _ input: JSONValue) -> BackgroundTask.Kind? {
         guard input["run_in_background"]?.boolValue == true else { return nil }
         switch tool {
@@ -355,7 +355,7 @@ public struct SessionStore: Sendable, Equatable {
         }
     }
 
-    /// Id задачи, которую останавливает инструмент (TaskStop, раньше KillShell/KillBash).
+    /// Id of the task that the tool stops (TaskStop, formerly KillShell/KillBash).
     static func stopTarget(_ tool: String, _ input: JSONValue) -> String? {
         guard ["TaskStop", "KillShell", "KillBash"].contains(tool) else { return nil }
         for k in ["task_id", "shell_id", "bash_id", "id"] {
@@ -364,13 +364,13 @@ public struct SessionStore: Sendable, Equatable {
         return nil
     }
 
-    /// Текст команды из входа инструмента (Bash у Claude).
+    /// Command text from the tool input (Bash in Claude).
     static func commandText(_ input: JSONValue) -> String? {
         if let c = input["command"]?.stringValue ?? input["cmd"]?.stringValue {
             return c.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if let parts = input["command"]?.arrayValue?.compactMap(\.stringValue), !parts.isEmpty {
-            // ["/bin/zsh", "-lc", "команда"] → «команда»
+            // ["/bin/zsh", "-lc", "command"] -> "command"
             return (parts.count >= 3 && parts[1].hasPrefix("-") ? parts[2] : parts.joined(separator: " "))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }

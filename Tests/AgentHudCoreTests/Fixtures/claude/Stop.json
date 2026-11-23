@@ -10,7 +10,7 @@
   },
   "hook_event_name": "Stop",
   "stop_hook_active": false,
-  "last_assistant_message": "Вы выбрали **Red**. Команда выполнена, она создала файл `p2_Red.txt` в текущей рабочей директории.",
+  "last_assistant_message": "You chose **Red**. The command ran and created the file `p2_Red.txt` in the current working directory.",
   "background_tasks": [],
   "session_crons": []
 }

@@ -1,20 +1,20 @@
 import Foundation
 
-/// Внутреннее событие, общее для всех агентов. Адаптер переводит в него события своего агента.
+/// Internal event shared by all agents. An adapter translates its agent's events into it.
 public struct AgentEvent: Equatable, Sendable {
     public enum Body: Equatable, Sendable {
         case sessionStarted(source: String?, model: String?)
         case promptSubmitted(String)
         case toolStarted(toolName: String, input: JSONValue, toolUseId: String?)
-        /// `backgroundId` — id фоновой задачи из ответа инструмента (весь ответ не храним).
+        /// `backgroundId` - id of the background task from the tool response (the whole response is not stored).
         case toolFinished(toolName: String, input: JSONValue, toolUseId: String?, durationMs: Int?, failed: Bool, backgroundId: String? = nil)
-        /// `suggestions` — правила «разрешать и дальше», которые предлагает сам агент (`permission_suggestions`).
+        /// `suggestions` - "always allow" rules offered by the agent itself (`permission_suggestions`).
         case permissionRequested(requestId: String, toolName: String, input: JSONValue, deadline: Date, suggestions: [JSONValue])
         case subagentStarted(agentId: String, agentType: String?)
         case subagentStopped(agentId: String)
         case stopped(lastMessage: String?, failed: Bool)
         case interrupted
-        /// Служебная сессия самого приложения (не диалог пользователя) — убрать и больше не показывать.
+        /// The app's own service session (not a user conversation) - remove it and stop showing it.
         case internalSession
         case sessionEnded(reason: String?)
         case notification(type: String?, message: String?)
@@ -24,11 +24,11 @@ public struct AgentEvent: Equatable, Sendable {
     public var sessionId: String
     public var cwd: String?
     public var transcriptPath: String?
-    public var agentId: String?      // событие пришло изнутри субагента
+    public var agentId: String?      // the event came from inside a subagent
     public var host: HostInfo?
     public var time: Date
     public var body: Body
-    /// Ссылки на merge/pull request из команды и вывода инструмента (сам вывод не храним).
+    /// Links to merge/pull requests from the command and the tool output (the output itself is not stored).
     public var refs: [String] = []
 
     public init(kind: AgentKind, sessionId: String, cwd: String? = nil, transcriptPath: String? = nil,
@@ -46,20 +46,20 @@ public struct AgentEvent: Equatable, Sendable {
     public var sessionKey: String { "\(kind.rawValue):\(sessionId)" }
 }
 
-/// Адаптер конкретного агента. Ядро и UI знают только этот интерфейс.
+/// Adapter for a specific agent. The core and the UI only know this interface.
 public protocol AgentAdapter: Sendable {
     var kind: AgentKind { get }
 
-    /// Нужно ли вообще отправлять это событие в приложение (иначе хук молча выходит).
+    /// Whether this event needs to be sent to the app at all (otherwise the hook exits silently).
     func shouldForward(mode: HookMode, payload: JSONValue) -> Bool
 
-    /// Событие хука → внутренние события.
+    /// Hook event -> internal events.
     func events(from message: HookMessage, now: Date) -> [AgentEvent]
 
-    /// Решение пользователя → stdout хука. `nil` — пустой вывод (агент спросит сам).
+    /// User decision -> hook stdout. `nil` - empty output (the agent will ask by itself).
     func hookOutput(for decision: Decision, mode: HookMode, payload: JSONValue) -> String?
 
-    /// Краткая суть вызова инструмента для ленты шагов.
+    /// Short gist of a tool call for the steps feed.
     func summarize(toolName: String, input: JSONValue, cwd: String?) -> String
 }
 
@@ -71,7 +71,7 @@ public enum Adapters {
     }
 }
 
-/// Отпечаток входа инструмента: сопоставляет запрос разрешения и последующий PostToolUse.
+/// Fingerprint of a tool input: matches a permission request with the following PostToolUse.
 public func fingerprint(toolName: String, input: JSONValue) -> String {
     "\(toolName)|\(input.compact())"
 }

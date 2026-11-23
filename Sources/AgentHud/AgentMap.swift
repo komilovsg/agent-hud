@@ -59,8 +59,8 @@ struct AgentMapView: View {
             Image(systemName: "map.fill").font(.system(size: 18)).foregroundStyle(Brand.accent)
             Text("Карта агентов").font(Brand.display(20)).foregroundStyle(Brand.ink)
             HStack(spacing: 6) {
-                CountPill(n: working, title: DailySummary.plural(working, "работает", "работают", "работают"), tone: .accent)
-                CountPill(n: waiting, title: DailySummary.plural(waiting, "ждёт тебя", "ждут тебя", "ждут тебя"), tone: .warning)
+                CountPill(n: working, title: "working", tone: .accent)
+                CountPill(n: waiting, title: DailySummary.plural(waiting, "needs you", "need you"), tone: .warning)
                 CountPill(n: done, title: "готово", tone: .success)
             }
             Spacer()
@@ -150,7 +150,7 @@ struct ProjectIsland: View {
                 Text(HookSetup.tilde(cwd)).font(Brand.mono(10)).foregroundStyle(Brand.inkSubtle)
                     .lineLimit(1).truncationMode(.head)
                 Spacer(minLength: 4)
-                Text("\(sessions.count) \(DailySummary.plural(sessions.count, "сессия", "сессии", "сессий"))")
+                Text("\(sessions.count) \(DailySummary.plural(sessions.count, "session", "sessions"))")
                     .font(Brand.mono(10, medium: true)).foregroundStyle(Brand.inkSubtle)
             }
             ForEach(sessions) { s in MapSessionCard(model: model, session: s) }
@@ -436,8 +436,8 @@ struct TodayMap: View {
         let commands = projects.reduce(0) { $0 + $1.commands }
         let decisions = projects.reduce(0) { $0 + $1.decisions.values.reduce(0, +) }
         return HStack(spacing: 10) {
-            StatTile(value: "\(turns)", title: DailySummary.plural(turns, "задача", "задачи", "задач"))
-            StatTile(value: "\(projects.count)", title: DailySummary.plural(projects.count, "проект", "проекта", "проектов"))
+            StatTile(value: "\(turns)", title: DailySummary.plural(turns, "task", "tasks"))
+            StatTile(value: "\(projects.count)", title: DailySummary.plural(projects.count, "project", "projects"))
             StatTile(value: worked > 0 ? DailySummary.duration(worked) : "—", title: "работа агентов")
             StatTile(value: "\(edits)", title: "правок файлов")
             StatTile(value: "\(commands)", title: "команд")
@@ -562,7 +562,7 @@ struct DayProjectCard: View {
     }
 
     private var summaryLine: String {
-        var s = "\(project.turns.count) \(DailySummary.plural(project.turns.count, "задача", "задачи", "задач"))"
+        var s = "\(project.turns.count) \(DailySummary.plural(project.turns.count, "task", "tasks"))"
         if project.workedSec > 0 { s += " · \(DailySummary.duration(project.workedSec))" }
         return s + " · правок \(project.edits) · команд \(project.commands)"
     }
@@ -611,7 +611,7 @@ struct PeriodReportBlock: View {
                 .font(Brand.body(12))
                 HStack(spacing: 8) {
                     let turns = projects.reduce(0) { $0 + $1.project.turns.count }
-                    Text("\(turns) \(DailySummary.plural(turns, "задача", "задачи", "задач")) · \(projects.count) \(DailySummary.plural(projects.count, "проект", "проекта", "проектов"))")
+                    Text("\(turns) \(DailySummary.plural(turns, "task", "tasks")) · \(projects.count) \(DailySummary.plural(projects.count, "project", "projects"))")
                         .font(Brand.mono(10.5)).foregroundStyle(Brand.inkSubtle)
                     Spacer()
                     GhostButton(title: copied ? "Скопировано" : "Скопировать", symbol: "doc.on.doc") {

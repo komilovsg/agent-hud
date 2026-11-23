@@ -18,7 +18,7 @@ struct PanelActions {
     var quit: () -> Void = {}
 }
 
-/// Панель в строке меню: сессии, агенты, вид, поведение. Палитра — Yora (Brand.swift).
+/// Панель в строке меню: сессии, агенты, вид, поведение. Палитра — в Brand.swift.
 struct ControlPanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var settings: Settings

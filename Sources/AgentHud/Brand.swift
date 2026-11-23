@@ -2,7 +2,7 @@ import AppKit
 import CoreText
 import SwiftUI
 
-/// Токены интерфейса. Палитра — по цветам Yora (основной синий #016FEE / #338EF7, нейтральные «zinc»),
+/// Токены интерфейса. Палитра (основной синий #016FEE / #338EF7, нейтральные «zinc»),
 /// цвета — парами для светлой и тёмной темы. Шрифты — Golos Text и IBM Plex Mono (OFL, лежат в Resources/Fonts).
 enum Brand {
     // MARK: Цвета

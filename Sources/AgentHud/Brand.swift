@@ -2,10 +2,10 @@ import AppKit
 import CoreText
 import SwiftUI
 
-/// Токены интерфейса. Палитра (основной синий #016FEE / #338EF7, нейтральные «zinc»),
-/// цвета — парами для светлой и тёмной темы. Шрифты — Golos Text и IBM Plex Mono (OFL, лежат в Resources/Fonts).
+/// Interface tokens. Palette (primary blue #016FEE / #338EF7, neutral "zinc"),
+/// colors in pairs for light and dark theme. Fonts - Golos Text and IBM Plex Mono (OFL, in Resources/Fonts).
 enum Brand {
-    // MARK: Цвета
+    // MARK: Colors
 
     private static func dyn(_ light: UInt32, _ dark: UInt32) -> Color {
         Color(nsColor: NSColor(name: nil) { ap in
@@ -35,9 +35,9 @@ enum Brand {
     static let danger = dyn(0xC20E4D, 0xF54180)
     static let dangerSoft = dyn(0xFEE7EF, 0x33111D)
 
-    // MARK: Шрифты
+    // MARK: Fonts
 
-    /// Golos Text — интерфейс и текст.
+    /// Golos Text - interface and text.
     static func body(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         let name: String
         switch weight {
@@ -48,18 +48,18 @@ enum Brand {
         return FontLoader.available ? .custom(name, size: size) : .system(size: size, weight: weight)
     }
 
-    /// IBM Plex Mono — метки, цифры, всё измеримое.
+    /// IBM Plex Mono - labels, digits, everything measurable.
     static func mono(_ size: CGFloat, medium: Bool = false) -> Font {
         FontLoader.available ? .custom(medium ? "IBMPlexMono-Medium" : "IBMPlexMono-Regular", size: size)
                              : .system(size: size, weight: medium ? .medium : .regular, design: .monospaced)
     }
 
-    /// Заголовки — Golos Text SemiBold.
+    /// Headings - Golos Text SemiBold.
     static func display(_ size: CGFloat) -> Font {
         FontLoader.available ? .custom("GolosText-Regular_SemiBold", size: size) : .system(size: size, weight: .semibold)
     }
 
-    // MARK: Размеры (сетка 4px)
+    // MARK: Sizes (4px grid)
 
     static let radiusSm: CGFloat = 4
     static let radiusMd: CGFloat = 6
@@ -67,7 +67,7 @@ enum Brand {
     static let radiusXl: CGFloat = 16
 }
 
-/// Регистрирует шрифты приложения в процессе (без установки в систему).
+/// Registers the app fonts in the process (without installing them in the system).
 enum FontLoader {
     private(set) static var available = false
 
@@ -75,7 +75,7 @@ enum FontLoader {
         guard !available else { return }
         var dirs: [URL] = []
         if let r = Bundle.main.resourceURL { dirs.append(r.appendingPathComponent("Fonts")) }
-        // Запуск из исходников (swift run): Resources/Fonts в корне репозитория.
+        // Running from source (swift run): Resources/Fonts at the repository root.
         let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         dirs.append(repo.appendingPathComponent("Resources/Fonts"))
         guard let dir = dirs.first(where: { FileManager.default.fileExists(atPath: $0.appendingPathComponent("GolosText-Variable.ttf").path) }),
@@ -86,9 +86,9 @@ enum FontLoader {
     }
 }
 
-// MARK: - Мелкие компоненты в стиле системы
+// MARK: - Small system-style components
 
-/// Метка раздела: «01 / СЕССИИ».
+/// Section label: "01 / SESSIONS".
 struct SectionLabel: View {
     let index: Int
     let title: String
@@ -101,7 +101,7 @@ struct SectionLabel: View {
     }
 }
 
-/// Тег: моноширинный капс, скругление 4px.
+/// Tag: monospaced caps, 4px corner radius.
 struct BrandTag: View {
     enum Tone { case neutral, accent, success, warning, danger }
     let text: String
@@ -127,7 +127,7 @@ struct BrandTag: View {
     }
 }
 
-/// Сегментированный переключатель: моноширинные подписи, выбранный — мягкий акцент.
+/// Segmented control: monospaced labels, the selected one has a soft accent.
 struct BrandSegmented<T: Hashable>: View {
     let options: [(T, String)]
     @Binding var selection: T
@@ -153,7 +153,7 @@ struct BrandSegmented<T: Hashable>: View {
     }
 }
 
-/// Строка с переключателем.
+/// Row with a switch.
 struct BrandToggleRow: View {
     let title: String
     var hint: String? = nil
@@ -174,7 +174,7 @@ struct BrandToggleRow: View {
     }
 }
 
-/// Переключатель в стиле системы: трек акцентом во включённом состоянии, независимо от фокуса окна.
+/// System-style switch: accent-colored track when on, regardless of window focus.
 struct BrandSwitch: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         let on = configuration.isOn
@@ -191,11 +191,11 @@ struct BrandSwitch: ToggleStyle {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityValue(on ? "включено" : "выключено")
+        .accessibilityValue(on ? "on" : "off")
     }
 }
 
-/// Вкладки с подчёркиванием 2px.
+/// Tabs with a 2px underline.
 struct BrandTabs: View {
     let titles: [String]
     @Binding var selection: Int
@@ -230,7 +230,7 @@ struct BrandTabs: View {
     }
 }
 
-/// Текстовая кнопка с иконкой (ghost).
+/// Text button with an icon (ghost).
 struct GhostButton: View {
     let title: String
     let symbol: String

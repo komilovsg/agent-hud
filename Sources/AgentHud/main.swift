@@ -2,11 +2,11 @@ import AgentHudCore
 import AppKit
 @preconcurrency import UserNotifications
 
-// AgentHUD — HUD для ИИ-агентов: VS Code, терминал, приложение Claude.
+// AgentHUD - a HUD for AI agents: VS Code, terminal, the Claude app.
 //
-//   AgentHUD                      обычный запуск (строка меню + плавающая панель)
-//   AgentHUD --summary [ГГГГ-ММ-ДД]  сводка агентов за день в Markdown (по умолчанию — сегодня)
-//   AgentHUD --report <от> [<до>]    отчёт за период в Markdown
+//   AgentHUD                      normal launch (menu bar + floating panel)
+//   AgentHUD --summary [YYYY-MM-DD]  daily agent summary in Markdown (default - today)
+//   AgentHUD --report <from> [<to>]    period report in Markdown
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -22,11 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try model.start()
         } catch {
             if case SocketServer.StartError.alreadyRunning = error {
-                NSLog("AgentHUD уже запущен — выходим")
+                NSLog("AgentHUD is already running - exiting")
                 NSApp.terminate(nil)
                 return
             }
-            HookSetup.info("Agent HUD не запустился", "\(error)", style: .critical)
+            HookSetup.info("Agent HUD failed to start", "\(error)", style: .critical)
             NSApp.terminate(nil)
             return
         }
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 
-        // Первый запуск: предложить подключиться (не в тестовом режиме со своим сокетом).
+        // First launch: offer to connect (not in test mode with its own socket).
         let testMode = ProcessInfo.processInfo.environment["AGENTHUD_SOCKET"] != nil
         if !testMode, !UserDefaults.standard.bool(forKey: "askedInstall") {
             UserDefaults.standard.set(true, forKey: "askedInstall")
@@ -60,18 +60,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard granted else { return }
             let c = UNMutableNotificationContent()
             c.title = "\(s.projectName): \(s.state.title.lowercased())"
-            c.body = s.title.isEmpty ? "Агент ждёт ответа" : s.title
+            c.body = s.title.isEmpty ? "The agent is waiting for a reply" : s.title
             center.add(UNNotificationRequest(identifier: s.activePending?.id ?? UUID().uuidString, content: c, trigger: nil))
         }
     }
 }
 
-// Подключение без диалогов: AgentHUD --connect claude|all [--timeout N], --disconnect …, --status
+// Connecting without dialogs: AgentHUD --connect claude|all [--timeout N], --disconnect ..., --status
 if let i = CommandLine.arguments.firstIndex(where: { $0 == "--connect" || $0 == "--disconnect" || $0 == "--status" }) {
     let args = CommandLine.arguments
     let verb = args[i]
     let target = i + 1 < args.count && !args[i + 1].hasPrefix("--") ? args[i + 1] : "all"
-    // «all» — только агенты, которые есть на машине: не создаём ~/.claude без Claude Code.
+    // "all" - only agents present on this machine: don't create ~/.claude without Claude Code.
     let kinds: [AgentKind] = MainActor.assumeIsolated {
         guard target == "all" else { return AgentKind(rawValue: target).map { [$0] } ?? [] }
         return AgentKind.allCases.filter { verb == "--connect" ? HookSetup.agentPresent($0) : true }
@@ -79,7 +79,7 @@ if let i = CommandLine.arguments.firstIndex(where: { $0 == "--connect" || $0 == 
     var timeout = HookTiming.defaultTimeout
     if let t = args.firstIndex(of: "--timeout"), t + 1 < args.count, let v = Int(args[t + 1]) { timeout = v }
     let code: Int32 = MainActor.assumeIsolated {
-        guard !kinds.isEmpty else { print("Неизвестный агент: \(target). Варианты: claude, all"); return 2 }
+        guard !kinds.isEmpty else { print("Unknown agent: \(target). Options: claude, all"); return 2 }
         var failed = false
         for kind in kinds {
             let file = HookSetup.tilde(kind.hooksFile.path)
@@ -87,15 +87,15 @@ if let i = CommandLine.arguments.firstIndex(where: { $0 == "--connect" || $0 == 
                 switch verb {
                 case "--connect":
                     let r = try HookSetup.connect(kind, timeout: timeout)
-                    print("\(kind.displayName): подключено → \(file)" + (r.backup.map { " (копия: \(HookSetup.tilde($0.path)))" } ?? " (без изменений)"))
+                    print("\(kind.displayName): connected -> \(file)" + (r.backup.map { " (backup: \(HookSetup.tilde($0.path)))" } ?? " (no changes)"))
                 case "--disconnect":
                     let r = try HookSetup.disconnect(kind)
-                    print("\(kind.displayName): отключено → \(file)" + (r.backup.map { " (копия: \(HookSetup.tilde($0.path)))" } ?? " (не было подключено)"))
+                    print("\(kind.displayName): disconnected -> \(file)" + (r.backup.map { " (backup: \(HookSetup.tilde($0.path)))" } ?? " (was not connected)"))
                 default:
-                    print("\(kind.displayName): \(HookSetup.isInstalled(kind) ? "подключено" : "не подключено") (\(file))")
+                    print("\(kind.displayName): \(HookSetup.isInstalled(kind) ? "connected" : "not connected") (\(file))")
                 }
             } catch {
-                print("\(kind.displayName): ошибка — \(error.localizedDescription)")
+                print("\(kind.displayName): error - \(error.localizedDescription)")
                 failed = true
             }
         }
@@ -104,14 +104,14 @@ if let i = CommandLine.arguments.firstIndex(where: { $0 == "--connect" || $0 == 
     exit(code)
 }
 
-// Сводка за день: AgentHUD --summary [ГГГГ-ММ-ДД] — Markdown в stdout (для стендапа).
+// Daily summary: AgentHUD --summary [YYYY-MM-DD] - Markdown to stdout (for standup).
 if let i = CommandLine.arguments.firstIndex(of: "--summary") {
     var day = Date()
     if i + 1 < CommandLine.arguments.count {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         guard let d = f.date(from: CommandLine.arguments[i + 1]) else {
-            print("Дата в формате ГГГГ-ММ-ДД, например 2026-11-20")
+            print("Date format is YYYY-MM-DD, e.g. 2026-11-20")
             exit(2)
         }
         day = d
@@ -120,7 +120,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--summary") {
     exit(0)
 }
 
-// Отчёт за период: AgentHUD --report <от> [<до>] — Markdown в stdout. Время: ISO 8601 или «ГГГГ-ММ-ДД ЧЧ:мм» (местное).
+// Period report: AgentHUD --report <from> [<to>] - Markdown to stdout. Time: ISO 8601 or "YYYY-MM-DD HH:mm" (local).
 if let i = CommandLine.arguments.firstIndex(of: "--report") {
     func parse(_ s: String) -> Date? {
         let f = DateFormatter()
@@ -134,14 +134,14 @@ if let i = CommandLine.arguments.firstIndex(of: "--report") {
     }
     let rest = Array(CommandLine.arguments.dropFirst(i + 1))
     guard (1...2).contains(rest.count), let from = parse(rest[0]), let to = rest.count == 2 ? parse(rest[1]) : Date(), from <= to else {
-        FileHandle.standardError.write(Data("Использование: AgentHUD --report <от> [<до>]  (ISO 8601 или \"ГГГГ-ММ-ДД ЧЧ:мм\", до по умолчанию — сейчас)\n".utf8))
+        FileHandle.standardError.write(Data("Usage: AgentHUD --report <from> [<to>]  (ISO 8601 or \"YYYY-MM-DD HH:mm\", <to> defaults to now)\n".utf8))
         exit(2)
     }
     print(PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to), terminator: "")
     exit(0)
 }
 
-// Автозапуск: AgentHUD --login-item on|off|status
+// Launch at login: AgentHUD --login-item on|off|status
 if let i = CommandLine.arguments.firstIndex(of: "--login-item") {
     let arg = i + 1 < CommandLine.arguments.count ? CommandLine.arguments[i + 1] : "status"
     do {
@@ -150,10 +150,10 @@ if let i = CommandLine.arguments.firstIndex(of: "--login-item") {
         case "off": try LoginItem.set(false)
         default: break
         }
-        print("Автозапуск: \(LoginItem.statusText)")
+        print("Launch at login: \(LoginItem.statusText)")
         exit(0)
     } catch {
-        print("Автозапуск: ошибка — \(error.localizedDescription). Сейчас: \(LoginItem.statusText)")
+        print("Launch at login: error - \(error.localizedDescription). Now: \(LoginItem.statusText)")
         exit(1)
     }
 }

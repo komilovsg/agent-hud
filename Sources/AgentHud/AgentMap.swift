@@ -2,8 +2,8 @@ import AgentHudCore
 import AppKit
 import SwiftUI
 
-/// Окно «Карта агентов»: все сессии сразу — по проектам, с текущим шагом, деревом субагентов
-/// и последними действиями («Сейчас»), плюс лента и итоги дня из журнала активности («Сегодня»).
+/// The "Agent map" window: all sessions at once - by project, with the current step, the subagent tree
+/// and the latest actions ("Now"), plus the feed and day totals from the activity log ("Today").
 @MainActor
 final class AgentMapController: NSObject, NSWindowDelegate {
     private let model: AppModel
@@ -18,7 +18,7 @@ final class AgentMapController: NSObject, NSWindowDelegate {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1060, height: 720),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
-            w.title = "Карта агентов"
+            w.title = "Agent map"
             w.isReleasedWhenClosed = false
             w.setFrameAutosaveName("AgentMap")
             w.contentView = NSHostingView(rootView: AgentMapView(model: model))
@@ -57,18 +57,18 @@ struct AgentMapView: View {
         let done = all.filter { $0.state == .done }.count
         return HStack(spacing: 14) {
             Image(systemName: "map.fill").font(.system(size: 18)).foregroundStyle(Brand.accent)
-            Text("Карта агентов").font(Brand.display(20)).foregroundStyle(Brand.ink)
+            Text("Agent map").font(Brand.display(20)).foregroundStyle(Brand.ink)
             HStack(spacing: 6) {
                 CountPill(n: working, title: "working", tone: .accent)
                 CountPill(n: waiting, title: DailySummary.plural(waiting, "needs you", "need you"), tone: .warning)
-                CountPill(n: done, title: "готово", tone: .success)
+                CountPill(n: done, title: "done", tone: .success)
             }
             Spacer()
             if tab == 0 {
-                Toggle("Скрытые", isOn: $showHidden).toggleStyle(BrandSwitch()).help("Показывать скрытые сессии")
-                Text("Скрытые").font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
+                Toggle("Hidden", isOn: $showHidden).toggleStyle(BrandSwitch()).help("Show hidden sessions")
+                Text("Hidden").font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
             }
-            BrandSegmented(options: [(0, "СЕЙЧАС"), (1, "СЕГОДНЯ")], selection: tabBinding).frame(width: 200)
+            BrandSegmented(options: [(0, "NOW"), (1, "TODAY")], selection: tabBinding).frame(width: 200)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
@@ -86,7 +86,7 @@ struct CountPill: View {
     }
 }
 
-// MARK: - Сейчас
+// MARK: - Now
 
 struct NowMap: View {
     @ObservedObject var model: AppModel
@@ -104,8 +104,8 @@ struct NowMap: View {
         if projects.isEmpty {
             VStack(spacing: 10) {
                 Image(systemName: "map").font(.system(size: 40, weight: .light)).foregroundStyle(Brand.inkSubtle)
-                Text("Агентов пока нет").font(Brand.body(15, .medium)).foregroundStyle(Brand.ink)
-                Text("Запусти Claude Code в VS Code, терминале или приложении — сессии появятся здесь, сгруппированные по проектам.")
+                Text("No agents yet").font(Brand.body(15, .medium)).foregroundStyle(Brand.ink)
+                Text("Start Claude Code in VS Code, the terminal or the app - sessions will appear here, grouped by project.")
                     .font(Brand.body(12)).foregroundStyle(Brand.inkMuted).multilineTextAlignment(.center).frame(maxWidth: 380)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,7 +122,7 @@ struct NowMap: View {
         }
     }
 
-    /// Сначала проекты, где ждут тебя, потом те, где работают.
+    /// Projects where someone is waiting for you first, then those where agents are working.
     private func rank(_ ss: [AgentSession]) -> Int {
         if ss.contains(where: { $0.state.needsUser || $0.state == .expired }) { return 0 }
         if ss.contains(where: { $0.state == .working || $0.state == .starting }) { return 1 }
@@ -176,7 +176,7 @@ struct MapSessionCard: View {
                 AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 28,
                            animated: model.settings.animations, kind: session.kind)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(session.title.isEmpty ? "Без задачи" : session.title)
+                    Text(session.title.isEmpty ? "No task" : session.title)
                         .font(Brand.body(13, .medium)).foregroundStyle(Brand.ink).lineLimit(2)
                     TimelineView(.periodic(from: .now, by: 30)) { ctx in
                         Text(subtitle(ctx.date)).font(Brand.mono(10)).foregroundStyle(Brand.inkSubtle).lineLimit(1)
@@ -186,7 +186,7 @@ struct MapSessionCard: View {
                 BrandTag(text: session.state.shortTitle, tone: session.state.tone)
             }
             if let p = session.activePending { attention(p) }
-            // Текущий шаг — последний лист дерева (со спиннером), отдельной строкой не дублируем.
+            // The current step is the last leaf of the tree (with a spinner), so we don't repeat it as a separate line.
             AgentTree(session: session)
             if !session.backgroundTasks.isEmpty { backgroundLine }
             if let msg = session.lastMessage, session.state == .done || session.state == .error {
@@ -204,14 +204,14 @@ struct MapSessionCard: View {
         let what: String = {
             switch p.kind {
             case .permission(let tool, let input):
-                return "Разрешение: " + Adapters.adapter(for: session.kind).summarize(toolName: tool, input: input, cwd: session.cwd)
+                return "Permission: " + Adapters.adapter(for: session.kind).summarize(toolName: tool, input: input, cwd: session.cwd)
             }
         }()
         return HStack(spacing: 8) {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Brand.warning)
             Text(what).font(Brand.body(12)).foregroundStyle(Brand.ink).lineLimit(2)
             Spacer(minLength: 4)
-            Button("Ответить") {
+            Button("Reply") {
                 model.settings.hudVisible = true
                 model.selectedKey = session.id
                 model.selectedByUser = true
@@ -227,7 +227,7 @@ struct MapSessionCard: View {
         TimelineView(.periodic(from: .now, by: 30)) { ctx in
             let oldest = session.oldestBackground(at: ctx.date)
             let hung = session.hungCount(at: ctx.date) > 0
-            Text("Фон: \(session.backgroundTasks.count)" + (oldest.map { " · старшая \(DailySummary.duration(Int($0.age(at: ctx.date))))" } ?? ""))
+            Text("Background: \(session.backgroundTasks.count)" + (oldest.map { " · oldest \(DailySummary.duration(Int($0.age(at: ctx.date))))" } ?? ""))
                 .font(Brand.mono(10))
                 .foregroundStyle(hung ? Color.red : Brand.inkSubtle)
                 .lineLimit(1)
@@ -238,20 +238,20 @@ struct MapSessionCard: View {
         let st = session.turnStats()
         let steps = st.tools.values.reduce(0, +)
         var chips: [String] = []
-        if steps > 0 { chips.append("шагов \(steps)") }
-        if st.edits > 0 { chips.append("правок \(st.edits)") }
-        if st.commands > 0 { chips.append("команд \(st.commands)") }
-        if !st.files.isEmpty { chips.append("файлов \(st.files.count)") }
-        if st.subagents > 0 { chips.append("субагентов \(st.subagents)") }
+        if steps > 0 { chips.append("\(steps) \(DailySummary.plural(steps, "step", "steps"))") }
+        if st.edits > 0 { chips.append("\(st.edits) \(DailySummary.plural(st.edits, "edit", "edits"))") }
+        if st.commands > 0 { chips.append("\(st.commands) \(DailySummary.plural(st.commands, "command", "commands"))") }
+        if !st.files.isEmpty { chips.append("\(st.files.count) \(DailySummary.plural(st.files.count, "file", "files"))") }
+        if st.subagents > 0 { chips.append("\(st.subagents) \(DailySummary.plural(st.subagents, "subagent", "subagents"))") }
         return HStack(spacing: 6) {
-            Text(chips.isEmpty ? "за ход пока ничего" : "за ход: " + chips.joined(separator: " · "))
+            Text(chips.isEmpty ? "nothing this turn yet" : "this turn: " + chips.joined(separator: " · "))
                 .font(Brand.mono(10)).foregroundStyle(Brand.inkSubtle).lineLimit(1)
             Spacer(minLength: 4)
-            GhostButton(title: "Открыть", symbol: "arrow.up.forward.app") { model.open(session.id) }
+            GhostButton(title: "Open", symbol: "arrow.up.forward.app") { model.open(session.id) }
             if session.hidden {
-                GhostButton(title: "Показать", symbol: "eye") { model.unhide(session.id) }
+                GhostButton(title: "Show", symbol: "eye") { model.unhide(session.id) }
             } else {
-                GhostButton(title: "Скрыть", symbol: "eye.slash") { model.hide(session.id) }
+                GhostButton(title: "Hide", symbol: "eye.slash") { model.hide(session.id) }
             }
         }
         .padding(.horizontal, -6)
@@ -265,7 +265,7 @@ struct MapSessionCard: View {
     }
 }
 
-/// Дерево хода: основной агент и его последние шаги, субагенты — ветками со своими шагами.
+/// Turn tree: the main agent and its latest steps, subagents as branches with their own steps.
 struct AgentTree: View {
     let session: AgentSession
     static let mainSteps = 5
@@ -279,14 +279,14 @@ struct AgentTree: View {
             EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 3) {
-                TreeNode(icon: "person.fill", title: "Основной агент", status: mainStatus,
-                         detail: main.count > Self.mainSteps ? "ещё \(main.count - Self.mainSteps) шагов выше" : nil)
+                TreeNode(icon: "person.fill", title: "Main agent", status: mainStatus,
+                         detail: main.count > Self.mainSteps ? "\(main.count - Self.mainSteps) more steps above" : nil)
                 ForEach(main.suffix(Self.mainSteps)) { st in TreeLeaf(step: st, depth: 1) }
                 ForEach(subs) { sub in
                     let aid = String(sub.id.dropFirst("subagent:".count))
                     let children = steps.filter { $0.agentId == aid }
                     TreeNode(icon: "person.2.fill", title: sub.summary, status: sub.status,
-                             detail: sub.durationMs.map(Fmt.duration) ?? (children.isEmpty ? nil : "шагов: \(children.count)"),
+                             detail: sub.durationMs.map(Fmt.duration) ?? (children.isEmpty ? nil : "\(children.count) \(DailySummary.plural(children.count, "step", "steps"))"),
                              depth: 1)
                     ForEach(children.suffix(Self.subSteps)) { st in TreeLeaf(step: st, depth: 2) }
                 }
@@ -296,7 +296,7 @@ struct AgentTree: View {
         }
     }
 
-    /// Агент в ходе (работает или ждёт тебя посреди хода) — спиннер; ошибка — крестик; иначе — готово.
+    /// An agent mid-turn (working or waiting for you in the middle of a turn) - spinner; error - a cross; otherwise - done.
     private var mainStatus: StepStatus {
         switch session.state {
         case .working, .starting, .waitingPermission, .expired: return .running
@@ -346,7 +346,7 @@ struct TreeLeaf: View {
     }
 }
 
-/// Отступ ветки дерева: вертикальные линии уровней и «уголок».
+/// Tree branch indent: vertical lines for the levels and the "elbow".
 struct TreeIndent: View {
     let depth: Int
 
@@ -377,7 +377,7 @@ struct StatusMark: View {
     }
 }
 
-// MARK: - Сегодня
+// MARK: - Today
 
 struct TodayMap: View {
     @ObservedObject var model: AppModel
@@ -392,8 +392,8 @@ struct TodayMap: View {
                 PeriodReportBlock(model: model)
                 if projects.isEmpty {
                     Text(model.settings.activityLog
-                         ? "Сегодня в журнале пока пусто. Записи появятся, когда агенты начнут получать задачи."
-                         : "Журнал активности выключен (Настройки → Журнал активности).")
+                         ? "Nothing in the log today yet. Entries will appear once agents start getting tasks."
+                         : "The activity log is off (Settings → Activity log).")
                         .font(Brand.body(13)).foregroundStyle(Brand.inkMuted)
                         .padding(.vertical, 30).frame(maxWidth: .infinity)
                 } else {
@@ -414,18 +414,18 @@ struct TodayMap: View {
 
     private var toolbar: some View {
         HStack(spacing: 8) {
-            Text("Обновлено в \(loadedAt.formatted(date: .omitted, time: .shortened))")
+            Text("Updated at \(loadedAt.formatted(date: .omitted, time: .shortened))")
                 .font(Brand.mono(10.5)).foregroundStyle(Brand.inkSubtle)
             Spacer()
-            GhostButton(title: "Обновить", symbol: "arrow.clockwise", action: reload)
-            GhostButton(title: copied ? "Скопировано" : "Скопировать Markdown", symbol: "doc.on.doc") {
+            GhostButton(title: "Refresh", symbol: "arrow.clockwise", action: reload)
+            GhostButton(title: copied ? "Copied" : "Copy Markdown", symbol: "doc.on.doc") {
                 let md = DailySummary.markdown(projects, day: loadedAt)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(md, forType: .string)
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
             }
-            GhostButton(title: "Открыть файл", symbol: "doc.text") { NSWorkspace.shared.open(model.writeSummary(day: loadedAt)) }
+            GhostButton(title: "Open file", symbol: "doc.text") { NSWorkspace.shared.open(model.writeSummary(day: loadedAt)) }
         }
     }
 
@@ -438,10 +438,10 @@ struct TodayMap: View {
         return HStack(spacing: 10) {
             StatTile(value: "\(turns)", title: DailySummary.plural(turns, "task", "tasks"))
             StatTile(value: "\(projects.count)", title: DailySummary.plural(projects.count, "project", "projects"))
-            StatTile(value: worked > 0 ? DailySummary.duration(worked) : "—", title: "работа агентов")
-            StatTile(value: "\(edits)", title: "правок файлов")
-            StatTile(value: "\(commands)", title: "команд")
-            StatTile(value: "\(decisions)", title: "решений в HUD")
+            StatTile(value: worked > 0 ? DailySummary.duration(worked) : "—", title: "agent work")
+            StatTile(value: "\(edits)", title: "file edits")
+            StatTile(value: "\(commands)", title: "commands")
+            StatTile(value: "\(decisions)", title: "HUD decisions")
         }
     }
 }
@@ -462,7 +462,7 @@ struct StatTile: View {
     }
 }
 
-/// Лента дня: по строке на проект, ходы агентов — полосами по времени.
+/// Day feed: one row per project, agent turns as bars over time.
 struct DayTimeline: View {
     let projects: [DayProject]
     let now: Date
@@ -480,12 +480,12 @@ struct DayTimeline: View {
         let hours = Int(span / 3600)
 
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(index: 1, title: "Лента дня")
+            SectionLabel(index: 1, title: "Day feed")
             VStack(alignment: .leading, spacing: 4) {
                 GeometryReader { geo in
                     let w = geo.size.width - Self.labelWidth
                     ZStack(alignment: .topLeading) {
-                        // Часовая сетка
+                        // Hour grid
                         ForEach(0...hours, id: \.self) { h in
                             let x = Self.labelWidth + w * CGFloat(Double(h) * 3600 / span)
                             Rectangle().fill(Brand.line).frame(width: 1, height: geo.size.height - 16).offset(x: x, y: 16)
@@ -542,7 +542,7 @@ struct DayProjectCard: View {
                     Text(t.start.formatted(date: .omitted, time: .shortened)).font(Brand.mono(11)).foregroundStyle(Brand.inkSubtle)
                         .frame(width: 44, alignment: .leading)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(t.prompt.isEmpty ? "(без текста)" : t.prompt).font(Brand.body(12, .medium)).foregroundStyle(Brand.ink).lineLimit(2)
+                        Text(t.prompt.isEmpty ? "(no text)" : t.prompt).font(Brand.body(12, .medium)).foregroundStyle(Brand.ink).lineLimit(2)
                         if let m = t.message, !m.isEmpty {
                             Text(m).font(Brand.body(11)).foregroundStyle(Brand.inkMuted).lineLimit(2)
                         }
@@ -552,7 +552,7 @@ struct DayProjectCard: View {
                 }
             }
             if !project.decisions.isEmpty {
-                Text("Решения в HUD: " + project.decisions.keys.sorted().map { "\($0) \(project.decisions[$0]!)" }.joined(separator: " · "))
+                Text("HUD decisions: " + project.decisions.keys.sorted().map { "\($0) \(project.decisions[$0]!)" }.joined(separator: " · "))
                     .font(Brand.mono(10)).foregroundStyle(Brand.inkSubtle)
             }
         }
@@ -564,22 +564,22 @@ struct DayProjectCard: View {
     private var summaryLine: String {
         var s = "\(project.turns.count) \(DailySummary.plural(project.turns.count, "task", "tasks"))"
         if project.workedSec > 0 { s += " · \(DailySummary.duration(project.workedSec))" }
-        return s + " · правок \(project.edits) · команд \(project.commands)"
+        return s + " · \(project.edits) \(DailySummary.plural(project.edits, "edit", "edits")) · \(project.commands) \(DailySummary.plural(project.commands, "command", "commands"))"
     }
 
     private func status(_ t: DayTurn) -> String {
-        guard t.end != nil else { return "в работе" }
-        if t.failed { return "ошибка" }
-        var parts = [t.stats.durationSec.map(DailySummary.duration) ?? "готово"]
-        if t.stats.edits > 0 { parts.append("правок \(t.stats.edits)") }
-        if t.stats.commands > 0 { parts.append("команд \(t.stats.commands)") }
+        guard t.end != nil else { return "in progress" }
+        if t.failed { return "error" }
+        var parts = [t.stats.durationSec.map(DailySummary.duration) ?? "done"]
+        if t.stats.edits > 0 { parts.append("\(t.stats.edits) \(DailySummary.plural(t.stats.edits, "edit", "edits"))") }
+        if t.stats.commands > 0 { parts.append("\(t.stats.commands) \(DailySummary.plural(t.stats.commands, "command", "commands"))") }
         return parts.joined(separator: " · ")
     }
 }
 
-// MARK: - Отчёт за период
+// MARK: - Period report
 
-/// Компактный блок: пресет или свой отрезок, число задач и проектов, копирование и файл.
+/// Compact block: a preset or a custom range, the number of tasks and projects, copy and file.
 struct PeriodReportBlock: View {
     @ObservedObject var model: AppModel
     @State private var from = Date()
@@ -590,22 +590,22 @@ struct PeriodReportBlock: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text("ОТЧЁТ ЗА ПЕРИОД").font(Brand.mono(10.5, medium: true)).tracking(0.5).foregroundStyle(Brand.inkSubtle)
+                Text("PERIOD REPORT").font(Brand.mono(10.5, medium: true)).tracking(0.5).foregroundStyle(Brand.inkSubtle)
                 Spacer()
                 Menu {
                     ForEach(ReportPreset.allCases, id: \.self) { p in Button(p.title) { apply(p) } }
                 } label: {
-                    Text("Период")
+                    Text("Period")
                 }
                 .menuStyle(.borderlessButton).fixedSize()
             }
             if !model.settings.activityLog {
-                Text("Журнал активности выключен (Настройки → Журнал активности): отчёт строить не из чего.")
+                Text("The activity log is off (Settings → Activity log): nothing to build a report from.")
                     .font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
             } else {
                 HStack(spacing: 10) {
-                    DatePicker("С", selection: $from, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("До", selection: $to, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("From", selection: $from, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("To", selection: $to, displayedComponents: [.date, .hourAndMinute])
                     Spacer()
                 }
                 .font(Brand.body(12))
@@ -614,14 +614,14 @@ struct PeriodReportBlock: View {
                     Text("\(turns) \(DailySummary.plural(turns, "task", "tasks")) · \(projects.count) \(DailySummary.plural(projects.count, "project", "projects"))")
                         .font(Brand.mono(10.5)).foregroundStyle(Brand.inkSubtle)
                     Spacer()
-                    GhostButton(title: copied ? "Скопировано" : "Скопировать", symbol: "doc.on.doc") {
+                    GhostButton(title: copied ? "Copied" : "Copy", symbol: "doc.on.doc") {
                         let md = PeriodReport.markdown(PeriodReport.load(from: from, to: to), from: from, to: to)
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(md, forType: .string)
                         copied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                     }
-                    GhostButton(title: "Открыть файл", symbol: "doc.text") { NSWorkspace.shared.open(model.writeReport(from: from, to: to)) }
+                    GhostButton(title: "Open file", symbol: "doc.text") { NSWorkspace.shared.open(model.writeReport(from: from, to: to)) }
                 }
             }
         }

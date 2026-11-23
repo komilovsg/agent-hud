@@ -1,7 +1,7 @@
 import AgentHudCore
 import SwiftUI
 
-// MARK: - Разрешение
+// MARK: - Permission
 
 struct PermissionView: View {
     @ObservedObject var model: AppModel
@@ -20,7 +20,7 @@ struct PermissionView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "hand.raised.fill").foregroundStyle(flags.isEmpty ? .orange : .red)
-                Text("Просит разрешение: \(toolTitle)").font(.system(size: 12, weight: .semibold))
+                Text("Asks for permission: \(toolTitle)").font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Countdown(deadline: request.deadline)
             }
@@ -32,25 +32,25 @@ struct PermissionView: View {
             }
             ToolDetail(tool: tool, input: input, cwd: session.cwd)
             if denying {
-                TextField("Почему (необязательно) — агент получит это", text: $reason)
+                TextField("Why (optional) - the agent will receive this", text: $reason)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 13))
                     .controlSize(.large)
                     .focused($reasonFocused)
                     .onSubmit { deny() }
                 HStack(spacing: 8) {
-                    BigButton(title: "Отклонить", symbol: "xmark", prominent: true, role: .destructive) { deny() }
-                    BigButton(title: "Отмена", symbol: "arrow.uturn.backward") { denying = false }
+                    BigButton(title: "Deny", symbol: "xmark", prominent: true, role: .destructive) { deny() }
+                    BigButton(title: "Cancel", symbol: "arrow.uturn.backward") { denying = false }
                 }
             } else {
-                // Главные действия — крупно и на всю ширину.
+                // Main actions - large and full width.
                 HStack(spacing: 8) {
-                    // Опасная команда: без выделения и без ⌘↩ — чтобы не разрешить одной клавишей по привычке.
-                    BigButton(title: "Разрешить", symbol: "checkmark", prominent: flags.isEmpty) { model.decide(request.id, .allow) }
+                    // A dangerous command: no highlight and no ⌘↩ - so it can't be allowed with one habitual keypress.
+                    BigButton(title: "Allow", symbol: "checkmark", prominent: flags.isEmpty) { model.decide(request.id, .allow) }
                         .keyboardShortcut(flags.isEmpty ? KeyboardShortcut(.return, modifiers: .command) : nil)
-                        .help(flags.isEmpty ? "Разрешить один раз (⌘↩)" : "Разрешить один раз")
-                    BigButton(title: "Отклонить…", symbol: "xmark", role: .destructive) { denying = true; reasonFocused = true }
-                        .help("Отклонить; можно написать агенту почему")
+                        .help(flags.isEmpty ? "Allow once (⌘↩)" : "Allow once")
+                    BigButton(title: "Deny…", symbol: "xmark", role: .destructive) { denying = true; reasonFocused = true }
+                        .help("Deny; you can tell the agent why")
                 }
                 HStack(spacing: 6) {
                     if !ruleOptions.isEmpty {
@@ -60,7 +60,7 @@ struct PermissionView: View {
                     Button { model.decide(request.id, .passthrough) } label: {
                         Label(session.host.passthroughTitle, systemImage: session.host.placeSymbol)
                     }
-                    .help("Ответить там, где работает агент: окошко закроется, откроется его сессия")
+                    .help("Answer where the agent is running: the window closes and its session opens")
                 }
                 .controlSize(.small)
             }
@@ -83,9 +83,9 @@ struct PermissionView: View {
     }
 }
 
-/// Крупная кнопка действия: на всю доступную ширину, высота 34 pt.
-/// Свой стиль, а не системный: системная «выделенная» кнопка сереет, когда окно неактивно, —
-/// а окошко, открытое самим запросом, как раз неактивно, и «Разрешить» не отличалась от «Отклонить».
+/// A large action button: full available width, 34 pt tall.
+/// A custom style rather than the system one: the system "prominent" button turns gray when the window is inactive -
+/// and a window opened by a request is exactly inactive, so "Allow" looked no different from "Deny".
 struct BigButton: View {
     let title: String
     let symbol: String
@@ -139,7 +139,7 @@ private struct BigButtonBody: View {
     }
 }
 
-/// Меню «Всегда»: шаблон от HUD (короче список правил) и подсказки самого Claude Code.
+/// The "Always" menu: a template from the HUD (a shorter rule list) and Claude Code's own suggestions.
 struct AlwaysMenu: View {
     let options: [RuleOption]
     let pick: (RuleOption) -> Void
@@ -149,20 +149,20 @@ struct AlwaysMenu: View {
             let generated = options.filter(\.generated)
             let suggested = options.filter { !$0.generated }
             if !generated.isEmpty {
-                Section("Шаблон") {
+                Section("Template") {
                     ForEach(generated) { o in Button("\(o.title) — \(o.scope)") { pick(o) } }
                 }
             }
             if !suggested.isEmpty {
-                Section("Как предлагает Claude") {
+                Section("As suggested by Claude") {
                     ForEach(suggested) { o in Button("\(o.title) — \(o.scope)") { pick(o) } }
                 }
             }
         } label: {
-            Text("Всегда")
+            Text("Always")
         }
         .fixedSize()
-        .help("Разрешить и больше не спрашивать: правило запишется в настройки Claude Code")
+        .help("Allow and stop asking: the rule is written to Claude Code settings")
     }
 }
 
@@ -175,13 +175,13 @@ struct Countdown: View {
             Text(String(format: "%d:%02d", left / 60, left % 60))
                 .font(.system(size: 10).monospacedDigit())
                 .foregroundStyle(left < 30 ? Color.red : Color.secondary)
-                .help("Сколько осталось до того, как вопрос уйдёт в терминал")
+                .help("Time left before the question goes to the terminal")
         }
     }
 }
 
-/// Что именно агент хочет сделать — в читаемом виде. Всегда ограничено по высоте и прокручивается:
-/// огромный ввод (длинный скрипт, большой файл) не должен выталкивать кнопки за край экрана.
+/// What exactly the agent wants to do - in readable form. Always height-limited and scrollable:
+/// a huge input (a long script, a big file) must not push the buttons off the edge of the screen.
 struct ToolDetail: View {
     let tool: String
     let input: JSONValue
@@ -210,7 +210,7 @@ struct ToolDetail: View {
             case "MultiEdit":
                 PathLine(path: input["file_path"]?.stringValue ?? "", cwd: cwd)
                 let edits = input["edits"]?.arrayValue ?? []
-                Text("Правок: \(edits.count)").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Edits: \(edits.count)").font(.system(size: 11)).foregroundStyle(.secondary)
                 if let first = edits.first {
                     DiffBlock(old: first["old_string"]?.stringValue ?? "", new: first["new_string"]?.stringValue ?? "")
                 }
@@ -227,8 +227,8 @@ struct ToolDetail: View {
     }
 }
 
-/// Неизвестный инструмент (Workflow, MCP…): поля «ключ — значение», длинные значения обрезаны.
-/// Раньше показывался весь JSON, и одна строка в десятки тысяч символов занимала весь экран.
+/// An unknown tool (Workflow, MCP...): "key - value" fields, long values truncated.
+/// It used to show the whole JSON, and a single line of tens of thousands of characters took up the whole screen.
 struct KeyValueDetail: View {
     let input: JSONValue
     static let maxFields = 8
@@ -243,7 +243,7 @@ struct KeyValueDetail: View {
                     }
                 }
                 if obj.entries.count > Self.maxFields {
-                    Text("… ещё полей: \(obj.entries.count - Self.maxFields)").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text("… \(obj.entries.count - Self.maxFields) more fields").font(.system(size: 10)).foregroundStyle(.tertiary)
                 }
             }
         } else {
@@ -264,8 +264,8 @@ struct PathLine: View {
     }
 }
 
-/// Код без интерпретации: только текст, никаких ссылок и разметки.
-/// Обрезается и по строкам, и по символам: одна строка без переносов тоже может быть огромной.
+/// Code without interpretation: text only, no links or markup.
+/// Truncated by both lines and characters: a single line without breaks can also be huge.
 struct Code: View {
     let text: String
     var maxLines: Int = 8
@@ -282,9 +282,9 @@ struct Code: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             if moreLines > 0 {
-                Text("… ещё \(moreLines) строк").font(.system(size: 10)).foregroundStyle(.tertiary)
+                Text("… \(moreLines) more lines").font(.system(size: 10)).foregroundStyle(.tertiary)
             } else if moreChars > 0 {
-                Text("… ещё \(moreChars) символов").font(.system(size: 10)).foregroundStyle(.tertiary)
+                Text("… \(moreChars) more characters").font(.system(size: 10)).foregroundStyle(.tertiary)
             }
         }
         .padding(8)
@@ -292,7 +292,7 @@ struct Code: View {
         .background(RoundedRectangle(cornerRadius: 7).fill(background))
     }
 
-    /// Первые `maxLines` строк, но не больше `maxChars` символов; сколько строк и символов осталось за кадром.
+    /// The first `maxLines` lines, but no more than `maxChars` characters; how many lines and characters are left off-screen.
     static func clip(_ text: String, maxLines: Int, maxChars: Int) -> (String, Int, Int) {
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         var shown = lines.prefix(maxLines).joined(separator: "\n")
@@ -324,7 +324,7 @@ struct DiffBlock: View {
     }
 }
 
-// MARK: - Просрочено
+// MARK: - Expired
 
 struct ExpiredView: View {
     @ObservedObject var model: AppModel
@@ -334,22 +334,22 @@ struct ExpiredView: View {
     var body: some View {
         let what: String = {
             switch request.kind {
-            case .permission(let t, _): return "Запрос разрешения (\(t))"
+            case .permission(let t, _): return "Permission request (\(t))"
             }
         }()
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Image(systemName: "clock.badge.exclamationmark").foregroundStyle(Color(red: 0.75, green: 0.5, blue: 0.25))
-                Text("Просрочено").font(.system(size: 12, weight: .semibold))
+                Text("Expired").font(.system(size: 12, weight: .semibold))
             }
-            Text("\(what) ждал слишком долго и ушёл в \(session.host.placeTo). Ответь там.")
+            Text("\(what) waited too long and went to \(session.host.placeTo). Answer there.")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button { model.open(session.id) } label: {
                     Label(session.host.openTitle, systemImage: "arrow.up.forward.app")
                 }
                     .buttonStyle(.borderedProminent)
-                Button("Убрать") { model.dismissExpired(session.id) }
+                Button("Dismiss") { model.dismissExpired(session.id) }
             }
             .controlSize(.small)
         }

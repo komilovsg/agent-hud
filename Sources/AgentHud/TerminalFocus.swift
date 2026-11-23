@@ -2,7 +2,7 @@ import AgentHudCore
 import AppKit
 import Foundation
 
-/// Кнопка «Открыть»: поднять приложение, окно VS Code или вкладку терминала, где идёт сессия.
+/// The "Open" button: bring up the app, the VS Code window or the terminal tab where the session runs.
 enum TerminalFocus {
     static func focus(_ session: AgentSession) {
         let host = session.host
@@ -11,7 +11,7 @@ enum TerminalFocus {
             return
         }
         if host.isEditorTerminal {
-            // `claude` во встроенном терминале VS Code: вкладку терминала не выбрать, но окно проекта поднимем.
+            // `claude` in the VS Code built-in terminal: the terminal tab can't be selected, but we raise the project window.
             openEditorWindow(folder: EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd,
                              bundleId: host.appBundleId ?? HostInfo.vscode) { _ in }
             return
@@ -27,7 +27,7 @@ enum TerminalFocus {
         focus(host)
     }
 
-    /// Ссылка прямо в сессию десктопного приложения (форматы взяты из самих приложений).
+    /// A link straight into a desktop app session (formats taken from the apps themselves).
     static func deepLink(_ session: AgentSession) -> URL? {
         switch session.host.appBundleId {
         case HostInfo.claudeDesktop:
@@ -43,7 +43,7 @@ enum TerminalFocus {
     static func focus(_ host: HostInfo) {
         if let pane = host.herdrPaneId {
             focusHerdr(pane: pane, socket: host.herdrSocket)
-            // Вкладка Terminal, в которой открыт клиент herdr.
+            // The Terminal tab that has the herdr client open.
             if !runAppleScript(terminalScript(match: "processes of t contains \"herdr\"")) { activate("com.apple.Terminal") }
             return
         }
@@ -59,16 +59,16 @@ enum TerminalFocus {
 
     // MARK: - VS Code
 
-    /// Сессия расширения Claude Code в VS Code: сначала окно с папкой проекта (VS Code сам поднимет уже
-    /// открытое окно с этой папкой), потом ссылка в саму сессию. `prompt` — текст в поле ввода
-    /// (расширение его только вставляет, отправляет пользователь сам).
-    /// Ссылка: https://code.claude.com/docs/en/vs-code — `vscode://anthropic.claude-code/open?session=…&prompt=…`.
+    /// A Claude Code extension session in VS Code: first the window with the project folder (VS Code itself raises an already
+    /// open window with that folder), then the link into the session itself. `prompt` is the text for the input field
+    /// (the extension only inserts it; the user sends it).
+    /// Link: https://code.claude.com/docs/en/vs-code - `vscode://anthropic.claude-code/open?session=…&prompt=…`.
     static func focusEditor(_ session: AgentSession, prompt: String?) {
         let bundle = session.host.appBundleId ?? HostInfo.vscode
         let folder = EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd
         openEditorWindow(folder: folder, bundleId: bundle) { ok in
             guard let url = editorDeepLink(session, bundleId: bundle, prompt: prompt) else { return }
-            // Ссылку VS Code отдаёт последнему активному окну — ждём, пока окно проекта станет им.
+            // VS Code hands the link to the last active window - wait until the project window becomes it.
             DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.45 : 0)) { NSWorkspace.shared.open(url) }
         }
     }
@@ -99,7 +99,7 @@ enum TerminalFocus {
         cfg.activates = true
         let url = URL(fileURLWithPath: folder, isDirectory: true)
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: cfg) { _, error in
-            if let error { NSLog("AgentHUD: не открыл \(folder) в VS Code: \(error.localizedDescription)") }
+            if let error { NSLog("AgentHUD: couldn't open \(folder) in VS Code: \(error.localizedDescription)") }
             Task { @MainActor in then(error == nil) }
         }
     }
@@ -109,7 +109,7 @@ enum TerminalFocus {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
     }
 
-    /// Найти вкладку Terminal.app по условию, выбрать её и поднять окно.
+    /// Find a Terminal.app tab by a condition, select it and raise the window.
     static func terminalScript(match condition: String) -> String {
         """
         if application "Terminal" is not running then return false
@@ -174,15 +174,15 @@ enum TerminalFocus {
         p.standardOutput = FileHandle.nullDevice
         p.standardError = FileHandle.nullDevice
         try? p.run()
-        // Не ждём дольше секунды, чтобы не подвесить интерфейс.
+        // Wait no longer than a second so as not to hang the UI.
         let deadline = Date().addingTimeInterval(1)
         while p.isRunning, Date() < deadline { usleep(20_000) }
         if p.isRunning { p.terminate() }
     }
 }
 
-/// Папки, открытые в окнах VS Code с расширением Claude Code. Расширение пишет их в `~/.claude/ide/<порт>.lock`
-/// (`workspaceFolders`, `pid`). Читаем только эти два поля; токен из файла не трогаем.
+/// Folders open in VS Code windows with the Claude Code extension. The extension writes them to `~/.claude/ide/<port>.lock`
+/// (`workspaceFolders`, `pid`). We read only these two fields; the token in the file is left alone.
 enum EditorWorkspaces {
     static func folder(containing cwd: String) -> String? {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/ide")
@@ -201,7 +201,7 @@ enum EditorWorkspaces {
 }
 
 extension EditorWorkspaces {
-    /// Все папки, открытые сейчас в окнах VS Code с расширением Claude Code (живые `pid`).
+    /// All folders currently open in VS Code windows with the Claude Code extension (live `pid`).
     static func openFolders() -> Set<String> {
         let dir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/ide")
         guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else { return [] }

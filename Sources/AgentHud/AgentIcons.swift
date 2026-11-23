@@ -2,8 +2,8 @@ import AgentHudCore
 import AppKit
 import SwiftUI
 
-/// Иконки агентов: берём у системы иконки установленного приложения Claude.
-/// Сами логотипы не рисуем и в приложение не кладём.
+/// Agent icons: we take the icon of the installed Claude app from the system.
+/// We neither draw the logos ourselves nor ship them in the app.
 @MainActor
 enum AgentIcons {
     private static var cache: [AgentKind: NSImage?] = [:]
@@ -26,7 +26,7 @@ enum AgentIcons {
     }
 }
 
-/// Персонаж в стиле «Логотипы»: иконка агента. Состояние — бейдж, движение и насыщенность.
+/// A character in the "Logos" style: the agent's icon. State is shown by a badge, motion and saturation.
 struct LogoAvatar: View {
     let kind: AgentKind?
     let state: AgentState
@@ -41,7 +41,7 @@ struct LogoAvatar: View {
                     .aspectRatio(contentMode: .fit)
                     .shadow(color: .black.opacity(0.18), radius: size * 0.03, y: size * 0.02)
             } else {
-                // Приложение агента не установлено (например, только CLI) — нейтральная плашка с символом.
+                // The agent's app is not installed (e.g. CLI only) - a neutral tile with a symbol.
                 ZStack {
                     RoundedRectangle(cornerRadius: size * 0.22, style: .continuous).fill(Brand.accentSoft)
                     Image(systemName: "sparkle")
@@ -72,8 +72,8 @@ struct LogoAvatar: View {
     }
 }
 
-/// Несколько иконок агентов внахлёст — для превью стиля и шапки панели.
-/// Только агенты, чьи приложения установлены (одна иконка Claude).
+/// Several agent icons overlapping - for the style preview and the panel header.
+/// Only agents whose apps are installed (a single Claude icon).
 struct AgentIconStack: View {
     var size: CGFloat = 30
     var state: AgentState = .working

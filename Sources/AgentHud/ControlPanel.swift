@@ -1,7 +1,7 @@
 import AgentHudCore
 import SwiftUI
 
-/// Действия панели — их выполняет StatusMenu (закрывает поповер, показывает диалоги).
+/// Panel actions - performed by StatusMenu (closes the popover, shows dialogs).
 struct PanelActions {
     var openSession: (String) -> Void = { _ in }
     var focusSession: (String) -> Void = { _ in }
@@ -18,14 +18,14 @@ struct PanelActions {
     var quit: () -> Void = {}
 }
 
-/// Панель в строке меню: сессии, агенты, вид, поведение. Палитра — в Brand.swift.
+/// Menu bar panel: sessions, agents, appearance, behavior. The palette is in Brand.swift.
 struct ControlPanelView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var settings: Settings
     var actions = PanelActions()
-    /// Статусы, которые не публикуются сами (файлы конфигов, автозапуск) — читаются при открытии.
+    /// Statuses that don't publish themselves (config files, launch at login) - read on open.
     var installed: [AgentKind: Bool] = [:]
-    /// Какие агенты есть на машине: остальных в панели не показываем.
+    /// Which agents are present on the machine: the others are not shown in the panel.
     var present: [AgentKind: Bool] = [:]
     var loginItem = false
     @State var tab = 0
@@ -36,16 +36,16 @@ struct ControlPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            BrandTabs(titles: ["Сессии", "Настройки"], selection: $tab,
+            BrandTabs(titles: ["Sessions", "Settings"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
                 HStack(spacing: 8) {
-                    PanelButton(title: "Карта агентов", symbol: "map", action: actions.openMap)
-                    PanelButton(title: "Сводка за день", symbol: "list.bullet.rectangle", action: actions.openSummary)
+                    PanelButton(title: "Agent map", symbol: "map", action: actions.openMap)
+                    PanelButton(title: "Daily summary", symbol: "list.bullet.rectangle", action: actions.openSummary)
                 }
                 HStack(spacing: 8) {
-                    PanelButton(title: "Отчёт за период", symbol: "calendar", action: actions.openReport)
-                    PanelButton(title: "Отчёт: с 15:00 вчера", symbol: "clock.arrow.circlepath", action: actions.quickReport)
+                    PanelButton(title: "Period report", symbol: "calendar", action: actions.openReport)
+                    PanelButton(title: "Since 15:00 yesterday", symbol: "clock.arrow.circlepath", action: actions.quickReport)
                 }
                 sessionsSection
                 agentsSection
@@ -60,7 +60,7 @@ struct ControlPanelView: View {
         .background(Brand.bg)
     }
 
-    // MARK: Шапка
+    // MARK: Header
 
     private var header: some View {
         let sessions = model.visibleSessions
@@ -83,19 +83,12 @@ struct ControlPanelView: View {
     }
 
     private func summary(total: Int, waiting: Int) -> String {
-        if total == 0 { return "НЕТ АКТИВНЫХ СЕССИЙ" }
-        let s = "\(total) \(plural(total, "СЕССИЯ", "СЕССИИ", "СЕССИЙ"))"
-        return waiting > 0 ? s + " · \(waiting) \(plural(waiting, "ЖДЁТ", "ЖДУТ", "ЖДУТ"))" : s
+        if total == 0 { return "NO ACTIVE SESSIONS" }
+        let s = "\(total) \(DailySummary.plural(total, "SESSION", "SESSIONS"))"
+        return waiting > 0 ? s + " · \(waiting) WAITING" : s
     }
 
-    private func plural(_ n: Int, _ one: String, _ few: String, _ many: String) -> String {
-        let m10 = n % 10, m100 = n % 100
-        if m10 == 1 && m100 != 11 { return one }
-        if (2...4).contains(m10) && !(12...14).contains(m100) { return few }
-        return many
-    }
-
-    // MARK: 01 Сессии
+    // MARK: 01 Sessions
 
     private var sessionsSection: some View {
         let sessions = model.visibleSessions.sorted { a, b in
@@ -103,10 +96,10 @@ struct ControlPanelView: View {
             return pa != pb ? pa < pb : a.lastEventAt > b.lastEventAt
         }
         return VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(index: 1, title: "Сессии")
+            SectionLabel(index: 1, title: "Sessions")
             Card {
                 if sessions.isEmpty {
-                    Text("Пока тихо. Запусти агента в VS Code, терминале или приложении — он появится здесь.")
+                    Text("All quiet for now. Start an agent in VS Code, the terminal or the app - it will appear here.")
                         .font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.vertical, 12)
@@ -128,13 +121,13 @@ struct ControlPanelView: View {
         }
     }
 
-    // MARK: 02 Агенты
+    // MARK: 02 Agents
 
     private var agentsSection: some View {
-        // Агент без своей папки настроек на машине не установлен — не предлагаем подключать.
+        // An agent without its own settings folder on the machine is not installed - we don't offer to connect it.
         let kinds = AgentKind.allCases.filter { present[$0] ?? true || installed[$0] ?? false }
         return VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(index: 2, title: "Агенты")
+            SectionLabel(index: 2, title: "Agents")
             Card {
                 ForEach(Array(kinds.enumerated()), id: \.element) { i, kind in
                     if i > 0 { Rectangle().fill(Brand.line).frame(height: 1) }
@@ -145,11 +138,11 @@ struct ControlPanelView: View {
         }
     }
 
-    // MARK: 03 Вид
+    // MARK: 03 Appearance
 
     private var lookSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(index: 1, title: "Вид")
+            SectionLabel(index: 1, title: "Appearance")
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
@@ -159,41 +152,41 @@ struct ControlPanelView: View {
                     }
                     .padding(.top, 12)
                     Divider().overlay(Brand.line)
-                    BrandToggleRow(title: "Показывать HUD", isOn: $settings.hudVisible)
-                    BrandToggleRow(title: "Анимация персонажей", isOn: $settings.animations)
-                    BrandToggleRow(title: "Проект под иконкой", hint: "Короткое имя проекта, чтобы различать сессии",
+                    BrandToggleRow(title: "Show HUD", isOn: $settings.hudVisible)
+                    BrandToggleRow(title: "Animate characters", isOn: $settings.animations)
+                    BrandToggleRow(title: "Project under icon", hint: "Short project name to tell sessions apart",
                                    isOn: $settings.projectLabels)
-                    BrandToggleRow(title: "Прятать, когда никто не ждёт",
-                                   hint: "HUD появится только при запросе или вопросе", isOn: $settings.hideWhenNothingWaits)
+                    BrandToggleRow(title: "Hide when nobody is waiting",
+                                   hint: "The HUD appears only on a request or a question", isOn: $settings.hideWhenNothingWaits)
                         .padding(.bottom, 4)
                 }
             }
         }
     }
 
-    // MARK: 04 Поведение
+    // MARK: 04 Behavior
 
     private var behaviorSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(index: 2, title: "Поведение")
+            SectionLabel(index: 2, title: "Behavior")
             Card {
                 VStack(alignment: .leading, spacing: 4) {
-                    BrandToggleRow(title: "Открывать окошко при запросе", isOn: $settings.openCardOnRequest)
+                    BrandToggleRow(title: "Open window on request", isOn: $settings.openCardOnRequest)
                         .padding(.top, 6)
-                    BrandToggleRow(title: "Уведомления, если HUD скрыт", isOn: $settings.notifications)
-                    BrandToggleRow(title: "Запускать при входе в систему",
+                    BrandToggleRow(title: "Notify if HUD is hidden", isOn: $settings.notifications)
+                    BrandToggleRow(title: "Launch at login",
                                    isOn: Binding(get: { loginItem }, set: { actions.setLoginItem($0) }))
-                    BrandToggleRow(title: "Журнал активности", hint: "Для сводки за день; хранится только на этом Mac",
+                    BrandToggleRow(title: "Activity log", hint: "For the daily summary; stored only on this Mac",
                                    isOn: $settings.activityLog)
                     Divider().overlay(Brand.line).padding(.vertical, 4)
-                    FieldLabel(title: "Время на ответ", hint: "потом — в агента")
-                    BrandSegmented(options: [(120, "2 МИН"), (300, "5 МИН"), (600, "10 МИН"), (1800, "30 МИН")],
+                    FieldLabel(title: "Time to answer", hint: "then it goes to the agent")
+                    BrandSegmented(options: [(120, "2 MIN"), (300, "5 MIN"), (600, "10 MIN"), (1800, "30 MIN")],
                                    selection: Binding(get: { settings.hookTimeout }, set: { actions.setTimeout($0) }))
-                    FieldLabel(title: "Прятать готовые сессии").padding(.top, 8)
-                    BrandSegmented(options: [(0, "НЕТ"), (5, "5 МИН"), (30, "30 МИН"), (120, "2 Ч")],
+                    FieldLabel(title: "Hide finished sessions").padding(.top, 8)
+                    BrandSegmented(options: [(0, "NEVER"), (5, "5 MIN"), (30, "30 MIN"), (120, "2 H")],
                                    selection: $settings.autoHideDoneMinutes)
-                    FieldLabel(title: "Быстрые промпты", hint: "для VS Code, через ;").padding(.top, 8)
-                    TextField("Продолжай; Прогони тесты", text: $quickText)
+                    FieldLabel(title: "Quick prompts", hint: "for VS Code, separated by ;").padding(.top, 8)
+                    TextField("Continue; Run the tests", text: $quickText)
                         .textFieldStyle(.roundedBorder)
                         .font(Brand.body(12))
                         .onAppear { quickText = settings.quickPrompts.joined(separator: "; ") }
@@ -207,21 +200,21 @@ struct ControlPanelView: View {
         }
     }
 
-    /// Красные флаги: сколько правил действует, есть ли проблемы в файле, кнопка открыть файл.
+    /// Red flags: how many rules are active, whether the file has problems, a button to open the file.
     private var redFlagsRow: some View {
         let set = RedFlags.load()
         return HStack(alignment: .firstTextBaseline, spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Красные флаги").font(Brand.body(13)).foregroundStyle(Brand.ink)
-                Text("правил: \(set.rules.count)").font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
+                Text("Red flags").font(Brand.body(13)).foregroundStyle(Brand.ink)
+                Text("rules: \(set.rules.count)").font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
                 if !set.problems.isEmpty {
-                    Label("проблем: \(set.problems.count)", systemImage: "exclamationmark.triangle.fill")
+                    Label("problems: \(set.problems.count)", systemImage: "exclamationmark.triangle.fill")
                         .font(Brand.body(11, .medium)).foregroundStyle(Brand.danger)
                         .help(set.problems.joined(separator: "\n"))
                 }
             }
             Spacer()
-            GhostButton(title: "Открыть файл", symbol: "doc.text", action: RedFlags.openFile)
+            GhostButton(title: "Open file", symbol: "doc.text", action: RedFlags.openFile)
         }
     }
 
@@ -230,22 +223,22 @@ struct ControlPanelView: View {
         if list != settings.quickPrompts { settings.quickPrompts = list }
     }
 
-    // MARK: Подвал
+    // MARK: Footer
 
     private var footer: some View {
         HStack(spacing: 2) {
-            GhostButton(title: "Журнал", symbol: "doc.text", action: actions.openLog)
-            GhostButton(title: "HUD в угол", symbol: "arrow.up.right.square", action: actions.resetPosition)
+            GhostButton(title: "Log", symbol: "doc.text", action: actions.openLog)
+            GhostButton(title: "Reset HUD position", symbol: "arrow.up.right.square", action: actions.resetPosition)
             Spacer()
-            GhostButton(title: "Выйти", symbol: "power", action: actions.quit)
+            GhostButton(title: "Quit", symbol: "power", action: actions.quit)
         }
         .padding(.horizontal, -10)
     }
 }
 
-// MARK: - Части панели
+// MARK: - Panel parts
 
-/// Карточка: поверхность, линия, скругление 10px.
+/// Card: surface, line, 10px corner radius.
 struct Card<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -335,14 +328,14 @@ struct AgentRow: View {
     }
 
     private var hint: String {
-        guard installed else { return "Не подключён" }
+        guard installed else { return "Not connected" }
         switch kind {
-        case .claude: return "VS Code, терминал и приложение Claude"
+        case .claude: return "VS Code, terminal and the Claude app"
         }
     }
 }
 
-/// Кнопка-плитка панели: «Карта агентов», «Сводка за день».
+/// Panel tile button: "Agent map", "Daily summary".
 struct PanelButton: View {
     let title: String
     let symbol: String
@@ -400,14 +393,14 @@ struct StyleTile: View {
 extension AgentState {
     var shortTitle: String {
         switch self {
-        case .starting: return "старт"
-        case .working: return "работает"
-        case .waitingPermission: return "ждёт тебя"
-        case .expired: return "просрочено"
-        case .idle: return "ждёт задачу"
-        case .done: return "готово"
-        case .error: return "ошибка"
-        case .ended: return "завершена"
+        case .starting: return "starting"
+        case .working: return "working"
+        case .waitingPermission: return "needs you"
+        case .expired: return "expired"
+        case .idle: return "idle"
+        case .done: return "done"
+        case .error: return "error"
+        case .ended: return "ended"
         }
     }
 

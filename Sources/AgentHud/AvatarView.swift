@@ -1,15 +1,15 @@
 import AgentHudCore
 import SwiftUI
 
-/// «Маленький друг» сессии: процедурный персонаж из зерна сессии.
-/// Три стиля на выбор (Капля, Бот, Пиксель), анимация зависит от состояния.
+/// A session's "little friend": a procedural character generated from the session seed.
+/// Three styles to choose from (Blob, Bot, Pixel), animation depends on the state.
 struct AvatarView: View {
     let seed: UInt64
     let state: AgentState
     let style: AvatarStyle
     var size: CGFloat = 36
     var animated = true
-    /// Агент сессии — для стиля «Логотипы».
+    /// The session's agent - for the "Logos" style.
     var kind: AgentKind? = nil
 
     @State private var blink = false
@@ -24,7 +24,7 @@ struct AvatarView: View {
     }
 
     var body: some View {
-        // Персонаж рисуется один раз на состояние, движение — анимация слоя в Core Animation.
+        // The character is drawn once per state, motion is a layer animation in Core Animation.
         LayerMotion(layerMotion) {
             if style == .logo {
                 LogoAvatar(kind: kind, state: state, size: size)
@@ -44,7 +44,7 @@ struct AvatarView: View {
         .frame(width: size, height: size)
         .overlay(alignment: .topTrailing) { StateBadge(state: state, size: size, animated: animated) }
         .task(id: motion) {
-            // Моргание раз в несколько секунд — только у персонажей, которые двигаются.
+            // Blinking every few seconds - only for characters that move.
             guard motion != .still, style != .logo else { blink = false; return }
             let period = 3.2 + Double(seed % 13) / 10
             while !Task.isCancelled {
@@ -107,14 +107,14 @@ struct StateBadge: View {
 extension AgentState {
     var title: String {
         switch self {
-        case .starting: return "Запускается"
-        case .working: return "Работает"
-        case .waitingPermission: return "Ждёт разрешения"
-        case .expired: return "Просрочено"
-        case .idle: return "Ждёт задачу"
-        case .done: return "Готово"
-        case .error: return "Ошибка"
-        case .ended: return "Завершена"
+        case .starting: return "Starting"
+        case .working: return "Working"
+        case .waitingPermission: return "Needs permission"
+        case .expired: return "Expired"
+        case .idle: return "Idle"
+        case .done: return "Done"
+        case .error: return "Error"
+        case .ended: return "Ended"
         }
     }
 
@@ -130,7 +130,7 @@ extension AgentState {
     }
 }
 
-// MARK: - Рисование
+// MARK: - Drawing
 
 struct AvatarPainter {
     let seed: UInt64
@@ -155,13 +155,13 @@ struct AvatarPainter {
     private var darkColor: Color { Color(hue: hue, saturation: 0.7 * saturationScale, brightness: 0.6) }
     private var lightColor: Color { Color(hue: hue, saturation: 0.25 * saturationScale, brightness: 1) }
 
-    // Движение задаёт LayerMotion, здесь — только статичная картинка.
+    // Motion is set by LayerMotion, here only the static picture.
     private let bob: CGFloat = 0
     private let squash: CGFloat = 1
     private let lookX: CGFloat = 0
     private var blinking: Bool { blink }
 
-    // MARK: Глаза — общие для всех стилей
+    // MARK: Eyes - shared by all styles
 
     enum EyeKind { case open, closed, happy, cross, dot }
 
@@ -205,7 +205,7 @@ struct AvatarPainter {
         }
     }
 
-    // MARK: Капля
+    // MARK: Blob
 
     func drawBlob(_ g: inout GraphicsContext) {
         let s = min(size.width, size.height)
@@ -218,7 +218,7 @@ struct AvatarPainter {
             let a = Double(k) / Double(n) * .pi * 2 - .pi / 2
             let wobble = 0.07 * sin(Double(k) * 2.3 + phase) + 0
             let rr = r * CGFloat(1 + wobble)
-            // Чуть шире внизу — форма капли/«сидящего» существа.
+            // Slightly wider at the bottom - the shape of a blob / a "sitting" creature.
             let flatten: CGFloat = sin(a) > 0 ? 1.08 : 1
             pts.append(CGPoint(x: cx + CGFloat(cos(a)) * rr * flatten * (2 - squash),
                                y: cy + CGFloat(sin(a)) * rr * squash))
@@ -229,10 +229,10 @@ struct AvatarPainter {
             l.fill(body, with: .linearGradient(Gradient(colors: [lightColor, bodyColor, darkColor]),
                                                startPoint: CGPoint(x: cx, y: cy - r), endPoint: CGPoint(x: cx, y: cy + r)))
         }
-        // Блик
+        // Highlight
         g.fill(Path(ellipseIn: CGRect(x: cx - r * 0.55, y: cy - r * 0.78, width: r * 0.45, height: r * 0.28)),
                with: .color(.white.opacity(0.55)))
-        // Рожки/ушки от зерна
+        // Little horns/ears from the seed
         if bits(20, 1) == 1 {
             for side in [-1.0, 1.0] {
                 let base = CGPoint(x: cx + CGFloat(side) * r * 0.45, y: cy - r * 0.85)
@@ -244,7 +244,7 @@ struct AvatarPainter {
         let ey = cy - r * 0.08
         drawEye(&g, at: CGPoint(x: cx - gap, y: ey), r: eyeR, pupil: Color(white: 0.12))
         drawEye(&g, at: CGPoint(x: cx + gap, y: ey), r: eyeR, pupil: Color(white: 0.12))
-        // Румянец
+        // Blush
         if state == .done || state == .working {
             for side in [-1.0, 1.0] {
                 g.fill(Path(ellipseIn: CGRect(x: cx + CGFloat(side) * gap * 1.45 - r * 0.1, y: ey + r * 0.3, width: r * 0.2, height: r * 0.1)),
@@ -253,7 +253,7 @@ struct AvatarPainter {
         }
     }
 
-    // MARK: Бот
+    // MARK: Bot
 
     func drawBot(_ g: inout GraphicsContext) {
         let s = min(size.width, size.height)
@@ -261,7 +261,7 @@ struct AvatarPainter {
         let cx = size.width / 2
         let cy = size.height * 0.6 + bob
         let head = CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h * squash)
-        // Антенна
+        // Antenna
         let topY = head.minY
         var ant = Path()
         ant.move(to: CGPoint(x: cx, y: topY))
@@ -271,7 +271,7 @@ struct AvatarPainter {
         let waiting = state == .waitingPermission
         let ballColor: Color = waiting ? .orange : (state == .error ? .red : lightColor)
         g.fill(Path(ellipseIn: CGRect(x: cx - ballR, y: topY - s * 0.14 - ballR, width: ballR * 2, height: ballR * 2)), with: .color(ballColor))
-        // Уши
+        // Ears
         for side in [-1.0, 1.0] {
             let ex = side < 0 ? head.minX - s * 0.06 : head.maxX
             g.fill(Path(roundedRect: CGRect(x: ex, y: cy - s * 0.09, width: s * 0.06, height: s * 0.18), cornerRadius: s * 0.02), with: .color(darkColor))
@@ -282,7 +282,7 @@ struct AvatarPainter {
                    with: .linearGradient(Gradient(colors: [lightColor, bodyColor, darkColor]),
                                          startPoint: CGPoint(x: cx, y: head.minY), endPoint: CGPoint(x: cx, y: head.maxY)))
         }
-        // Экран-лицо
+        // Screen face
         let face = head.insetBy(dx: w * 0.12, dy: h * 0.17)
         g.fill(Path(roundedRect: face, cornerRadius: s * 0.08), with: .color(Color(white: 0.1).opacity(0.85)))
         let glow = Color(hue: (hue + 0.5).truncatingRemainder(dividingBy: 1), saturation: 0.6 * saturationScale + 0.1, brightness: 1)
@@ -292,7 +292,7 @@ struct AvatarPainter {
         drawEye(&g, at: CGPoint(x: face.midX + face.width * 0.24, y: ey), r: er, pupil: glow, sclera: glow.opacity(0.3))
     }
 
-    // MARK: Пиксель
+    // MARK: Pixel
 
     func drawPixel(_ g: inout GraphicsContext) {
         let s = min(size.width, size.height)
@@ -300,19 +300,19 @@ struct AvatarPainter {
         let cell = s * 0.8 / CGFloat(n)
         let ox = (size.width - cell * CGFloat(n)) / 2
         let oy = (size.height - cell * CGFloat(n)) / 2 + s * 0.04 + bob
-        // Симметричная маска 7×7: левая половина + центр из битов зерна, базовая форма всегда заполнена.
+        // Symmetric 7x7 mask: the left half + the center from the seed bits, the base shape is always filled.
         var grid = Array(repeating: Array(repeating: false, count: n), count: n)
         var bit: UInt64 = 0
         for row in 0..<n {
             for col in 0...3 {
-                let core = row >= 1 && row <= 5 && col >= 1   // тело
+                let core = row >= 1 && row <= 5 && col >= 1   // body
                 let on = core || ((seed >> (bit % 60)) & 1) == 1 && row > 0 && row < n
                 bit += 1
                 grid[row][col] = on
                 grid[row][n - 1 - col] = on
             }
         }
-        // Ножки
+        // Feet
         grid[6][2] = true; grid[6][4] = true; grid[6][3] = false
         let eyeRow = 2
         for row in 0..<n {
@@ -329,7 +329,7 @@ struct AvatarPainter {
         }
     }
 
-    // MARK: Геометрия
+    // MARK: Geometry
 
     private func smoothClosedPath(_ pts: [CGPoint]) -> Path {
         var p = Path()

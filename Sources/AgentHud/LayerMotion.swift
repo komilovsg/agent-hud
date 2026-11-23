@@ -2,28 +2,28 @@ import AppKit
 import QuartzCore
 import SwiftUI
 
-/// Бесконечные анимации через Core Animation. Их считает системный рендер-сервер,
-/// а не SwiftUI в нашем процессе (SwiftUI тикал бы 120 раз в секунду и ел CPU).
+/// Endless animations via Core Animation. They are computed by the system render server,
+/// not by SwiftUI in our process (SwiftUI would tick 120 times a second and eat CPU).
 enum LayerMotionKind: Hashable {
     case none
-    /// Покачивание, пока агент работает: бесконечное, фаза непрерывна (см. MotionClock).
+    /// Swaying while the agent works: endless, the phase is continuous (see MotionClock).
     case sway(amplitude: CGFloat, duration: Double, delay: Double)
-    /// Подпрыгивание, когда агент ждёт тебя: короткий всплеск внимания, потом покой.
+    /// Bouncing when the agent is waiting for you: a short burst of attention, then calm.
     case bounce(amplitude: CGFloat, duration: Double, delay: Double)
-    /// Пульс бейджа «!»: несколько вспышек, потом бейдж просто горит.
+    /// Pulse of the "!" badge: a few flashes, then the badge simply stays lit.
     case pulse
 }
 
-/// Общие часы анимаций и счётчик перевешиваний (для --uitest).
+/// Shared animation clock and the re-attach counter (for --uitest).
 enum MotionClock {
-    /// Точка отсчёта фазы покачивания: анимация, повешенная заново, продолжает с той же фазы — без рывка.
+    /// Reference point of the sway phase: an animation attached anew continues from the same phase - without a jerk.
     static let epoch = CACurrentMediaTime()
-    /// Сколько раз анимация вешалась на слой. Растёт только при смене вида движения
-    /// (или если AppKit сам снял анимацию), а не при каждой раскладке.
+    /// How many times an animation was attached to a layer. Grows only when the kind of motion changes
+    /// (or if AppKit itself removed the animation), not on every layout.
     static var installs = 0
-    /// Сколько повторов делает всплеск внимания (подпрыгивание, пульс).
-    static let bounceRepeats: Float = 4      // ≈ 2,6 с при длительности 0,32 с туда и обратно
-    static let pulseRepeats: Float = 3       // ≈ 5 с
+    /// How many repeats the attention burst makes (bounce, pulse).
+    static let bounceRepeats: Float = 4      // ≈ 2.6 s at 0.32 s there and back
+    static let pulseRepeats: Float = 3       // ≈ 5 s
 }
 
 struct LayerMotion<Content: View>: NSViewRepresentable {
@@ -69,13 +69,13 @@ final class MotionHostView<Content: View>: NSView {
     override func layout() {
         super.layout()
         host.frame = bounds
-        // Раньше анимация снималась и вешалась заново на КАЖДОЙ раскладке. Раскладка идёт на каждом кадре
-        // любой анимации окна (сессия появилась, окошко открылось) — иконки дёргались и «залипали».
-        // Теперь вешаем заново, только если AppKit сам снял анимацию со слоя.
+        // Previously the animation was removed and re-attached on EVERY layout. Layout runs on every frame of
+        // any window animation (a session appeared, a window opened) - the icons jerked and "stuck".
+        // Now we re-attach only if AppKit itself removed the animation from the layer.
         ensureInstalled()
     }
 
-    /// Клики проходят насквозь к SwiftUI-кнопке снаружи.
+    /// Clicks pass through to the SwiftUI button outside.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     func apply(_ kind: LayerMotionKind) {
@@ -86,8 +86,8 @@ final class MotionHostView<Content: View>: NSView {
 
     private func ensureInstalled() {
         guard current != .none, let layer = host.layer, layer.animation(forKey: "motion") == nil else { return }
-        // Всплеск внимания, который уже отыграл, остаётся на слое (isRemovedOnCompletion = false),
-        // так что сюда попадаем, только если слой действительно потерял анимацию.
+        // An attention burst that has already played stays on the layer (isRemovedOnCompletion = false),
+        // so we get here only if the layer really lost the animation.
         install()
     }
 
@@ -99,7 +99,7 @@ final class MotionHostView<Content: View>: NSView {
             return
         case .sway(let amp, let dur, let delay):
             let a = loop("transform.translation.y", to: amp, dur: dur, timing: .easeInEaseOut)
-            // Фаза от общих часов: перевешивание не сбрасывает покачивание в ноль.
+            // Phase from the shared clock: re-attaching doesn't reset the sway to zero.
             a.beginTime = layer.convertTime(MotionClock.epoch + delay, from: nil)
             layer.add(a, forKey: "motion")
         case .bounce(let amp, let dur, let delay):
@@ -130,7 +130,7 @@ final class MotionHostView<Content: View>: NSView {
         MotionClock.installs += 1
     }
 
-    /// Аддитивная анимация туда-обратно: поверх исходного значения, модель слоя не трогаем.
+    /// Additive there-and-back animation: on top of the original value, the layer model is untouched.
     private func loop(_ path: String, to: CGFloat, dur: Double, timing: CAMediaTimingFunctionName) -> CABasicAnimation {
         let a = CABasicAnimation(keyPath: path)
         a.isAdditive = true

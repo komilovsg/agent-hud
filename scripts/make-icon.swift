@@ -1,7 +1,7 @@
-// Рисует иконку Agent HUD и пишет 1024x1024 PNG.
-// Запуск: swift scripts/make-icon.swift <out-dir>   (создаёт <out-dir>/icon-1024.png)
+// Draws the Agent HUD icon and writes a 1024x1024 PNG.
+// Usage: swift scripts/make-icon.swift <out-dir>   (creates <out-dir>/icon-1024.png)
 //
-// Пересборка Resources/AppIcon.icns (промежуточные файлы держать вне репозитория):
+// Rebuilding Resources/AppIcon.icns (keep intermediate files outside the repository):
 //   D=<out-dir>; swift scripts/make-icon.swift $D
 //   mkdir -p $D/AppIcon.iconset
 //   for s in 16 32 128 256 512; do
@@ -29,7 +29,7 @@ func rounded(_ r: CGRect, _ rad: CGFloat) -> CGPath {
     CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil)
 }
 
-// Фон: скруглённый квадрат 824x824, радиус 185, вертикальный градиент
+// Background: rounded square 824x824, radius 185, vertical gradient
 let shape = CGRect(x: 100, y: 100, width: 824, height: 824)
 ctx.saveGState()
 ctx.addPath(rounded(shape, 185))
@@ -37,7 +37,7 @@ ctx.clip()
 let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                       colors: [rgb(0x2B2A6B), rgb(0x0E0F24)] as CFArray, locations: [0, 1])!
 ctx.drawLinearGradient(grad, start: CGPoint(x: 0, y: shape.maxY), end: CGPoint(x: 0, y: shape.minY), options: [])
-// Внутренний блик по верхнему краю (2 px)
+// Inner highlight along the top edge (2 px)
 ctx.clip(to: CGRect(x: 0, y: shape.maxY - 90, width: 1024, height: 90))
 ctx.addPath(rounded(shape.insetBy(dx: 1, dy: 1), 184))
 ctx.setStrokeColor(rgb(0xFFFFFF, 0.12))
@@ -45,7 +45,7 @@ ctx.setLineWidth(2)
 ctx.strokePath()
 ctx.restoreGState()
 
-// Строки сессий
+// Session rows
 let rowW: CGFloat = 440, rowH: CGFloat = 100, gap: CGFloat = 36
 let x0 = 512 - rowW / 2
 let totalH = rowH * 3 + gap * 2
@@ -66,7 +66,7 @@ for i in 0..<3 {
     ctx.fillPath()
 }
 
-// Угловые скобки видоискателя
+// Viewfinder corner brackets
 let half: CGFloat = 282, arm: CGFloat = 90
 ctx.setStrokeColor(rgb(0xFFFFFF, 0.7))
 ctx.setLineWidth(22)

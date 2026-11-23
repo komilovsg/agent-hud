@@ -14,6 +14,7 @@ struct PanelActions {
     var openMap: () -> Void = {}
     var openSetup: () -> Void = {}
     var newSession: () -> Void = {}
+    var continueSession: () -> Void = {}
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
     var quickReport: () -> Void = {}
@@ -43,7 +44,10 @@ struct ControlPanelView: View {
             BrandTabs(titles: ["Sessions", "Settings"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
-                PanelButton(title: "New session…", symbol: "plus.bubble", action: actions.newSession)
+                HStack(spacing: 8) {
+                    PanelButton(title: "New session…", symbol: "plus.bubble", action: actions.newSession)
+                    PanelButton(title: "Continue a session…", symbol: "clock.arrow.circlepath", action: actions.continueSession)
+                }
                 HStack(spacing: 8) {
                     PanelButton(title: "Agent map", symbol: "map", action: actions.openMap)
                     PanelButton(title: "Daily summary", symbol: "list.bullet.rectangle", action: actions.openSummary)

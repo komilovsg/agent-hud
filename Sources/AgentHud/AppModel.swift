@@ -84,6 +84,8 @@ final class AppModel: ObservableObject {
     var onOpenSetup: ((PermissionKind?) -> Void)?
     /// Open the "New session" window (held by AppDelegate): preselected folder and a message to show in it.
     var onNewSession: ((String?, String?) -> Void)?
+    /// Open the same window on its "Continue" tab (held by AppDelegate).
+    var onContinueSession: (() -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -529,6 +531,43 @@ final class AppModel: ObservableObject {
     }
 
     func newSession(in folder: String? = nil) { onNewSession?(folder, nil) }
+
+    func continueSessionWindow() { onContinueSession?() }
+
+    /// Session ids that must not be offered in the "Continue" list: shown by the store as alive, or run by this app.
+    func sessionIdsInUse() -> Set<String> {
+        var ids = Set(owned.keys)
+        for s in store.sessions.values where s.baseState != .ended { ids.insert(s.sessionId) }
+        return ids
+    }
+
+    /// Continues a session from the transcript folder in a process of this app. Returns the reason when it was not started.
+    @discardableResult
+    func resumePast(id: String, cwd: String) -> String? {
+        if let refusal = startRefusal() { return refusal }
+        guard OwnedSessionLogic.isValidSessionId(id) else { return "This is not a valid session id" }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
+            return "The project folder no longer exists: \(cwd)"
+        }
+        guard !sessionIdsInUse().contains(id) else { return "This session is already open in Agent HUD" }
+        let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
+        let o = OwnedSession(sessionId: id, cwd: cwd, resume: true)
+        o.loadHistory(transcriptPath: transcriptPath(ofSession: id))
+        launch(o, key: key, firstMessage: nil)
+        return nil
+    }
+
+    /// `~/.claude/projects/<folder>/<id>.jsonl`; the folder name is not decoded, every folder is tried.
+    private func transcriptPath(ofSession id: String) -> String? {
+        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects", isDirectory: true)
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
+        for f in folders {
+            let p = root.appendingPathComponent(f).appendingPathComponent("\(id).jsonl").path
+            if FileManager.default.fileExists(atPath: p) { return p }
+        }
+        return nil
+    }
 
     /// Why a session cannot be started right now; nil when it can. Without the hooks every tool call of such
     /// a session would be refused with nothing shown, so it is not started at all.

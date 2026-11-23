@@ -125,6 +125,30 @@ enum RenderCheck {
                                                     offersSetup: true)).tint(Brand.accent),
               size: sheetSize, to: out.appendingPathComponent("new-session-sheet-refused.png"))
 
+        // The "Continue" tab: synthetic rows, nothing is read from disk.
+        let now = Date()
+        func past(_ n: Int, _ cwd: String, _ title: String, _ ago: TimeInterval) -> PastSession {
+            PastSession(id: "0f8fad5b-d9cb-469f-a165-70867728950\(n)", cwd: cwd, title: title,
+                        lastActivity: now.addingTimeInterval(-ago), sizeBytes: 120_000)
+        }
+        let pastRows = [
+            past(1, "/Users/dev/acme-web", "Fix the coupon lost when going back a step in checkout", 5 * 60),
+            past(2, "/Users/dev/acme-web", "Add order filters to the admin table", 3 * 3600),
+            past(3, "/Users/dev/acme-web", "Untitled session", 26 * 3600),
+            past(4, "/Users/dev/Developer/client-projects/storefront/mobile", "Rename the onboarding screens and update the navigation graph so the deep links keep working", 3 * 86400),
+            past(5, "/Users/dev/Developer/client-projects/storefront/mobile", "Why does the build fail on CI only", 9 * 86400),
+            past(6, "/Users/dev/Developer/client-projects/storefront/mobile", "Bump dependencies", 40 * 86400),
+        ]
+        func continueModel(rows: [PastSession], search: String = "", selected: String? = nil) -> NewSessionModel {
+            NewSessionModel(tab: .continueSession, past: rows, search: search, selectedPast: selected)
+        }
+        write(NewSessionView(model: continueModel(rows: pastRows, selected: pastRows[1].id)).tint(Brand.accent),
+              size: sheetSize, to: out.appendingPathComponent("new-session-continue.png"))
+        write(NewSessionView(model: continueModel(rows: [])).tint(Brand.accent),
+              size: sheetSize, to: out.appendingPathComponent("new-session-continue-empty.png"))
+        write(NewSessionView(model: continueModel(rows: pastRows, search: "mobile", selected: pastRows[3].id)).tint(Brand.accent),
+              size: sheetSize, to: out.appendingPathComponent("new-session-continue-search.png"))
+
         // Fake statuses only: the render check never calls the real probes.
         func fake(_ s: PermissionStatus) -> [PermissionKind: PermissionState] {
             Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, PermissionState(status: s)) })

@@ -41,6 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onOpenSetup = { [weak self] kind in self?.setup.show(highlight: kind) }
         newSession = NewSessionController(model: model)
         model.onNewSession = { [weak self] folder, message in self?.newSession.show(folder: folder, message: message) }
+        model.onContinueSession = { [weak self] in self?.newSession.show(tab: .continueSession) }
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 

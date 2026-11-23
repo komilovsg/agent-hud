@@ -75,6 +75,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         guard let b = item.button else { return }
         let m = NSMenu()
         m.addItem(ClosureMenuItem(title: "New session…") { [weak self] in self?.model.newSession() })
+        m.addItem(ClosureMenuItem(title: "Continue a session…") { [weak self] in self?.model.continueSessionWindow() })
         m.addItem(ClosureMenuItem(title: "Control panel") { [weak self] in self?.show() })
         m.addItem(ClosureMenuItem(title: "Agent map") { [weak self] in self?.model.openMap() })
         m.addItem(.separator())
@@ -175,6 +176,10 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         a.newSession = { [weak self] in
             self?.closePopover()
             self?.model.newSession()
+        }
+        a.continueSession = { [weak self] in
+            self?.closePopover()
+            self?.model.continueSessionWindow()
         }
         a.openSetup = { [weak self] in
             self?.closePopover()

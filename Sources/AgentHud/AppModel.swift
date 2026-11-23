@@ -102,6 +102,8 @@ final class AppModel: ObservableObject {
     }
 
     func stop() {
+        // Held tool calls go on: nothing stays paused or stopped without the app.
+        release(store.releaseAll())
         // Release all waiting hooks - agents will ask in the terminal.
         for s in store.sessions.values {
             for p in s.pending where p.status == .open {
@@ -119,12 +121,26 @@ final class AppModel: ObservableObject {
         // Apply all events of a message to a copy and publish once: every publish is a HUD redraw.
         var next = store
         var released: [String] = []
-        for e in adapter.events(from: m, now: now) {
+        let events = adapter.events(from: m, now: now)
+        for e in events {
             released += next.apply(e, adapter: adapter)
             logActivity(e, session: next.session(e.sessionKey))
             let event = m.payload["hook_event_name"]?.stringValue ?? m.mode.rawValue
             let state = next.session(e.sessionKey)?.state.rawValue ?? "-"
             hudLog.notice("\(m.agent.rawValue, privacy: .public) \(event, privacy: .public) → \(state, privacy: .public) [\(e.sessionId.prefix(8), privacy: .public)]")
+        }
+        if m.mode == .gate {
+            // Every gate hook gets an answer: "proceed" now, or "held" now and "proceed" on release.
+            var notice: HoldNotice?
+            if let e = events.first, case .toolStarted(let tool, let input, _) = e.body {
+                let summary = adapter.summarize(toolName: tool, input: input, cwd: next.session(e.sessionKey)?.cwd)
+                let deadline = m.deadline ?? HookTiming.deadline(now: now, hookTimeout: HookTiming.gateTimeout)
+                if !next.gateArrived(sessionKey: e.sessionKey, requestId: m.requestId, summary: summary,
+                                     agentId: e.agentId, deadline: deadline, now: now) {
+                    notice = HoldNotice(requestId: m.requestId, until: next.session(e.sessionKey)?.hold?.until)
+                }
+            }
+            if let notice { server?.notifyHeld(notice) } else { released.append(m.requestId) }
         }
         if next != store { store = next }
         release(released)
@@ -133,6 +149,7 @@ final class AppModel: ObservableObject {
             requestArrived(s.id)
         }
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
+        updateHoldPopover()
         scheduleAutoClose()
     }
 
@@ -214,9 +231,9 @@ final class AppModel: ObservableObject {
         // Work on a copy and publish only if something changed -
         // otherwise SwiftUI would redraw the HUD every second.
         var next = store
-        next.tick(now: now, autoHideDoneAfter: minutes > 0 ? TimeInterval(minutes * 60) : nil)
+        // Calls held by a pause that ran out are answered here (ids of expired requests are harmless: their hooks have left).
+        var released = next.tick(now: now, autoHideDoneAfter: minutes > 0 ? TimeInterval(minutes * 60) : nil)
         // The agent process died without SessionEnd (the terminal tab was closed).
-        var released: [String] = []
         for s in next.sessions.values where s.baseState != .ended {
             if let pid = s.host.agentPid, now.timeIntervalSince(s.lastEventAt) > 5, !HostProbe.isAlive(pid) {
                 released += next.markEnded(s.id, now: now)
@@ -226,6 +243,7 @@ final class AppModel: ObservableObject {
         release(released)
         rememberProjects(now: now)
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
+        updateHoldPopover()
         scheduleAutoClose()
         // Notify if a request has been pending for over 10 s and the HUD is not visible.
         for s in store.sessions.values {
@@ -265,7 +283,89 @@ final class AppModel: ObservableObject {
     func select(_ key: String?) {
         selectedKey = (selectedKey == key) ? nil : key
         selectedByUser = true
+        updateHoldPopover()
     }
+
+    // MARK: - Pause and Stop
+
+    /// Hold the session's next tool calls. A hold cannot interrupt what is already running.
+    func hold(_ key: String, _ kind: Hold.Kind) {
+        guard store.session(key)?.supportsHold == true, store.hold(sessionKey: key, kind: kind, now: Date()),
+              let s = store.session(key) else { return }
+        hudLog.notice("hold \(kind.rawValue, privacy: .public) [\(s.sessionId.prefix(8), privacy: .public)]")
+        // Hooks that are already waiting learn the new end time (pause <-> stop).
+        for c in s.heldCalls { server?.notifyHeld(HoldNotice(requestId: c.id, until: s.hold?.until)) }
+        updateHoldPopover()
+    }
+
+    /// Resume / Play: every waiting tool call proceeds as if its hook had returned normally.
+    func resume(_ key: String) {
+        guard store.session(key)?.hold != nil else { return }
+        release(store.release(sessionKey: key))
+        hudLog.notice("hold released [\(key.suffix(8), privacy: .public)]")
+        updateHoldPopover()
+    }
+
+    /// The session whose hold details are shown next to its icon (pointer over the icon or over the popover).
+    @Published private(set) var holdPopoverKey: String?
+    private var hoveredToken: String?
+    private var popoverHovered = false
+    private var popoverCloseTask: Task<Void, Never>?
+    static let popoverCloseDelay: Duration = .milliseconds(350)
+
+    func tokenHover(_ key: String, _ inside: Bool) {
+        if inside { hoveredToken = key } else if hoveredToken == key { hoveredToken = nil }
+        updateHoldPopover()
+    }
+
+    func popoverHover(_ inside: Bool) {
+        popoverHovered = inside
+        updateHoldPopover()
+    }
+
+    private func isHeld(_ key: String?) -> Bool {
+        guard let key, let s = store.session(key) else { return false }
+        return s.hold != nil && !s.hidden
+    }
+
+    private func updateHoldPopover() {
+        // The open card shows the same details in its banner.
+        var wanted: String?
+        if let k = hoveredToken, isHeld(k), k != selectedKey { wanted = k }
+        else if popoverHovered, let k = holdPopoverKey, isHeld(k), k != selectedKey { wanted = k }
+
+        if let wanted {
+            popoverCloseTask?.cancel()
+            popoverCloseTask = nil
+            if holdPopoverKey != wanted { holdPopoverKey = wanted }
+            return
+        }
+        guard let shown = holdPopoverKey else { return }
+        if !isHeld(shown) || shown == selectedKey {
+            popoverCloseTask?.cancel()
+            popoverCloseTask = nil
+            holdPopoverKey = nil
+            popoverHovered = false
+            return
+        }
+        guard popoverCloseTask == nil else { return }
+        popoverCloseTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.popoverCloseDelay)
+            guard let self, !Task.isCancelled else { return }
+            self.popoverCloseTask = nil
+            self.holdPopoverKey = nil
+            self.popoverHovered = false
+        }
+    }
+
+    // MARK: - Drafts
+
+    /// Text typed into a card's input and not sent yet: kept while the card is closed. Not published - nothing redraws on typing.
+    private var drafts: [String: String] = [:]
+
+    func draft(_ key: String) -> String { drafts[key] ?? "" }
+
+    func setDraft(_ key: String, _ text: String) { drafts[key] = text.isEmpty ? nil : text }
 
     func open(_ key: String) {
         guard let s = store.session(key) else { return }
@@ -276,6 +376,8 @@ final class AppModel: ObservableObject {
         if let s = store.session(key) {
             for p in s.pending where p.status == .open { release([p.id]) }
         }
+        // A hidden session must not stay held: there would be nothing on screen to resume it with.
+        release(store.release(sessionKey: key))
         store.hide(key)
         if selectedKey == key { selectedKey = nil }
     }
@@ -360,7 +462,8 @@ final class AppModel: ObservableObject {
     var visibleSessions: [AgentSession] { store.visibleSessions }
 
     var hasAttention: Bool {
-        store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired }
+        // A held session counts too: its icon must stay on screen, otherwise there is nothing to resume it with.
+        store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired || $0.hold != nil }
     }
 }
 

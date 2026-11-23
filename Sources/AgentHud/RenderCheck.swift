@@ -19,6 +19,8 @@ enum RenderCheck {
             ("token-needs-you", session(.working, pending: true), false),
             ("token-selected", session(.working), true),
             ("token-hung", session(.working, hung: true), false),
+            ("token-paused", held(.pause, calls: 1), false),
+            ("token-stopped", held(.stop, calls: 0), false),
         ]
         for (name, s, selected) in states {
             for (bgName, bg) in [("grey", AnyView(Color(white: 0.5))), ("photo", AnyView(photo))] {
@@ -46,6 +48,31 @@ enum RenderCheck {
             Step(id: "2", toolName: "Bash", summary: "$ npm test", startedAt: Date(), status: .running),
         ]
         write(card(fb, nil), size: cardSize, to: out.appendingPathComponent("card-fallback.png"))
+        write(card(held(.pause, calls: 1), chat), size: cardSize, to: out.appendingPathComponent("card-paused.png"))
+
+        for (name, s) in [("hold-popover-paused", held(.pause, calls: 5)), ("hold-popover-stopped", held(.stop, calls: 0))] {
+            guard let hold = s.hold else { continue }
+            let size = HoldPopoverMetrics.size(for: s)
+            let v = HoldPopover(session: s, hold: hold, resume: {})
+                .frame(width: size.width, height: size.height)
+                .environment(\.solidBackground, true)
+                .tint(Brand.accent)
+            write(v, size: size, to: out.appendingPathComponent("\(name).png"))
+        }
+    }
+
+    /// A held session: paused with 12:41 left, or stopped 8 minutes ago, with `calls` tool calls waiting.
+    private static func held(_ kind: Hold.Kind, calls: Int) -> AgentSession {
+        var s = session(.working)
+        let now = Date()
+        s.supportsHold = true
+        s.hold = Hold(kind: kind, since: now.addingTimeInterval(kind == .pause ? -139 : -8 * 60))
+        let samples = ["$ npm test -- checkout", "Edit src/cart/store.ts", "Read src/components/checkout/CheckoutForm.tsx",
+                       "Grep \"coupon\"", "$ git status"]
+        s.heldCalls = samples.prefix(calls).enumerated().map { i, t in
+            HeldCall(id: "h\(i)", summary: t, since: now, agentId: i > 1 ? "ag1" : nil, deadline: now.addingTimeInterval(3600))
+        }
+        return s
     }
 
     private static var photo: some View {

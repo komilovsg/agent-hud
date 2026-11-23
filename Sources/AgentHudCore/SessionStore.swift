@@ -42,7 +42,8 @@ public struct SessionStore: Sendable, Equatable {
             }
         }
         if case .internalSession = e.body {
-            let released = sessions[key]?.pending.filter { $0.status == .open }.map(\.id) ?? []
+            let released = (sessions[key]?.pending.filter { $0.status == .open }.map(\.id) ?? [])
+                + (sessions[key]?.heldCalls.map(\.id) ?? [])
             remove(key)
             ignored.append(key)
             if ignored.count > 500 { ignored.removeFirst(ignored.count - 500) }
@@ -180,6 +181,7 @@ public struct SessionStore: Sendable, Equatable {
 
         case .sessionEnded:
             released += Self.resolveAll(&s)
+            released += Self.releaseHold(&s)
             s.backgroundTasks.removeAll()
             s.baseState = .ended
             s.finishedAt = e.time
@@ -210,8 +212,60 @@ public struct SessionStore: Sendable, Equatable {
         }
     }
 
+    // MARK: - Pause and Stop
+
+    /// Hold the session: its next tool calls wait in their hooks. Calls that are already waiting stay held
+    /// when the kind changes (pause <-> stop). Returns false for an unknown or ended session.
+    @discardableResult
+    public mutating func hold(sessionKey: String, kind: Hold.Kind, now: Date) -> Bool {
+        guard var s = sessions[sessionKey], s.baseState != .ended else { return false }
+        s.hold = Hold(kind: kind, since: now)
+        sessions[sessionKey] = s
+        return true
+    }
+
+    /// End the hold. Returns the ids of the waiting hooks to answer (each exactly once).
+    public mutating func release(sessionKey: String) -> [String] {
+        guard var s = sessions[sessionKey] else { return [] }
+        let ids = Self.releaseHold(&s)
+        sessions[sessionKey] = s
+        return ids
+    }
+
+    /// End every hold (the app quits). Returns the ids of the waiting hooks to answer.
+    public mutating func releaseAll() -> [String] {
+        var ids: [String] = []
+        for key in order { ids += release(sessionKey: key) }
+        return ids
+    }
+
+    /// A `gate` hook reports a tool call that is about to start. Returns true when the hook must be answered
+    /// right away (the session is not held, unknown or ignored); false - the call is now waiting for a release.
+    public mutating func gateArrived(sessionKey: String, requestId: String, summary: String, agentId: String?,
+                                     deadline: Date, now: Date) -> Bool {
+        guard var s = sessions[sessionKey] else { return true }
+        s.supportsHold = true
+        defer { sessions[sessionKey] = s }
+        guard s.hold != nil, s.baseState != .ended else { return true }
+        if !s.heldCalls.contains(where: { $0.id == requestId }) {
+            s.heldCalls.append(HeldCall(id: requestId, summary: summary, since: now, agentId: agentId, deadline: deadline))
+        }
+        return false
+    }
+
+    private static func releaseHold(_ s: inout AgentSession) -> [String] {
+        let ids = s.heldCalls.map(\.id)
+        s.hold = nil
+        s.heldCalls.removeAll()
+        return ids
+    }
+
     /// The hook disconnected. Before the deadline - answered in the terminal, after - expired.
     public mutating func connectionClosed(_ requestId: String, now: Date) {
+        // A held call whose hook has gone (the turn was interrupted, the hook timed out) is no longer waiting.
+        for key in order where sessions[key]?.heldCalls.contains(where: { $0.id == requestId }) == true {
+            sessions[key]?.heldCalls.removeAll { $0.id == requestId }
+        }
         mutateSession(forRequest: requestId) { s in
             guard let i = s.pending.firstIndex(where: { $0.id == requestId }), s.pending[i].status == .open else { return }
             if now >= s.pending[i].deadline.addingTimeInterval(-2) {
@@ -222,8 +276,9 @@ public struct SessionStore: Sendable, Equatable {
         }
     }
 
-    /// Once a second: expiring requests and cleaning up finished sessions.
-    /// Returns the ids of requests that have expired.
+    /// Once a second: expiring requests, ending pauses whose time is up and cleaning up finished sessions.
+    /// Returns the ids of hooks that no longer need to wait: expired requests (their hooks have already left)
+    /// and the calls released by a pause that ran out - the app answers the latter.
     @discardableResult
     public mutating func tick(now: Date, autoHideDoneAfter: TimeInterval?) -> [String] {
         var expired: [String] = []
@@ -233,6 +288,9 @@ public struct SessionStore: Sendable, Equatable {
                 s.pending[i].status = .expired
                 expired.append(s.pending[i].id)
             }
+            if let until = s.hold?.until, now >= until { expired += Self.releaseHold(&s) }
+            // The hook leaves at its own deadline; drop the call even if the close notification was lost.
+            s.heldCalls.removeAll { now > $0.deadline.addingTimeInterval(1) }
             if let limit = autoHideDoneAfter, s.state == .done, let f = s.finishedAt, now.timeIntervalSince(f) > limit {
                 s.hidden = true
             }
@@ -279,7 +337,7 @@ public struct SessionStore: Sendable, Equatable {
         s.baseState = .ended
         s.finishedAt = now
         s.backgroundTasks.removeAll()
-        let released = Self.resolveAll(&s)
+        let released = Self.resolveAll(&s) + Self.releaseHold(&s)
         sessions[key] = s
         return released
     }

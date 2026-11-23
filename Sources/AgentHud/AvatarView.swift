@@ -115,6 +115,8 @@ extension AgentState {
         case .done: return "Done"
         case .error: return "Error"
         case .ended: return "Ended"
+        case .paused: return "Paused"
+        case .stopped: return "Stopped"
         }
     }
 
@@ -126,6 +128,7 @@ extension AgentState {
         case .error: return .red
         case .working, .starting: return .accentColor
         case .idle, .ended: return .secondary
+        case .paused, .stopped: return .holdTint
         }
     }
 }

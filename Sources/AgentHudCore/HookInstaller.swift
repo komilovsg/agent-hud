@@ -32,7 +32,8 @@ public struct HookInstaller: Sendable {
             return [
                 Spec(event: "SessionStart", matcher: nil, mode: .event),
                 Spec(event: "UserPromptSubmit", matcher: nil, mode: .event),
-                Spec(event: "PreToolUse", matcher: "*", mode: .event),
+                // Synchronous, so that Pause / Stop can hold the next tool call.
+                Spec(event: "PreToolUse", matcher: "*", mode: .gate),
                 Spec(event: "PermissionRequest", matcher: "*", mode: .permission),
                 Spec(event: "PostToolUse", matcher: "*", mode: .event),
                 Spec(event: "PostToolUseFailure", matcher: "*", mode: .event),
@@ -48,16 +49,19 @@ public struct HookInstaller: Sendable {
 
     func command(_ mode: HookMode) -> String {
         var cmd = "\(Self.shellQuote(hookPath)) \(agent.rawValue) \(mode.rawValue)"
-        if mode.isSync { cmd += " --timeout \(timeout)" }
+        if mode.isSync { cmd += " --timeout \(syncTimeout(mode))" }
         return cmd
     }
+
+    /// The gate entry has its own fixed timeout (how long a Stop can hold); `timeout` is the time to answer a request.
+    func syncTimeout(_ mode: HookMode) -> Int { mode == .gate ? HookTiming.gateTimeout : timeout }
 
     func hookEntry(_ spec: Spec) -> JSONValue {
         var h = JSONObject()
         h["type"] = "command"
         h["command"] = .string(command(spec.mode))
         if spec.mode.isSync {
-            h["timeout"] = .int(timeout)
+            h["timeout"] = .int(syncTimeout(spec.mode))
         } else {
             if spec.async ?? true { h["async"] = true }
             h["timeout"] = .int(spec.fixedTimeout ?? 10)
@@ -132,6 +136,19 @@ public struct HookInstaller: Sendable {
             }
         }
         return false
+    }
+
+    /// Our hooks are installed, but the PreToolUse entry is not the current `gate` form (an install made before
+    /// Pause / Stop, or with another gate timeout). Connecting again replaces it.
+    public static func needsUpdate(in settings: JSONValue) -> Bool {
+        guard isInstalled(in: settings) else { return false }
+        let ours = (settings["hooks"]?["PreToolUse"]?.arrayValue ?? [])
+            .flatMap { $0["hooks"]?.arrayValue ?? [] }.filter(isOurs)
+        guard !ours.isEmpty else { return true }
+        let wanted = " \(HookMode.gate.rawValue) --timeout \(HookTiming.gateTimeout)"
+        return !ours.allSatisfy {
+            $0["command"]?.stringValue?.hasSuffix(wanted) == true && $0["timeout"]?.intValue == HookTiming.gateTimeout
+        }
     }
 
     static func isOurs(_ hook: JSONValue) -> Bool {

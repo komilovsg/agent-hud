@@ -30,6 +30,10 @@ final class HUDController: NSObject, NSWindowDelegate {
 
     private let model: AppModel
     private let card: HUDPanel
+    /// Details of a held session next to its icon (shown on hover).
+    private let holdPopover: HUDPanel
+    /// Mouse-down monitors that close the card on a click elsewhere; installed only while the card is open.
+    private var clickMonitors: [Any] = []
     private var tokens: [String: Token] = [:]        // by session id
     private var settleTasks: [String: Task<Void, Never>] = [:]
     private var settingFrame = false
@@ -44,8 +48,17 @@ final class HUDController: NSObject, NSWindowDelegate {
         self.model = model
         card = HUDPanel(contentRect: NSRect(origin: .zero, size: CardMetrics.size),
                         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        holdPopover = HUDPanel(contentRect: NSRect(x: 0, y: 0, width: HoldPopoverMetrics.width, height: 200),
+                               styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init()
         Self.configure(card)
+        Self.configure(holdPopover)
+        holdPopover.allowsKey = false
+        holdPopover.contentView = {
+            let host = FirstClickHostingView(rootView: HoldPopoverRoot(model: model))
+            host.sizingOptions = []
+            return host
+        }()
         card.contentView = {
             let host = FirstClickHostingView(rootView: CardRoot(model: model))
             host.sizingOptions = []
@@ -107,13 +120,73 @@ final class HUDController: NSObject, NSWindowDelegate {
         }
         for session in sessions where tokens[session.id] == nil { createToken(for: session) }
 
-        let shouldShow = s.hudVisible && !sessions.isEmpty
+        // A held session must stay reachable: with the HUD switched off there would be no way to resume it.
+        let anyHeld = sessions.contains { $0.hold != nil }
+        let shouldShow = (s.hudVisible || anyHeld) && !sessions.isEmpty
             && (!s.hideWhenNothingWaits || model.hasAttention || model.selectedKey != nil)
         for t in tokens.values {
             if shouldShow, !t.panel.isVisible { t.panel.orderFrontRegardless() }
             else if !shouldShow, t.panel.isVisible { t.panel.orderOut(nil) }
         }
         syncCard(show: shouldShow)
+        syncHoldPopover(show: shouldShow)
+        syncClickMonitors()
+    }
+
+    private func syncHoldPopover(show: Bool) {
+        if show, let key = model.holdPopoverKey, let t = tokens[key], let s = model.store.session(key), s.hold != nil {
+            let tf = t.panel.frame
+            let vf = visibleFrame(containingCenterOf: tf) ?? primaryVisibleFrame
+            let frame = TokenLayout.cardFrame(token: tf, cardSize: HoldPopoverMetrics.size(for: s), in: vf)
+            if frame != holdPopover.frame { holdPopover.setFrame(frame, display: true) }
+            if !holdPopover.isVisible { holdPopover.orderFrontRegardless() }
+        } else if holdPopover.isVisible {
+            holdPopover.orderOut(nil)
+        }
+    }
+
+    // MARK: - Click outside closes the card
+
+    private func syncClickMonitors() {
+        if card.isVisible, clickMonitors.isEmpty {
+            let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+            // Clicks in other apps (and on the desktop) are always outside.
+            if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in
+                Task { @MainActor in self?.closeCard() }
+            }) { clickMonitors.append(g) }
+            // Clicks in this app's other windows: the control panel, the agent map.
+            if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+                let window = event.window
+                Task { @MainActor in
+                    guard let self, !self.belongsToHUD(window) else { return }
+                    self.closeCard()
+                }
+                return event
+            }) { clickMonitors.append(l) }
+        } else if !card.isVisible, !clickMonitors.isEmpty {
+            clickMonitors.forEach(NSEvent.removeMonitor)
+            clickMonitors.removeAll()
+        }
+    }
+
+    private func closeCard() {
+        guard model.selectedKey != nil else { return }
+        model.select(nil)
+    }
+
+    /// The card, the icons, the hold popover, and anything opened from them (menus, popovers) are not "outside".
+    private func belongsToHUD(_ window: NSWindow?) -> Bool {
+        guard let window else { return true }   // no window to judge by: leave the card alone
+        var w: NSWindow? = window
+        while let cur = w {
+            if cur === card || cur === holdPopover || tokens.values.contains(where: { $0.panel === cur }) { return true }
+            w = cur.parent
+        }
+        // Menus live in their own windows without a parent: recognised by class and level. The control panel is
+        // a popover of the status item, so popovers are judged only by the parent chain above.
+        let cls = window.className
+        if cls.contains("Menu") { return true }
+        return window.level.rawValue >= NSWindow.Level.popUpMenu.rawValue && !cls.contains("Popover")
     }
 
     private func syncCard(show: Bool) {
@@ -247,5 +320,6 @@ final class HUDController: NSObject, NSWindowDelegate {
         all[t.positionKey] = TokenLayout.encode(clamped.origin)
         UserDefaults.standard.set(all, forKey: Self.positionsKey)
         if model.selectedKey == id, card.isVisible { positionCard(for: t) }
+        syncHoldPopover(show: holdPopover.isVisible)
     }
 }

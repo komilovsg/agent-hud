@@ -14,7 +14,7 @@ public struct ClaudeCodeAdapter: AgentAdapter {
     public func shouldForward(mode: HookMode, payload: JSONValue) -> Bool {
         let tool = payload["tool_name"]?.stringValue ?? ""
         switch mode {
-        case .event: return payload["session_id"]?.stringValue != nil
+        case .event, .gate: return payload["session_id"]?.stringValue != nil
         case .permission: return !Self.permissionPassthroughTools.contains(tool)
         }
     }
@@ -39,7 +39,8 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         case .permission:
             return [make(.permissionRequested(requestId: message.requestId, toolName: toolName, input: input, deadline: deadline,
                                               suggestions: p["permission_suggestions"]?.arrayValue ?? []))]
-        case .event:
+        case .event, .gate:
+            // A gate message carries the same PreToolUse payload as the event it replaced.
             break
         }
 
@@ -84,7 +85,8 @@ public struct ClaudeCodeAdapter: AgentAdapter {
 
     public func hookOutput(for decision: Decision, mode: HookMode, payload: JSONValue) -> String? {
         switch (mode, decision) {
-        case (_, .passthrough), (.event, _):
+        case (_, .passthrough), (.event, _), (.gate, _):
+            // A released gate prints nothing: exit 0 with empty stdout means "no decision", the call goes on as usual.
             return nil
         case (.permission, .allow):
             return Self.permissionOutput(Self.allowDecision(payload: payload, updates: []))

@@ -80,12 +80,15 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     private func panel() -> ControlPanelView {
         var installed: [AgentKind: Bool] = [:]
         var present: [AgentKind: Bool] = [:]
+        var needsUpdate: [AgentKind: Bool] = [:]
         for k in AgentKind.allCases {
             installed[k] = HookSetup.isInstalled(k)
             present[k] = HookSetup.agentPresent(k)
+            needsUpdate[k] = HookSetup.needsUpdate(k)
         }
         return ControlPanelView(model: model, settings: model.settings, actions: actions(),
-                                installed: installed, present: present, loginItem: LoginItem.isEnabled)
+                                installed: installed, present: present, needsUpdate: needsUpdate,
+                                loginItem: LoginItem.isEnabled)
     }
 
     private func refresh() {

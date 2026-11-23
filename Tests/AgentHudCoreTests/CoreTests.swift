@@ -369,7 +369,11 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         let pre = try #require(after["hooks"]?["PreToolUse"]?.arrayValue)
         #expect(pre.count == 2)
         #expect(pre[0]["hooks"]?[0]?["command"] == "bash ~/.claude/hooks/guard.sh")
-        #expect(pre[1]["hooks"]?[0]?["async"] == true)
+        // PreToolUse is the synchronous gate (it can hold a tool call), so it is not async and has its own timeout.
+        #expect(pre[1]["hooks"]?[0]?["command"]?.stringValue?.hasSuffix("claude gate --timeout 86400") == true)
+        #expect(pre[1]["hooks"]?[0]?["async"] == nil)
+        #expect(pre[1]["hooks"]?[0]?["timeout"] == 86400)
+        #expect(after["hooks"]?["PostToolUse"]?[0]?["hooks"]?[0]?["async"] == true)
         #expect(!after.compact().contains("claude question"))
         let perm = try #require(after["hooks"]?["PermissionRequest"]?.arrayValue)
         #expect(perm[0]["hooks"]?[0]?["command"]?.stringValue?.hasSuffix("claude permission --timeout 600") == true)

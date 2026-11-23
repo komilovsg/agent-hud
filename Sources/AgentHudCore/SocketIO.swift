@@ -66,6 +66,38 @@ public enum SocketIO {
         return true
     }
 
+    /// Reads lines one by one and keeps what arrived after a newline for the next call
+    /// (`readLine` drops it, which loses the second of two lines sent back to back).
+    public struct LineReader {
+        public let fd: Int32
+        private var buf = [UInt8]()
+
+        public init(fd: Int32) { self.fd = fd }
+
+        /// Next line until `deadline`. nil - timeout, a closed connection or an oversized line.
+        public mutating func next(until deadline: Date, maxBytes: Int = 4 << 20) -> String? {
+            var chunk = [UInt8](repeating: 0, count: 65536)
+            while true {
+                if let nl = buf.firstIndex(of: 0x0A) {
+                    let line = String(decoding: buf[0..<nl], as: UTF8.self)
+                    buf.removeSubrange(0...nl)
+                    return line
+                }
+                if buf.count > maxBytes { return nil }
+                let remaining = deadline.timeIntervalSinceNow
+                guard remaining > 0 else { return nil }
+                var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+                let r = poll(&pfd, 1, max(Int32(min(remaining * 1000, 60_000)), 1))
+                if r < 0 { if errno == EINTR { continue } else { return nil } }
+                if r == 0 { continue }
+                let n = read(fd, &chunk, chunk.count)
+                if n < 0 { if errno == EINTR || errno == EAGAIN { continue } else { return nil } }
+                if n == 0 { return nil }
+                buf.append(contentsOf: chunk[0..<n])
+            }
+        }
+    }
+
     /// Read one line until `deadline`. nil - timeout or the connection is closed.
     public static func readLine(_ fd: Int32, until deadline: Date, maxBytes: Int = 4 << 20) -> String? {
         var buf = [UInt8]()

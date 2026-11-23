@@ -2,7 +2,7 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-// agenthud-hook <agent> <event|permission|question> [--timeout N]
+// agenthud-hook <agent> <event|permission|gate> [--timeout N]
 //
 // Rule: the hook never breaks the agent's session. Any problem -> exit code 0 and empty stdout,
 // and the agent behaves as if AgentHUD were not there.
@@ -15,7 +15,7 @@ let args = Array(CommandLine.arguments.dropFirst())
 guard args.count >= 2,
       let kind = AgentKind(rawValue: args[0]),
       let mode = HookMode(rawValue: args[1]) else {
-    FileHandle.standardError.write(Data("usage: agenthud-hook <claude> <event|permission|question> [--timeout N]\n".utf8))
+    FileHandle.standardError.write(Data("usage: agenthud-hook <claude> <event|permission|gate> [--timeout N]\n".utf8))
     passthrough()
 }
 
@@ -50,6 +50,22 @@ guard let fd = SocketIO.connect(path: AgentHUDPaths.socketPath, timeoutMs: HookT
 guard SocketIO.writeAll(fd, message.encode()) else { close(fd); passthrough() }
 
 guard mode.isSync, let deadline else {
+    close(fd)
+    passthrough()
+}
+
+if mode == .gate {
+    // The app answers at once ("proceed") or says the session is held and replies on release.
+    // Whatever goes wrong - no answer in time, a closed connection, an unreadable line - the tool call proceeds:
+    // the only output of this mode is none. Every wait is bounded by `limit`, which never passes `deadline`.
+    let sent = Date()
+    var reader = SocketIO.LineReader(fd: fd)
+    var limit = HookTiming.gateWaitLimit(started: sent, deadline: deadline, notice: nil)
+    while let line = reader.next(until: limit) {
+        // Anything but a hold notice ends the wait: a reply, or a line this hook does not understand.
+        guard let notice = HoldNotice.decode(line), notice.requestId == message.requestId else { break }
+        limit = HookTiming.gateWaitLimit(started: sent, deadline: deadline, notice: notice)
+    }
     close(fd)
     passthrough()
 }

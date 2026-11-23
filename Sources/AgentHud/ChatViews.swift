@@ -218,6 +218,9 @@ struct ChatInput: View {
                     .font(.system(size: 10)).foregroundStyle(.tertiary)
                     .lineLimit(2)
             }
+            // The draft outlives the card: closing it (also by a click elsewhere) must not lose typed text.
+            .onAppear { text = model.draft(session.id) }
+            .onChange(of: text) { _, t in model.setDraft(session.id, t) }
         } else {
             HStack(spacing: 8) {
                 Image(systemName: session.host.placeSymbol).foregroundStyle(.secondary)

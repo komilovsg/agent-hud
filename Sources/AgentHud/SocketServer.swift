@@ -93,6 +93,15 @@ final class SocketServer {
         }
     }
 
+    /// Tell a waiting gate hook that its call is held (or that the hold changed). The connection stays open.
+    func notifyHeld(_ notice: HoldNotice) {
+        queue.async { [weak self] in
+            guard let self, let c = self.byRequest[notice.requestId], !c.replied else { return }
+            // The hook has gone if the write fails; its close is reported through `onClosed` as usual.
+            SocketIO.writeAll(c.fd, notice.encode())
+        }
+    }
+
     // MARK: - Internals
 
     private func acceptAll() {

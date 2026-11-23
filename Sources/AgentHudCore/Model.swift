@@ -21,6 +21,8 @@ public enum AgentKind: String, Sendable, CaseIterable {
 
 public enum AgentState: String, Sendable {
     case starting, working, waitingPermission, expired, idle, done, error, ended
+    /// Held by the user (see `Hold`): derived in `AgentSession.state`, never stored in `baseState`.
+    case paused, stopped
 
     public var needsUser: Bool { self == .waitingPermission }
 }
@@ -227,6 +229,67 @@ public struct PendingRequest: Identifiable, Equatable, Sendable {
     public var agentId: String? = nil
 }
 
+/// The user holds the session: its next tool calls wait in the PreToolUse hook until released.
+/// A hold cannot interrupt text generation or a command that is already running.
+public struct Hold: Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        case pause   // ends by itself at `until`
+        case stop    // until the user resumes (bounded only by the hook's own timeout)
+    }
+
+    public var kind: Kind
+    public var since: Date
+    public var until: Date?   // pause only
+
+    public init(kind: Kind, since: Date) {
+        self.kind = kind
+        self.since = since
+        self.until = kind == .pause ? since.addingTimeInterval(HookTiming.pauseLimit) : nil
+    }
+
+    /// Seconds until a pause ends (rounded up, never negative); nil for a stop.
+    public func remaining(at now: Date) -> Int? {
+        until.map { max(0, Int($0.timeIntervalSince(now).rounded(.up))) }
+    }
+
+    public static let pendingNote = "Takes effect before the agent's next action"
+    public static let limits = ["Cannot interrupt a command that is already running", "Quitting Agent HUD releases all holds"]
+    public static let unsupportedHint = "Restart the session to enable (hooks were updated after it started)"
+
+    /// "12:41" for the countdown over the icon.
+    public static func countdown(_ seconds: Int) -> String {
+        let s = max(0, seconds)
+        return String(format: "%02d:%02d", s / 60, s % 60)
+    }
+
+    /// "Paused · 12:41 left" / "Stopped · for 8 min".
+    public func statusLine(at now: Date) -> String {
+        if let left = remaining(at: now) { return "Paused · \(Self.countdown(left)) left" }
+        let s = max(0, Int(now.timeIntervalSince(since)))
+        if s < 60 { return "Stopped · just now" }
+        if s < 3600 { return "Stopped · for \(s / 60) min" }
+        return "Stopped · for \(s / 3600) h \(s % 3600 / 60) min"
+    }
+}
+
+/// A tool call waiting in a `gate` hook while its session is held.
+public struct HeldCall: Identifiable, Equatable, Sendable {
+    public let id: String          // request_id of the hook connection
+    public var summary: String
+    public var since: Date
+    public var agentId: String?    // the call comes from a subagent
+    /// When the hook gives up by itself; the call is forgotten after it.
+    public var deadline: Date
+
+    public init(id: String, summary: String, since: Date, agentId: String? = nil, deadline: Date) {
+        self.id = id
+        self.summary = summary
+        self.since = since
+        self.agentId = agentId
+        self.deadline = deadline
+    }
+}
+
 /// The user's answer, shared by all agents. An adapter translates it into its agent's format.
 public enum Decision: Equatable, Sendable {
     case allow
@@ -277,6 +340,13 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public var turnStartedAt: Date?
     /// Background commands and subagents that have not finished yet.
     public var backgroundTasks: [BackgroundTask] = []
+    /// Pause / Stop set by the user; nil - the session runs freely.
+    public var hold: Hold?
+    /// Tool calls waiting in their hooks right now (the main agent's and subagents').
+    public var heldCalls: [HeldCall] = []
+    /// The session has sent a `gate` message, so its tool calls can be held. A session started before
+    /// the hooks were updated still sends plain events and cannot be held.
+    public var supportsHold = false
 
     public static let maxSteps = 200
 
@@ -308,7 +378,17 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public var state: AgentState {
         if activePending != nil { return .waitingPermission }
         if expiredPending != nil { return .expired }
+        if let h = hold, baseState != .ended { return h.kind == .pause ? .paused : .stopped }
         return baseState
+    }
+
+    /// What a held session is waiting at: one line per held call (at most `max`, then "and N more"),
+    /// or a note that the hold has not caught anything yet.
+    public func holdWaitingLines(max: Int = 3) -> [String] {
+        guard !heldCalls.isEmpty else { return [Hold.pendingNote] }
+        var lines = heldCalls.prefix(max).map { "Holding: \($0.summary)" }
+        if heldCalls.count > max { lines.append("and \(heldCalls.count - max) more") }
+        return lines
     }
 
     public var currentStep: Step? { steps.last(where: { $0.status == .running }) }

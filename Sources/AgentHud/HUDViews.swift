@@ -91,7 +91,7 @@ struct TokenView: View {
             TokenInteraction(tooltip: tooltip,
                              menu: { menuEntries },
                              onClick: { model.select(session.id) },
-                             onHover: { hover = $0 })
+                             onHover: { hover = $0; model.tokenHover(session.id, $0) })
         }
     }
 
@@ -101,6 +101,10 @@ struct TokenView: View {
                 .fill(Color.white.opacity(selected ? 0.14 : (hover ? 0.08 : 0)))
             AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 56,
                        animated: model.settings.animations, kind: session.kind)
+                // Held: the icon steps back and the countdown / stop glyph sits over it.
+                .blur(radius: held ? 3 : 0)
+                .opacity(held ? 0.5 : 1)
+            if let h = session.hold, held { HoldOverlay(hold: h) }
             // The agent's state at a glance (the avatar adds its own pulse and badges for "needs you", done, error).
             Circle().fill(session.state.tint).frame(width: 10, height: 10)
                 .overlay(Circle().strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5))
@@ -111,6 +115,8 @@ struct TokenView: View {
         .frame(width: 64, height: 64)
         .overlay(alignment: .topLeading) { HungBadge(session: session).offset(x: -3, y: -3) }
     }
+
+    private var held: Bool { session.state == .paused || session.state == .stopped }
 
     private var label: some View {
         Text(session.projectName)
@@ -127,6 +133,8 @@ struct TokenView: View {
     }
 
     private var tooltip: String {
+        // A held session shows its own popover on hover; a system tooltip would cover it.
+        if session.hold != nil { return "" }
         var parts = ["\(session.projectName) — \(session.state.title) · \(session.host.label)"]
         if !session.title.isEmpty { parts.append(session.title) }
         if let step = session.currentStep { parts.append(step.summary) }
@@ -136,7 +144,17 @@ struct TokenView: View {
     @MainActor private var menuEntries: [TokenMenuEntry] {
         let model = model, id = session.id
         var out = OpenAction.items(for: session, model: model).map { a in TokenMenuEntry(title: a.title, run: a.run) }
-        // Pause and Stop will be added here.
+        let holds = HoldAction.items(for: session, model: model)
+        if !holds.isEmpty {
+            out.append(.separator)
+            out += holds.map { a in
+                TokenMenuEntry(title: a.title, symbol: a.symbol, enabled: a.enabled, hint: a.help(for: session), run: a.run)
+            }
+            if holds.contains(where: { !$0.enabled }) {
+                out.append(TokenMenuEntry(title: Hold.unsupportedHint, enabled: false) {})
+            }
+            out.append(.separator)
+        }
         out.append(TokenMenuEntry(title: "Agent map") { model.openMap() })
         out.append(TokenMenuEntry(title: "Hide") { model.hide(id) })
         return out
@@ -145,7 +163,13 @@ struct TokenView: View {
 
 struct TokenMenuEntry {
     let title: String
+    var symbol: String? = nil
+    var enabled = true
+    var hint: String? = nil
+    var isSeparator = false
     let run: @MainActor () -> Void
+
+    static let separator = TokenMenuEntry(title: "", isSeparator: true) {}
 }
 
 /// Transparent AppKit layer over the whole token. Click and drag are told apart right here in `mouseDown`
@@ -207,8 +231,13 @@ final class TokenHitView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? {
         let entries = MainActor.assumeIsolated { menuProvider() }
         let m = NSMenu()
+        m.autoenablesItems = false
         for e in entries {
+            if e.isSeparator { m.addItem(.separator()); continue }
             let item = ClosureMenuItem(title: e.title, run: e.run)
+            item.isEnabled = e.enabled
+            item.toolTip = e.hint
+            if let s = e.symbol { item.image = NSImage(systemSymbolName: s, accessibilityDescription: nil) }
             m.addItem(item)
         }
         return m
@@ -257,6 +286,7 @@ struct SessionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
+            if let h = session.hold { HoldBanner(model: model, session: session, hold: h) }
             if let p = session.activePending {
                 Group {
                     switch p.kind {
@@ -306,6 +336,17 @@ struct SessionCard: View {
     }
 
     private var header: some View {
+        // The subtitle sits under the row, so it can run below the buttons instead of being cut by them.
+        VStack(alignment: .leading, spacing: 2) {
+            headerRow
+            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                Text(subtitle(now: ctx.date)).font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1)
+            }
+            .padding(.leading, 40)
+        }
+    }
+
+    private var headerRow: some View {
         HStack(alignment: .top, spacing: 10) {
             AvatarView(seed: session.avatarSeed, state: session.state, style: model.settings.avatarStyle, size: 30, animated: false,
                        kind: session.kind)
@@ -326,13 +367,14 @@ struct SessionCard: View {
                         Text(session.title).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
-                TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                    Text(subtitle(now: ctx.date)).font(.system(size: 10)).foregroundStyle(.tertiary).lineLimit(1)
-                }
             }
             Spacer(minLength: 4)
-            // Pause and Stop will go at the start of this row.
             HStack(spacing: 2) {
+                ForEach(HoldAction.items(for: session, model: model)) { a in
+                    IconButton(symbol: a.symbol, help: a.help(for: session), action: a.run)
+                        .disabled(!a.enabled)
+                        .opacity(a.enabled ? 1 : 0.35)
+                }
                 OpenMenuButton(model: model, session: session)
                 IconButton(symbol: "map", help: "Agent map: all sessions and what they are doing") { model.openMap() }
                 IconButton(symbol: "eye.slash", help: "Hide") { model.hide(session.id) }

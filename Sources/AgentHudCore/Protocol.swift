@@ -4,6 +4,7 @@ import Foundation
 public enum HookMode: String, Sendable {
     case event        // asynchronous event, no reply needed
     case permission   // permission request, waiting for a decision
+    case gate         // a tool call is about to start: the app may hold it (Pause / Stop), then lets it proceed
 
     public var isSync: Bool { self != .event }
 }
@@ -98,6 +99,34 @@ public struct HookReply: Equatable, Sendable {
     }
 }
 
+/// Interim line from the app to a `gate` hook: "this call is being held". It is not a reply - the hook keeps
+/// waiting for a `HookReply`. `until` is when a pause ends by itself, so that the hook can leave on time
+/// even if the app stops responding; a stop has no `until`. A new notice replaces the previous one.
+public struct HoldNotice: Equatable, Sendable {
+    public var requestId: String
+    public var until: Date?
+
+    public init(requestId: String, until: Date?) {
+        self.requestId = requestId
+        self.until = until
+    }
+
+    public func encode() -> String {
+        var o = JSONObject()
+        o["request_id"] = .string(requestId)
+        o["held"] = true
+        if let u = until { o["until"] = .double(u.timeIntervalSince1970.rounded()) }
+        return JSONValue.object(o).compact()
+    }
+
+    public static func decode(_ line: String) -> HoldNotice? {
+        guard let v = try? JSONValue.parse(line),
+              let rid = v["request_id"]?.stringValue,
+              v["held"]?.boolValue == true, v["decision"] == nil else { return nil }
+        return HoldNotice(requestId: rid, until: v["until"]?.doubleValue.map { Date(timeIntervalSince1970: $0) })
+    }
+}
+
 /// Where the app's socket lives.
 public enum AgentHUDPaths {
     public static var supportDirectory: URL {
@@ -135,7 +164,23 @@ public enum HookTiming {
     public static let defaultTimeout = 600
     public static let connectTimeoutMs: Int32 = 200
 
+    /// Timeout of the PreToolUse (`gate`) hook entry: the longest a Stop can hold a tool call.
+    public static let gateTimeout = 86400
+    /// A pause ends by itself after this long.
+    public static let pauseLimit: TimeInterval = 900
+    /// The app must say "held" or "proceed" within this time, otherwise the gate hook lets the call through.
+    public static let gateAnswerTimeout: TimeInterval = 2
+
     public static func deadline(now: Date, hookTimeout: Int) -> Date {
         now.addingTimeInterval(max(1, TimeInterval(hookTimeout) - safetyMargin))
+    }
+
+    /// How long a gate hook keeps waiting after a line from the app (or after sending its message, `notice == nil`):
+    /// never past its own deadline; without a notice only the short answer window; during a pause until the pause ends
+    /// plus the margin (the app normally replies first).
+    public static func gateWaitLimit(started: Date, deadline: Date, notice: HoldNotice?) -> Date {
+        guard let notice else { return min(deadline, started.addingTimeInterval(gateAnswerTimeout)) }
+        guard let until = notice.until else { return deadline }
+        return min(deadline, until.addingTimeInterval(safetyMargin))
     }
 }

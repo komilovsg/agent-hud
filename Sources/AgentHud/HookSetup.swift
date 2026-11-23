@@ -11,6 +11,12 @@ enum HookSetup {
         return HookInstaller.isInstalled(in: v)
     }
 
+    /// Connected with an older form of the hooks: Pause and Stop need the PreToolUse entry to be the `gate` one.
+    static func needsUpdate(_ kind: AgentKind) -> Bool {
+        guard let data = try? Data(contentsOf: kind.hooksFile), let v = try? JSONValue.parse(data) else { return false }
+        return HookInstaller.needsUpdate(in: v)
+    }
+
     /// The agent is installed on this machine (its settings folder exists).
     static func agentPresent(_ kind: AgentKind) -> Bool {
         FileManager.default.fileExists(atPath: kind.hooksFile.deletingLastPathComponent().path)
@@ -72,6 +78,8 @@ enum HookSetup {
             The file will be backed up before writing: \(file.lastPathComponent).agenthud-backup-<date>.
 
             Time to answer in the HUD: \(timeout / 60) min. After that the request goes to the terminal.
+
+            Pause and Stop: the PreToolUse hook asks Agent HUD before every tool call (one local round trip, at most \(Int(HookTiming.gateAnswerTimeout)) s if the app does not answer) and waits while the session is paused or stopped. Without the app, and when it quits, tool calls go on as usual.
 
             \(trustNote(kind))
 

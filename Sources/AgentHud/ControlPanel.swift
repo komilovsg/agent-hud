@@ -27,6 +27,8 @@ struct ControlPanelView: View {
     var installed: [AgentKind: Bool] = [:]
     /// Which agents are present on the machine: the others are not shown in the panel.
     var present: [AgentKind: Bool] = [:]
+    /// Agents whose installed hooks are an older form (no Pause / Stop yet).
+    var needsUpdate: [AgentKind: Bool] = [:]
     var loginItem = false
     @State var tab = 0
     @State private var quickText = ""
@@ -133,6 +135,17 @@ struct ControlPanelView: View {
                     if i > 0 { Rectangle().fill(Brand.line).frame(height: 1) }
                     AgentRow(kind: kind, installed: installed[kind] ?? false,
                              toggle: { on in on ? actions.connect(kind) : actions.disconnect(kind) })
+                    if installed[kind] ?? false, needsUpdate[kind] ?? false {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 11)).foregroundStyle(Brand.inkSubtle)
+                            Text("Hooks need an update to enable Pause and Stop")
+                                .font(Brand.body(11)).foregroundStyle(Brand.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Button("Update") { actions.connect(kind) }.controlSize(.small)
+                        }
+                        .padding(.bottom, 10)
+                    }
                 }
             }
         }
@@ -399,12 +412,14 @@ extension AgentState {
         case .done: return "done"
         case .error: return "error"
         case .ended: return "ended"
+        case .paused: return "paused"
+        case .stopped: return "stopped"
         }
     }
 
     var tone: BrandTag.Tone {
         switch self {
-        case .waitingPermission, .expired: return .warning
+        case .waitingPermission, .expired, .paused, .stopped: return .warning
         case .done: return .success
         case .error: return .danger
         case .working, .starting: return .accent

@@ -30,6 +30,32 @@ public enum SendMode: Equatable, Sendable {
     case copy
 }
 
+/// What the bottom of a session card offers.
+public enum InputMode: Equatable, Sendable {
+    /// A process of this app: the text goes straight to it.
+    case direct
+    /// Typed or pasted into the host app.
+    case typeIntoHost
+    /// No input: the card only watches and points to the host.
+    case watchOnly
+}
+
+public enum InputLogic {
+    public static func inputMode(owned: Bool, typeIntoHost: Bool = Features.typeIntoHost, hostCanBeTyped: Bool) -> InputMode {
+        if owned { return .direct }
+        return typeIntoHost && hostCanBeTyped ? .typeIntoHost : .watchOnly
+    }
+
+    public static func watchLine(hostLabel: String) -> String { "Watching — reply in \(hostLabel)" }
+}
+
+/// Which steps opening a session in an editor takes.
+public enum EditorOpenPlan {
+    /// The session link makes the extension open a chat for that session, so a running session gets only its project
+    /// window; the link is for reopening an ended session and for the hand-over of a session of this app.
+    public static func usesSessionLink(sessionEnded: Bool, handOver: Bool) -> Bool { sessionEnded || handOver }
+}
+
 /// Decides how a message leaves the card and what the card says about it.
 public enum SendPlan {
     /// `focusConfirmed`: the session's tab or window was really selected (only terminals need it; editors are

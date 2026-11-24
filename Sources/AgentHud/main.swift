@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var menu: StatusMenu!
     var map: AgentMapController!
     var setup: SetupController!
+    var newSession: NewSessionController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLoader.register()
@@ -38,6 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onRequestNeedsAttention = { [weak self] s in self?.notifyIfHidden(s) }
         model.onOpenMap = { [weak self] in self?.map.show() }
         model.onOpenSetup = { [weak self] kind in self?.setup.show(highlight: kind) }
+        newSession = NewSessionController(model: model)
+        model.onNewSession = { [weak self] folder, message in self?.newSession.show(folder: folder, message: message) }
+        model.onContinueSession = { [weak self] in self?.newSession.show(tab: .continueSession) }
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 

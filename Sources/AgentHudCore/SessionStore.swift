@@ -6,6 +6,9 @@ public struct SessionStore: Sendable, Equatable {
     public private(set) var order: [String] = []
     /// Service sessions of apps: their events are ignored.
     public private(set) var ignored: [String] = []
+    /// Sessions that stay listed after they end (their process was started by this app, so the card
+    /// still has something to show and to offer).
+    public private(set) var kept: Set<String> = []
 
     /// How long to keep a finished (`SessionEnd`) session before removal - for the animation.
     public static let endedLinger: TimeInterval = 2
@@ -295,7 +298,7 @@ public struct SessionStore: Sendable, Equatable {
                 s.hidden = true
             }
             sessions[key] = s
-            if s.baseState == .ended, s.activePending == nil, let f = s.finishedAt,
+            if s.baseState == .ended, s.activePending == nil, !kept.contains(key), let f = s.finishedAt,
                now.timeIntervalSince(f) > Self.endedLinger {
                 remove(key)
             }
@@ -329,6 +332,65 @@ public struct SessionStore: Sendable, Equatable {
     public mutating func remove(_ key: String) {
         sessions[key] = nil
         order.removeAll { $0 == key }
+        kept.remove(key)
+    }
+
+    // MARK: - Sessions started by the app
+
+    /// Enter a session before its first event arrives, or take over a listed one (an ended session that is being
+    /// continued, a session handed to an editor). The host is replaced as a whole and an ended session becomes idle.
+    /// Later events with the same session id merge into this entry. Returns the session key.
+    @discardableResult
+    public mutating func register(kind: AgentKind = .claude, sessionId: String, cwd: String, host: HostInfo, now: Date) -> String {
+        let key = "\(kind.rawValue):\(sessionId)"
+        ignored.removeAll { $0 == key }
+        var s = sessions[key] ?? AgentSession(kind: kind, sessionId: sessionId, cwd: cwd, now: now)
+        if sessions[key] == nil { order.append(key) }
+        if s.cwd.isEmpty { s.cwd = cwd }
+        s.host = host
+        s.lastEventAt = now
+        s.finishedAt = nil
+        s.hidden = false
+        s.revealed = true
+        if s.baseState == .ended { s.baseState = .idle }
+        sessions[key] = s
+        return key
+    }
+
+    /// Keep an ended session listed (true) or let it go after the usual linger (false).
+    public mutating func keep(_ key: String, _ on: Bool) {
+        if on, sessions[key] != nil { kept.insert(key) } else { kept.remove(key) }
+    }
+
+    /// The CLI reported another session id than the one this entry was entered under. The entry moves to the new
+    /// id; when events of the new id were already listed, that entry wins and the placeholder goes away.
+    /// Returns the key to use from now on.
+    @discardableResult
+    public mutating func rekey(_ oldKey: String, toSessionId newId: String) -> String {
+        guard let old = sessions[oldKey] else { return oldKey }
+        let newKey = "\(old.kind.rawValue):\(newId)"
+        guard newKey != oldKey else { return oldKey }
+        let wasKept = kept.contains(oldKey)
+        if var existing = sessions[newKey] {
+            existing.host = old.host
+            if existing.title.isEmpty { existing.title = old.title }
+            sessions[newKey] = existing
+            remove(oldKey)
+        } else {
+            var s = AgentSession(kind: old.kind, sessionId: newId, cwd: old.cwd, now: old.startedAt)
+            s.title = old.title; s.host = old.host; s.baseState = old.baseState; s.steps = old.steps
+            s.pending = old.pending; s.lastEventAt = old.lastEventAt; s.finishedAt = old.finishedAt
+            s.lastMessage = old.lastMessage; s.model = old.model; s.transcriptPath = old.transcriptPath
+            s.hidden = old.hidden; s.revealed = old.revealed; s.turnStartedAt = old.turnStartedAt
+            s.backgroundTasks = old.backgroundTasks; s.hold = old.hold; s.heldCalls = old.heldCalls
+            s.supportsHold = old.supportsHold
+            sessions[newKey] = s
+            if let i = order.firstIndex(of: oldKey) { order[i] = newKey } else { order.append(newKey) }
+            sessions[oldKey] = nil
+            kept.remove(oldKey)
+        }
+        if wasKept { kept.insert(newKey) }
+        return newKey
     }
 
     /// The agent process died without SessionEnd.

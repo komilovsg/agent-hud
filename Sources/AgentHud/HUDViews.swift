@@ -142,8 +142,17 @@ struct TokenView: View {
     }
 
     @MainActor private var menuEntries: [TokenMenuEntry] {
-        let model = model, id = session.id
-        var out = OpenAction.items(for: session, model: model).map { a in TokenMenuEntry(title: a.title, run: a.run) }
+        let model = model, id = session.id, cwd = session.cwd
+        var out = OpenAction.items(for: session, model: model).map { a in
+            TokenMenuEntry(title: a.title, enabled: a.enabled, hint: a.hint, run: a.run)
+        }
+        if !cwd.isEmpty {
+            if !out.isEmpty { out.append(.separator) }
+            out.append(TokenMenuEntry(title: "New session in this project") {
+                // A refusal (hooks not connected, folder gone) is shown in the "New session" window.
+                if let refusal = model.startSession(cwd: cwd, firstMessage: nil) { model.onNewSession?(cwd, refusal) }
+            })
+        }
         let holds = HoldAction.items(for: session, model: model)
         if !holds.isEmpty {
             out.append(.separator)
@@ -308,8 +317,21 @@ struct SessionCard: View {
                        actions: [("Open", { model.open(session.id) })])
             }
             if !session.backgroundTasks.isEmpty { BackgroundList(tasks: session.backgroundTasks) }
+            if let owned { OwnedNotices(owned: owned, hooksSilent: model.hooksSilent(owned)) }
+            if model.isHandOverUnconfirmed(session) {
+                Notice(icon: "arrow.up.forward.app", color: .orange,
+                       text: "Moved to \(session.host.label), but it has not picked the session up yet. Open it there, or continue here.")
+            }
             chat.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if session.activePending == nil { ChatInput(model: model, session: session, preset: inputPreset) }
+            if session.activePending == nil {
+                if let owned, owned.isLive {
+                    ChatInput(model: model, session: session, owned: owned.state, preset: inputPreset)
+                } else {
+                    if model.canContinueHere(session) { continueRow }
+                    // An ended session of ours has nowhere else to reply.
+                    if !session.host.isHud { ChatInput(model: model, session: session, preset: inputPreset) }
+                }
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -320,8 +342,29 @@ struct SessionCard: View {
         .onDisappear { loader.stop() }
     }
 
+    /// The session's process when this app runs (or ran) it.
+    private var owned: OwnedSession? { model.owned[session.sessionId] }
+
+    private var continueRow: some View {
+        let restart = owned.map { !$0.initialized } ?? false
+        return HStack(spacing: 8) {
+            Image(systemName: "play.circle").foregroundStyle(.secondary)
+            Text(restart ? "The session did not start." : "This session has ended.")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Button(restart ? "Start again" : "Continue in Agent HUD") { model.continueHere(session.id) }
+                .controlSize(.small)
+                .fixedSize()
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
+    }
+
     @ViewBuilder private var chat: some View {
-        if !loader.items.isEmpty {
+        if let owned {
+            OwnedChat(owned: owned)
+        } else if !loader.items.isEmpty {
             ChatView(items: loader.items)
         } else {
             // No readable transcript: the steps feed, so a live session is never an empty card.
@@ -391,6 +434,7 @@ struct SessionCard: View {
         if let tty = session.host.tty { parts.append((tty as NSString).lastPathComponent) }
         parts.append(Fmt.elapsed(from: session.startedAt, to: session.finishedAt ?? now))
         if let m = session.model { parts.append(m.replacingOccurrences(of: "claude-", with: "")) }
+        if let cost = owned?.costUSD { parts.append(String(format: "$%.2f", cost)) }
         return parts.joined(separator: " · ")
     }
 }
@@ -402,24 +446,38 @@ struct OpenMenuButton: View {
 
     var body: some View {
         let items = OpenAction.items(for: session, model: model)
-        if items.count <= 1 {
+        if session.host.isHud {
+            // Nothing opens by a plain click here: moving a session to an editor is always an explicit menu choice.
+            if !items.isEmpty { menu(items, help: "Move or continue") }
+        } else if items.count <= 1 {
             IconButton(symbol: "arrow.up.forward.app", help: items.first?.title ?? session.host.openTitle) {
                 if let a = items.first { a.run() } else { model.open(session.id) }
             }
         } else {
-            Menu {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, a in Button(a.title) { a.run() } }
-            } label: {
-                Image(systemName: "arrow.up.forward.app")
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 22, height: 22)
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .foregroundStyle(.secondary)
-            .fixedSize()
-            .help("Open")
+            menu(items, help: "Open")
         }
+    }
+
+    private func menu(_ items: [OpenAction], help: String) -> some View {
+        Menu {
+            ForEach(Array(items.enumerated()), id: \.offset) { _, a in
+                Button(a.title) { a.run() }.disabled(!a.enabled)
+            }
+            // A disabled item says why right in the menu (menu items show no tooltip while disabled).
+            if let hint = items.first(where: { !$0.enabled })?.hint {
+                Divider()
+                Text(hint)
+            }
+        } label: {
+            Image(systemName: "arrow.up.forward.app")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 22, height: 22)
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .foregroundStyle(.secondary)
+        .fixedSize()
+        .help(help)
     }
 }
 

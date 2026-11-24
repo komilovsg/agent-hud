@@ -7,7 +7,7 @@ enum TerminalFocus {
     static func focus(_ session: AgentSession) {
         let host = session.host
         if host.isEditor {
-            focusEditor(session)
+            focusEditor(session, withLink: EditorOpenPlan.usesSessionLink(sessionEnded: session.baseState == .ended, handOver: false))
             return
         }
         if host.isEditorTerminal {
@@ -72,15 +72,16 @@ enum TerminalFocus {
 
     // MARK: - VS Code
 
-    /// A Claude Code extension session in VS Code: first the window with the project folder (VS Code itself raises an already
-    /// open window with that folder), then the link into the session itself, which reveals the session and focuses its input.
-    /// `then` runs once the link has been handed to the editor.
+    /// A Claude Code extension session in VS Code: the window with the project folder (VS Code itself raises an already
+    /// open window with that folder), then, when `withLink` is set, the link into the session itself. The link opens a new
+    /// chat for a session that is still running, so it is used only to reopen an ended session or after a hand-over.
+    /// `then` runs once the window (and the link) has been handed to the editor.
     /// Link: https://code.claude.com/docs/en/vs-code - `vscode://anthropic.claude-code/open?session=…`.
-    static func focusEditor(_ session: AgentSession, bundleId: String? = nil, then: (@MainActor () -> Void)? = nil) {
+    static func focusEditor(_ session: AgentSession, bundleId: String? = nil, withLink: Bool, then: (@MainActor () -> Void)? = nil) {
         let bundle = bundleId ?? session.host.appBundleId ?? HostInfo.vscode
         let folder = EditorWorkspaces.folder(containing: session.cwd) ?? session.cwd
         openEditorWindow(folder: folder, bundleId: bundle) { ok in
-            guard let url = editorDeepLink(session, bundleId: bundle) else { then?(); return }
+            guard withLink, let url = editorDeepLink(session, bundleId: bundle) else { then?(); return }
             // VS Code hands the link to the last active window - wait until the project window becomes it.
             DispatchQueue.main.asyncAfter(deadline: .now() + (ok ? 0.45 : 0)) {
                 NSWorkspace.shared.open(url)

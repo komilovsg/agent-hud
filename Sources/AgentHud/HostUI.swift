@@ -10,6 +10,7 @@ extension HostInfo {
         case .terminal: return isEditorTerminal ? "in the \(editorName) terminal" : "in the terminal"
         case .desktopApp: return "in the app"
         case .editor: return "in \(editorName)"
+        case .hud: return "in Agent HUD"
         }
     }
 
@@ -19,6 +20,7 @@ extension HostInfo {
         case .terminal: return "the terminal"
         case .desktopApp: return "the app"
         case .editor: return editorName
+        case .hud: return "Agent HUD"
         }
     }
 
@@ -28,6 +30,8 @@ extension HostInfo {
         case .terminal: return "In terminal"
         case .desktopApp: return "In app"
         case .editor: return "In \(editorName)"
+        // Nobody else can answer for a session run by this app: without a decision here the call is refused.
+        case .hud: return "Skip"
         }
     }
 
@@ -36,6 +40,7 @@ extension HostInfo {
         case .terminal: return "terminal"
         case .desktopApp: return "macwindow"
         case .editor: return "chevron.left.forwardslash.chevron.right"
+        case .hud: return "circle.hexagongrid"
         }
     }
 
@@ -44,6 +49,7 @@ extension HostInfo {
         case .terminal: return isEditorTerminal ? "Open in \(editorName)" : "Open in terminal"
         case .desktopApp: return "Open in app"
         case .editor: return "Open in \(editorName)"
+        case .hud: return "Open in Agent HUD"
         }
     }
 }
@@ -110,11 +116,34 @@ struct EditorChoice: Identifiable, Equatable {
 /// One entry of the "open" menus (token context menu and card header). Pause and Stop will be added to the same list.
 struct OpenAction {
     let title: String
+    var enabled = true
+    /// Why the entry is disabled.
+    var hint: String? = nil
     let run: @MainActor () -> Void
 
     @MainActor static func items(for session: AgentSession, model: AppModel) -> [OpenAction] {
         let host = session.host
         let editors = EditorChoice.installed(for: host)
+        let key = session.id
+        if let o = model.owned[session.sessionId], o.isLive {
+            // A session run by the app can only be moved, and only between turns.
+            let can = o.logic.canHandOver
+            return editors.map { e in
+                OpenAction(title: "Move to \(e.name)", enabled: can, hint: can ? nil : AppModel.handOverWaitHint) {
+                    model.handOver(key, to: e)
+                }
+            }
+        }
+        let resume = model.canContinueHere(session)
+            ? [OpenAction(title: "Continue in Agent HUD") { model.continueHere(key) }] : []
+        if host.isHud {
+            return resume + editors.map { e in OpenAction(title: "Open project in \(e.name)") { model.open(key, in: e) } }
+        }
+        return resume + other(for: session, model: model, editors: editors)
+    }
+
+    @MainActor private static func other(for session: AgentSession, model: AppModel, editors: [EditorChoice]) -> [OpenAction] {
+        let host = session.host
         let key = session.id
         if host.isEditor {
             if editors.isEmpty { return [OpenAction(title: host.openTitle) { model.open(key) }] }

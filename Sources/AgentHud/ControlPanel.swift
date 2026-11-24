@@ -13,6 +13,8 @@ struct PanelActions {
     var openLog: () -> Void = {}
     var openMap: () -> Void = {}
     var openSetup: () -> Void = {}
+    var newSession: () -> Void = {}
+    var continueSession: () -> Void = {}
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
     var quickReport: () -> Void = {}
@@ -42,6 +44,10 @@ struct ControlPanelView: View {
             BrandTabs(titles: ["Sessions", "Settings"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
+                HStack(spacing: 8) {
+                    PanelButton(title: "New session…", symbol: "plus.bubble", action: actions.newSession)
+                    PanelButton(title: "Continue a session…", symbol: "clock.arrow.circlepath", action: actions.continueSession)
+                }
                 HStack(spacing: 8) {
                     PanelButton(title: "Agent map", symbol: "map", action: actions.openMap)
                     PanelButton(title: "Daily summary", symbol: "list.bullet.rectangle", action: actions.openSummary)
@@ -102,7 +108,7 @@ struct ControlPanelView: View {
             SectionLabel(index: 1, title: "Sessions")
             Card {
                 if sessions.isEmpty {
-                    Text("All quiet for now. Start an agent in VS Code, the terminal or the app - it will appear here.")
+                    Text("All quiet for now. Start an agent in VS Code, the terminal or the app - it will appear here. Or start one right here with \"New session…\".")
                         .font(Brand.body(12)).foregroundStyle(Brand.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.vertical, 12)
@@ -179,9 +185,6 @@ struct ControlPanelView: View {
                                    isOn: Binding(get: { loginItem }, set: { actions.setLoginItem($0) }))
                     BrandToggleRow(title: "Activity log", hint: "For the daily summary; stored only on this Mac",
                                    isOn: $settings.activityLog)
-                    BrandToggleRow(title: "Send from the card by typing into the editor",
-                                   hint: "Needs the Accessibility permission. Off: the text is copied and the session opens.",
-                                   isOn: $settings.sendByTyping)
                     permissionsRow
                     Divider().overlay(Brand.line).padding(.vertical, 4)
                     FieldLabel(title: "Time to answer", hint: "then it goes to the agent")

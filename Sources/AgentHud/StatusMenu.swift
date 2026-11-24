@@ -66,7 +66,21 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
 
     @objc private func toggle(_ sender: Any?) {
         if popover.isShown { closePopover(); return }
+        if NSApp.currentEvent?.type == .rightMouseUp { showMenu(); return }
         show()
+    }
+
+    /// Right click: the short menu. The item's own `menu` stays unset, otherwise a left click would open it too.
+    private func showMenu() {
+        guard let b = item.button else { return }
+        let m = NSMenu()
+        m.addItem(ClosureMenuItem(title: "New session…") { [weak self] in self?.model.newSession() })
+        m.addItem(ClosureMenuItem(title: "Continue a session…") { [weak self] in self?.model.continueSessionWindow() })
+        m.addItem(ClosureMenuItem(title: "Control panel") { [weak self] in self?.show() })
+        m.addItem(ClosureMenuItem(title: "Agent map") { [weak self] in self?.model.openMap() })
+        m.addItem(.separator())
+        m.addItem(ClosureMenuItem(title: "Quit Agent HUD") { NSApp.terminate(nil) })
+        m.popUp(positioning: nil, at: NSPoint(x: 0, y: b.bounds.height + 4), in: b)
     }
 
     func show() {
@@ -158,6 +172,14 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         a.openMap = { [weak self] in
             self?.closePopover()
             self?.model.openMap()
+        }
+        a.newSession = { [weak self] in
+            self?.closePopover()
+            self?.model.newSession()
+        }
+        a.continueSession = { [weak self] in
+            self?.closePopover()
+            self?.model.continueSessionWindow()
         }
         a.openSetup = { [weak self] in
             self?.closePopover()

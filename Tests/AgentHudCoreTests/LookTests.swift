@@ -462,6 +462,16 @@ private final class FakeApp: @unchecked Sendable {
         var all: [LookRequest] { lock.lock(); defer { lock.unlock() }; return list }
     }
 
+    /// Set before the listener is woken, so its thread never calls `accept` on a descriptor number that was
+    /// closed here and handed to another socket meanwhile (tests run in parallel).
+    private final class Stop: @unchecked Sendable {
+        private let lock = NSLock()
+        private var on = false
+        func set() { lock.lock(); on = true; lock.unlock() }
+        var isSet: Bool { lock.lock(); defer { lock.unlock() }; return on }
+    }
+    private let stop = Stop()
+
     let path: String
     private let listenFD: Int32
     private let seen = Seen()
@@ -477,12 +487,15 @@ private final class FakeApp: @unchecked Sendable {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listenFD, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
         }
         try #require(bound == 0 && listen(listenFD, 4) == 0)
-        let fd = listenFD, seen = seen
-        // The thread ends when the listening socket is closed (see deinit); it holds no reference to this object.
+        let fd = listenFD, seen = seen, stop = stop, socketPath = path
+        // The thread ends when deinit sets the flag and wakes it; it holds no reference to this object.
         Thread.detachNewThread {
-            while true {
+            // The thread owns the listening socket and is the only one that closes it.
+            defer { close(fd); unlink(socketPath) }
+            while !stop.isSet {
                 let c = accept(fd, nil, nil)
                 if c < 0 { return }
+                if stop.isSet { close(c); return }
                 var one: Int32 = 1
                 setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
                 guard let line = SocketIO.readLine(c, until: Date().addingTimeInterval(5)), let request = LookRequest.decode(line) else {
@@ -502,8 +515,9 @@ private final class FakeApp: @unchecked Sendable {
     }
 
     deinit {
-        close(listenFD)
-        unlink(path)
+        // Wake the listener with one last connection; it sees the flag, closes the socket and removes the file.
+        stop.set()
+        if let wake = SocketIO.connect(path: path, timeoutMs: 200) { close(wake) }
     }
 }
 

@@ -58,6 +58,11 @@ final class Settings: ObservableObject {
         }
     }
 
+    /// Id of the command bar hotkey option (see `CommandBarHotKey.options`).
+    @Published var commandBarHotKey: String { didSet { d.set(commandBarHotKey, forKey: "commandBarHotKey") } }
+    /// Whether the command bar keeps the last commands for Up / Down.
+    @Published var commandBarHistory: Bool { didSet { d.set(commandBarHistory, forKey: "commandBarHistoryEnabled") } }
+
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
     init() {
@@ -81,6 +86,8 @@ final class Settings: ObservableObject {
         screenAccess = ScreenAccessMode(rawValue: d.string(forKey: "screenAccess") ?? "") ?? .default
         screenExcludedApps = LookExclusions.normalized(d.stringArray(forKey: "screenExcludedApps") ?? LookExclusions.defaults)
         handsAccess = HandsAccessMode(rawValue: d.string(forKey: "handsAccess") ?? "") ?? .default
+        commandBarHotKey = CommandBarHotKey.option(id: d.string(forKey: "commandBarHotKey")).id
+        commandBarHistory = d.object(forKey: "commandBarHistoryEnabled") as? Bool ?? true
         let stopped = d.double(forKey: "handsStoppedAt")
         handsStoppedAt = handsAccess == .off && stopped > 0 ? Date(timeIntervalSince1970: stopped) : nil
     }
@@ -109,6 +116,10 @@ final class AppModel: ObservableObject {
     var onNewSession: ((String?, String?) -> Void)?
     /// Open the same window on its "Continue" tab (held by AppDelegate).
     var onContinueSession: (() -> Void)?
+    /// Open the same window with the typed text of the command bar (held by AppDelegate).
+    var onNewSessionWithText: ((String) -> Void)?
+    /// Open the command bar (held by AppDelegate).
+    var onOpenCommandBar: (() -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -122,6 +133,14 @@ final class AppModel: ObservableObject {
         sender.onNeedAccessibility = { [weak self] in self?.onOpenSetup?(.accessibility) }
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
         settings.$handsAccess.dropFirst().sink { [weak self] mode in self?.handsModeChanged(to: mode) }.store(in: &cancellables)
+        commandHistory = CommandHistory(entries: UserDefaults.standard.stringArray(forKey: "commandBarHistory") ?? [],
+                                        enabled: settings.commandBarHistory)
+        settings.$commandBarHistory.dropFirst().sink { [weak self] on in
+            guard let self else { return }
+            self.commandHistory.enabled = on
+            // Switching the history off also forgets what was kept.
+            if !on { self.clearCommandHistory() }
+        }.store(in: &cancellables)
     }
 
     // MARK: - Startup
@@ -562,6 +581,7 @@ final class AppModel: ObservableObject {
     private var handOverTarget: [String: EditorChoice] = [:]     // by session id, while our process is leaving
     private var hookSeen = Set<String>()                          // session ids whose hook events have arrived
     private var ownedSubscriptions: [String: AnyCancellable] = [:]
+    private var queueSubscriptions: [String: AnyCancellable] = [:]
     private var projectSeenAt: [String: Date] = [:]
 
     static let handOverWaitHint = "Wait until the agent finishes this step"
@@ -601,15 +621,18 @@ final class AppModel: ObservableObject {
         }
         guard !sessionIdsInUse().contains(id) else { return "This session is already open in Agent HUD" }
         let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
-        let o = OwnedSession(sessionId: id, cwd: cwd, resume: true, screenTools: screenToolsPath)
+        let o = makeOwned(id: id, cwd: cwd, resume: true)
         o.loadHistory(transcriptPath: transcriptPath(ofSession: id))
         launch(o, key: key, firstMessage: nil)
         return nil
     }
 
-    /// `~/.claude/projects/<folder>/<id>.jsonl`; the folder name is not decoded, every folder is tried.
+    /// Where the CLI keeps transcripts; a variable so that a check can point it elsewhere.
+    var transcriptRoot = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects", isDirectory: true)
+
+    /// `<root>/<folder>/<id>.jsonl`; the folder name is not decoded, every folder is tried.
     private func transcriptPath(ofSession id: String) -> String? {
-        let root = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/projects", isDirectory: true)
+        let root = transcriptRoot
         let folders = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
         for f in folders {
             let p = root.appendingPathComponent(f).appendingPathComponent("\(id).jsonl").path
@@ -640,7 +663,7 @@ final class AppModel: ObservableObject {
         }
         let id = UUID().uuidString.lowercased()
         let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
-        launch(OwnedSession(sessionId: id, cwd: cwd, resume: false, screenTools: screenToolsPath), key: key, firstMessage: firstMessage)
+        launch(makeOwned(id: id, cwd: cwd, resume: false), key: key, firstMessage: firstMessage)
         return nil
     }
 
@@ -678,7 +701,7 @@ final class AppModel: ObservableObject {
         dropOwned(s.sessionId)
         handedOver[key] = nil
         store.register(sessionId: s.sessionId, cwd: s.cwd, host: .ownedByHud, now: Date())
-        let o = OwnedSession(sessionId: s.sessionId, cwd: s.cwd, resume: !neverStarted, screenTools: screenToolsPath)
+        let o = makeOwned(id: s.sessionId, cwd: s.cwd, resume: !neverStarted)
         if !neverStarted { o.loadHistory(transcriptPath: transcript) }
         launch(o, key: key, firstMessage: nil)
         return nil
@@ -700,6 +723,11 @@ final class AppModel: ObservableObject {
         // State and cost changes redraw the HUD; streamed text only redraws the open card.
         ownedSubscriptions[id] = o.$state.map { _ in () }.merge(with: o.$costUSD.map { _ in () })
             .sink { [weak self] in self?.objectWillChange.send() }
+        // A message waiting in the command bar's queue goes out when the turn ends. Deferred: the state is
+        // still being assigned while this fires.
+        queueSubscriptions[id] = o.$state.filter { $0 == .idle }.sink { [weak self, weak o] _ in
+            DispatchQueue.main.async { MainActor.assumeIsolated { if let self, let o { self.flushQueue(o) } } }
+        }
         if !settings.hudVisible { settings.hudVisible = true }
         selectedKey = key
         selectedByUser = true
@@ -716,6 +744,9 @@ final class AppModel: ObservableObject {
             owned[reported] = o
             owned[o.sessionId] = nil
             ownedSubscriptions[reported] = ownedSubscriptions.removeValue(forKey: o.sessionId)
+            queueSubscriptions[reported] = queueSubscriptions.removeValue(forKey: o.sessionId)
+            queue.move(from: o.sessionId, to: reported)
+            if assistantSessionId == o.sessionId { assistantSessionId = reported }
             o.onInit = nil
             o.onExit = { [weak self, weak o] _ in
                 guard let self, let o, self.owned[reported] === o else { return }
@@ -739,6 +770,7 @@ final class AppModel: ObservableObject {
         guard let id = registryId(of: o) else { return }
         let key = "\(AgentKind.claude.rawValue):\(id)"
         hudLog.notice("owned exit [\(id.prefix(8), privacy: .public)]")
+        queue.drop(id)
         var next = store
         let released = next.markEnded(key, now: Date())
         store = next
@@ -752,6 +784,8 @@ final class AppModel: ObservableObject {
         o.onExit = nil
         if o.isLive { o.terminate() }
         ownedSubscriptions[id] = nil
+        queueSubscriptions[id] = nil
+        queue.drop(id)
         handOverTarget[id] = nil
         hookSeen.remove(id)
         store.keep("\(AgentKind.claude.rawValue):\(id)", false)
@@ -782,6 +816,172 @@ final class AppModel: ObservableObject {
 
     /// For the offscreen render check: a session object in a fixed state, no process.
     func installPreview(_ o: OwnedSession) { owned[o.sessionId] = o }
+
+    /// For the offscreen render check: a message waiting for the end of the turn.
+    func installQueuePreview(sessionId: String, text: String) { queue.queue(text, for: sessionId) }
+
+    // MARK: - Command bar
+
+    /// Messages waiting for the end of a turn, one per session.
+    @Published private(set) var queue = CommandBarQueue()
+    /// The last commands sent from the bar (kept in UserDefaults while the history is on).
+    var commandHistory = CommandHistory()
+    /// The hotkey could not be registered: another app holds the combination.
+    @Published var commandBarHotKeyTaken = false
+    /// The last target picked in the bar; the bar falls back to the assistant when it is gone.
+    var lastCommandBarTarget: CommandBarTarget?
+
+    enum CommandBarOutcome: Equatable {
+        case sent(String)       // session key
+        case queued(String)
+        case openedNewSession
+        case refused(String)
+    }
+
+    /// The id of the assistant session; stored so that the same conversation is found again.
+    var assistantSessionId: String? {
+        get {
+            let id = UserDefaults.standard.string(forKey: "assistantSessionId")
+            return id.flatMap { OwnedSessionLogic.isValidSessionId($0) ? $0.lowercased() : nil }
+        }
+        set {
+            if let newValue { UserDefaults.standard.set(newValue, forKey: "assistantSessionId") }
+            else { UserDefaults.standard.removeObject(forKey: "assistantSessionId") }
+        }
+    }
+
+    func commandBarEntries() -> [CommandBarEntry] {
+        let live = owned.values.filter { $0.isLive }.sorted { a, b in
+            let ta = store.session("\(AgentKind.claude.rawValue):\(a.sessionId)")?.startedAt ?? .distantPast
+            let tb = store.session("\(AgentKind.claude.rawValue):\(b.sessionId)")?.startedAt ?? .distantPast
+            return ta != tb ? ta < tb : a.sessionId < b.sessionId
+        }.map { CommandBarLiveSession(sessionId: $0.sessionId, projectName: ProjectNames.displayName(cwd: $0.cwd), cwd: $0.cwd) }
+        return CommandBarLogic.entries(live: live, assistantSessionId: assistantSessionId)
+    }
+
+    /// State of the process behind a target; nil when it has none (a new session, or no live process yet).
+    func commandBarState(of target: CommandBarTarget) -> OwnedSessionLogic.State? {
+        let id: String?
+        switch target {
+        case .assistant: id = assistantSessionId
+        case .session(let s): id = s
+        case .newSession: id = nil
+        }
+        guard let id, let o = owned[id], o.isLive else { return nil }
+        return o.state
+    }
+
+    func recordCommand(_ text: String) {
+        commandHistory.add(text)
+        UserDefaults.standard.set(commandHistory.entries, forKey: "commandBarHistory")
+    }
+
+    func clearCommandHistory() {
+        commandHistory.clear()
+        UserDefaults.standard.removeObject(forKey: "commandBarHistory")
+    }
+
+    func cancelQueued(_ sessionId: String) { queue.cancel(sessionId) }
+
+    func openCommandBar() { onOpenCommandBar?() }
+
+    /// Sends what was typed in the bar. Nothing is sent while the hooks are not connected.
+    func submitFromBar(target: CommandBarTarget, text raw: String, interrupt: Bool) -> CommandBarOutcome {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return .refused("Type something first") }
+        if target == .newSession {
+            onNewSessionWithText?(text)
+            return .openedNewSession
+        }
+        if let refusal = startRefusal() { return .refused(refusal) }
+        switch target {
+        case .session(let id):
+            guard let o = owned[id], o.isLive else { return .refused("That session is no longer running in Agent HUD") }
+            return deliver(text, to: o, interrupt: interrupt)
+        default:
+            return sendToAssistant(text, interrupt: interrupt)
+        }
+    }
+
+    private func showCard(_ key: String) {
+        if !settings.hudVisible { settings.hudVisible = true }
+        selectedKey = key
+        selectedByUser = true
+    }
+
+    private func deliver(_ text: String, to o: OwnedSession, interrupt: Bool) -> CommandBarOutcome {
+        guard let id = registryId(of: o) else { return .refused(OwnedSession.goneMessage) }
+        let key = "\(AgentKind.claude.rawValue):\(id)"
+        showCard(key)
+        switch CommandBarLogic.sendPlan(state: o.state, interrupt: interrupt) {
+        case .sendNow:
+            return o.send(text) ? .sent(key) : .refused(OwnedSession.busyMessage)
+        case .queue, .waitThenSend:
+            queue.queue(text, for: id)
+            return .queued(key)
+        case .interruptThenSend:
+            // The text waits in the slot and goes out when the interrupted turn has ended.
+            queue.queue(text, for: id)
+            o.interrupt()
+            return .queued(key)
+        case .unavailable:
+            return .refused(OwnedSession.goneMessage)
+        }
+    }
+
+    private func flushQueue(_ o: OwnedSession) {
+        guard let id = registryId(of: o), o.logic.canSend, let text = queue.flush(id) else { return }
+        if !o.send(text) { queue.queue(text, for: id) }
+    }
+
+    private func sendToAssistant(_ text: String, interrupt: Bool) -> CommandBarOutcome {
+        let stored = assistantSessionId
+        let ownedAlive = stored.flatMap { owned[$0]?.isLive } ?? false
+        let transcript = stored.map { transcriptPath(ofSession: $0) != nil } ?? false
+        var elsewhere = false
+        if let id = stored, owned[id] == nil, let s = store.session("\(AgentKind.claude.rawValue):\(id)") { elsewhere = s.baseState != .ended }
+        switch CommandBarLogic.assistantAction(storedId: stored, ownedAlive: ownedAlive, transcriptExists: transcript, aliveElsewhere: elsewhere) {
+        case .sendToLive:
+            guard let id = stored, let o = owned[id] else { return .refused(OwnedSession.goneMessage) }
+            return deliver(text, to: o, interrupt: interrupt)
+        case .resume:
+            guard let id = stored else { return .refused(OwnedSession.goneMessage) }
+            return startAssistant(id: id, resume: true, text: text)
+        case .startNew:
+            // A dead entry of an earlier assistant that never got going is let go.
+            if let old = stored, let o = owned[old], !o.isLive { hide("\(AgentKind.claude.rawValue):\(old)") }
+            let id = UUID().uuidString.lowercased()
+            assistantSessionId = id
+            return startAssistant(id: id, resume: false, text: text)
+        }
+    }
+
+    private func startAssistant(id: String, resume: Bool, text: String) -> CommandBarOutcome {
+        let dir = AssistantSession.directory
+        do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+            return .refused("The assistant's folder could not be created: \(error.localizedDescription)")
+        }
+        if owned[id] != nil { dropOwned(id) }
+        let key = store.register(sessionId: id, cwd: dir.path, host: .ownedByHud, now: Date())
+        let o = makeOwned(id: id, cwd: dir.path, resume: resume)
+        if resume { o.loadHistory(transcriptPath: transcriptPath(ofSession: id)) }
+        launch(o, key: key, firstMessage: text)
+        return .sent(key)
+    }
+
+    /// "New conversation": the assistant's id is forgotten and its process ends; the next command starts afresh.
+    func newAssistantConversation() {
+        guard let id = assistantSessionId else { return }
+        assistantSessionId = nil
+        let key = "\(AgentKind.claude.rawValue):\(id)"
+        if owned[id] != nil { dropOwned(id) }
+        hide(key)
+    }
+
+    private func makeOwned(id: String, cwd: String, resume: Bool) -> OwnedSession {
+        OwnedSession(sessionId: id, cwd: cwd, resume: resume, screenTools: screenToolsPath,
+                     assistant: AssistantSession.isAssistantFolder(cwd))
+    }
 
     /// For the offscreen render check: a look request (or a finished look) in a fixed state. Nothing is looked at.
     func installLookPreview(pending: [LookPending] = [], notes: [String: [LookNote]] = [:], blocked: [String: PermissionKind] = [:]) {

@@ -74,6 +74,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     private func showMenu() {
         guard let b = item.button else { return }
         let m = NSMenu()
+        m.addItem(ClosureMenuItem(title: CommandBarHotKey.menuTitle(id: model.settings.commandBarHotKey)) { [weak self] in self?.model.openCommandBar() })
         m.addItem(ClosureMenuItem(title: "New session…") { [weak self] in self?.model.newSession() })
         m.addItem(ClosureMenuItem(title: "Continue a session…") { [weak self] in self?.model.continueSessionWindow() })
         m.addItem(ClosureMenuItem(title: "Control panel") { [weak self] in self?.show() })
@@ -180,6 +181,11 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self?.closePopover()
             self?.model.openMap()
         }
+        a.openCommandBar = { [weak self] in
+            self?.closePopover()
+            self?.model.openCommandBar()
+        }
+        a.clearCommandHistory = { [weak self] in self?.model.clearCommandHistory() }
         a.newSession = { [weak self] in
             self?.closePopover()
             self?.model.newSession()

@@ -12,6 +12,7 @@ public enum ProjectNames {
     public static func displayName(cwd: String) -> String {
         // An empty path would turn into the process's current folder as a URL.
         guard !cwd.isEmpty else { return "" }
+        if AssistantSession.isAssistantFolder(cwd) { return AssistantSession.label }
         let url = URL(fileURLWithPath: cwd)
         let base = url.lastPathComponent
         guard !base.isEmpty, base != "/" else { return cwd }

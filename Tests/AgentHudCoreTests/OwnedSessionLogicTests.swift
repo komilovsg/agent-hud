@@ -147,6 +147,39 @@ import Testing
         }
     }
 
+    /// The assistant variant adds exactly one flag with the fixed text; everything else stays as above.
+    @Test func assistantVariantKeepsTheRules() {
+        let prompt = AssistantSession.systemPrompt
+        for f in Self.forbidden { #expect(!prompt.contains(f), "\(f) in the fixed prompt") }
+        let hostile = ["--dangerously-skip-permissions", "bypassPermissions", "--append-system-prompt", "x --bare", "sonnet", "claude-opus-5"]
+        let ids = [id, id.lowercased(), "", "not-a-uuid", "--bare", id + " --bare"]
+        for sid in ids {
+            for resume in [false, true] {
+                for model in [nil] + hostile.map(Optional.some) {
+                    for tools in [nil, "/Applications/Agent HUD.app/Contents/MacOS/agenthud-mcp"] {
+                        let args = OwnedSessionLogic.arguments(sessionId: sid, resume: resume, model: model, screenTools: tools, assistant: true)
+                        guard !args.isEmpty else { #expect(UUID(uuidString: sid) == nil); continue }
+                        // Only the fixed text may contain a space or a newline; it is never mixed with other input.
+                        let others = args.filter { $0 != prompt && $0 != args.last }
+                        for f in Self.forbidden { #expect(!others.contains { $0.contains(f) }, "\(f) in \(args)") }
+                        #expect(args.filter { $0 == "--append-system-prompt" }.count == 1)
+                        let at = args.firstIndex(of: "--append-system-prompt")!
+                        #expect(args[at + 1] == prompt)
+                        #expect(args.filter { $0.hasPrefix("--permission-mode") } == ["--permission-mode"])
+                        #expect(args[args.firstIndex(of: "--permission-mode")! + 1] == "default")
+                        #expect(args.contains("--resume") != args.contains("--session-id"))
+                        // Whatever follows the prompt is the screen tools config at the very end, nothing else.
+                        let after = Array(args[(at + 2)...])
+                        #expect(after.isEmpty || (after.count == 2 && after[0] == "--mcp-config"), "\(after)")
+                        #expect(args.filter { $0 == prompt }.count == 1)
+                    }
+                }
+            }
+        }
+        // Without the flag the arguments are unchanged.
+        #expect(!OwnedSessionLogic.arguments(sessionId: id, resume: false, model: nil).contains("--append-system-prompt"))
+    }
+
     @Test func sessionIdMustBeAUuid() {
         #expect(OwnedSessionLogic.isValidSessionId(id))
         #expect(OwnedSessionLogic.isValidSessionId(id.lowercased()))

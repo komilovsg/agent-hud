@@ -323,7 +323,8 @@ final class NewSessionController: NSObject {
     }
 
     /// `folder` preselects a project; `message` explains why an earlier attempt to start was refused.
-    func show(folder: String? = nil, message: String? = nil, tab: NewSessionTab = .new) {
+    /// `text` fills the message field (the command bar hands over what was typed).
+    func show(folder: String? = nil, message: String? = nil, tab: NewSessionTab = .new, text: String? = nil) {
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: NewSessionMetrics.width, height: NewSessionMetrics.height),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -340,6 +341,7 @@ final class NewSessionController: NSObject {
             window = w
         }
         model.recent = app.recentProjects
+        if let text, !text.isEmpty { model.message = text }
         if let folder, !folder.isEmpty {
             model.folder = folder
         } else if model.folder.isEmpty || !FileManager.default.fileExists(atPath: model.folder) {

@@ -1,5 +1,6 @@
 import AgentHudCore
 import AppKit
+import Carbon.HIToolbox
 @preconcurrency import UserNotifications
 
 // AgentHUD - a HUD for AI agents: VS Code, terminal, the Claude app.
@@ -17,7 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var map: AgentMapController!
     var setup: SetupController!
     var newSession: NewSessionController!
-    var stopHotKey: StopHotKey?
+    var hotKeys: HotKeyRegistry?
+    var commandBar: CommandBarController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLoader.register()
@@ -44,18 +46,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         newSession = NewSessionController(model: model)
         model.onNewSession = { [weak self] folder, message in self?.newSession.show(folder: folder, message: message) }
         model.onContinueSession = { [weak self] in self?.newSession.show(tab: .continueSession) }
+        model.onNewSessionWithText = { [weak self] text in self?.newSession.show(text: text) }
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 
         // First launch (also the first launch of an install that predates the setup window): show the setup window once.
         // Not in test mode with its own socket. Opening it requests nothing.
         let testMode = ProcessInfo.processInfo.environment["AGENTHUD_SOCKET"] != nil
-        // The global "stop agent actions" hotkey. A test instance with its own socket leaves it to the real one.
-        if !testMode {
-            let hotKey = StopHotKey { [weak self] in self?.model.stopAgentActions() }
-            if !hotKey.register() { NSLog("AgentHUD: the stop hotkey could not be registered") }
-            stopHotKey = hotKey
+        // Global hotkeys: stop agent actions, and the command bar. A test instance with its own socket leaves them to the real one.
+        let registry: HotKeyRegistry? = testMode ? nil : HotKeyRegistry()
+        hotKeys = registry
+        if let registry,
+           !registry.register(id: HotKeyId.stopActions, keyCode: UInt32(kVK_ANSI_Period),
+                              modifiers: UInt32(controlKey | optionKey | cmdKey), action: { [weak self] in self?.model.stopAgentActions() }) {
+            NSLog("AgentHUD: the stop hotkey could not be registered")
         }
+        commandBar = CommandBarController(app: model, registry: registry)
+        model.onOpenCommandBar = { [weak self] in self?.commandBar.show() }
         let defaults = UserDefaults.standard
         if CommandLine.arguments.contains("--setup") {
             setup.show()

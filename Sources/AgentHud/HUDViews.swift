@@ -363,6 +363,9 @@ struct SessionCard: View {
             }
             if let notes = model.lookNotes[session.id], !notes.isEmpty { LookNotes(notes: notes) }
             chat.frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let queued = model.queue.text(for: session.sessionId) {
+                QueuedMessageRow(text: queued) { model.cancelQueued(session.sessionId) }
+            }
             if session.activePending == nil, !session.isUnknownAgent {
                 if let owned, owned.isLive {
                     ChatInput(model: model, session: session, owned: owned.state, preset: inputPreset)

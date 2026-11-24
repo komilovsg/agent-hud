@@ -50,6 +50,8 @@ final class OwnedSession: ObservableObject {
     let resume: Bool
     /// Path of the screen tools server this session is started with; nil - without it.
     let screenTools: String?
+    /// The command bar's assistant: its start gets the fixed system prompt text.
+    let assistant: Bool
 
     @Published private(set) var items: [ChatItem] = []
     /// Earlier conversation of a continued session, read once from its transcript.
@@ -90,11 +92,12 @@ final class OwnedSession: ObservableObject {
     var initialized: Bool { logic.initialized }
 
     init(sessionId: String, cwd: String, resume: Bool, model: String? = nil, screenTools: String? = nil,
-         config: Config = .standard()) {
+         assistant: Bool = false, config: Config = .standard()) {
         self.sessionId = sessionId
         self.cwd = cwd
         self.resume = resume
         self.screenTools = screenTools
+        self.assistant = assistant
         self.modelName = model
         self.config = config
     }
@@ -106,6 +109,7 @@ final class OwnedSession: ObservableObject {
         self.cwd = cwd
         resume = false
         screenTools = nil
+        assistant = false
         modelName = nil
         config = Config(executable: nil, environment: [:])
         self.items = items
@@ -133,7 +137,8 @@ final class OwnedSession: ObservableObject {
     /// Starts the process. On failure the session ends at once with `lastError` set; nothing is thrown.
     func start() {
         guard process == nil, isLive else { return }
-        let args = OwnedSessionLogic.arguments(sessionId: sessionId, resume: resume, model: modelName, screenTools: screenTools)
+        let args = OwnedSessionLogic.arguments(sessionId: sessionId, resume: resume, model: modelName, screenTools: screenTools,
+                                                 assistant: assistant)
         guard !args.isEmpty else { return fail("This session id can't be passed to Claude Code") }
         guard let exe = config.executable else {
             let home = FileManager.default.homeDirectoryForCurrentUser.path

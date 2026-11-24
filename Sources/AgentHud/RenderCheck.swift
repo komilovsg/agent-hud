@@ -148,6 +148,8 @@ enum RenderCheck {
             write(card(store.session("claude:\(id)")!, done), size: cardSize, to: out.appendingPathComponent("card-ended-continue.png"))
         }
 
+        renderCommandBar(model: model, out: out, cardSize: cardSize, card: { s in card(s, nil) })
+
         let recent = ["/Users/dev/acme-web", "/Users/dev/acme-api", "/Users/dev/Developer/client-projects/storefront/mobile",
                       "/Users/dev/tools/release-notes"]
         let sheetSize = CGSize(width: NewSessionMetrics.width, height: NewSessionMetrics.height)
@@ -440,6 +442,58 @@ enum RenderCheck {
     }
 
     /// A held session: paused with 12:41 left, or stopped 8 minutes ago, with `calls` tool calls waiting.
+    /// Command bar views with fixed state, a card with a queued message, and the hotkey row of the control panel.
+    private static func renderCommandBar<C: View>(model: AppModel, out: URL, cardSize: CGSize, card: (AgentSession) -> C) {
+        let live = [CommandBarLiveSession(sessionId: "0f8fad5b-d9cb-469f-a165-708677289511", projectName: "acme-web", cwd: "/Users/dev/acme-web"),
+                    CommandBarLiveSession(sessionId: "0f8fad5b-d9cb-469f-a165-708677289512", projectName: "storefront/mobile", cwd: "/Users/dev/storefront/mobile")]
+        let entries = CommandBarLogic.entries(live: live, assistantSessionId: nil)
+        func bar(_ name: String, _ m: CommandBarModel) {
+            let view = ZStack(alignment: .top) { Color(white: 0.55); CommandBarView(model: m).tint(Brand.accent) }
+            let fit = NSHostingView(rootView: CommandBarView(model: m).frame(width: CommandBarLogic.barWidth).fixedSize(horizontal: false, vertical: true))
+            let h = ceil(fit.fittingSize.height)
+            write(view.frame(width: CommandBarLogic.barWidth, height: h), size: CGSize(width: CommandBarLogic.barWidth, height: h),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        bar("command-bar-empty", CommandBarModel(previewText: "", entries: entries))
+        bar("command-bar-typed", CommandBarModel(previewText: "Open the quarterly report in Numbers\nand tell me which sheet has the totals",
+                                                 entries: entries))
+        bar("command-bar-suggestions", CommandBarModel(previewText: "/co", entries: entries, target: .session(live[0].sessionId),
+                                                       commands: sampleCommands, row: 1))
+        bar("command-bar-busy", CommandBarModel(previewText: "Now do the same for the March file", entries: entries, busy: true))
+        bar("command-bar-refused", CommandBarModel(previewText: "Open Mail", entries: entries,
+                                                   status: CommandBarModel.Status(text: "Agent HUD is not connected to Claude Code, so the agent's permission requests could not reach you. Connect it in the setup window first.", isError: true)))
+        bar("command-bar-target-menu-open", CommandBarModel(previewText: "", entries: entries, target: .session(live[0].sessionId), menuOpen: true))
+        let menu = ZStack { Brand.bg; TargetMenuList(entries: entries, selected: .assistant).padding(12) }
+            .frame(width: 300).fixedSize(horizontal: false, vertical: true)
+        let menuSize = NSHostingView(rootView: menu).fittingSize
+        write(menu, size: CGSize(width: 300, height: ceil(menuSize.height)), to: out.appendingPathComponent("command-bar-target-menu.png"))
+
+        // A card with a queued message: the row sits between the conversation and the input.
+        let id = "0f8fad5b-d9cb-469f-a165-708677289521", cwd = "/Users/dev/acme-web"
+        var store = SessionStore()
+        let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date().addingTimeInterval(-420))
+        store.apply(AgentEvent(kind: .claude, sessionId: id, cwd: cwd, time: Date().addingTimeInterval(-400),
+                               body: .sessionStarted(source: nil, model: "claude-sonnet-5-5")))
+        store.apply(AgentEvent(kind: .claude, sessionId: id, cwd: cwd, time: Date().addingTimeInterval(-390), body: .promptSubmitted("Fix the checkout form")))
+        model.installPreview(OwnedSession(previewId: id, cwd: cwd, state: .running, items: chat, partialText: "Checking the fixture"))
+        model.installQueuePreview(sessionId: id, text: "Then run the linter and fix what it reports in the checkout folder")
+        write(card(store.session(key)!).frame(width: cardSize.width, height: cardSize.height).environment(\.solidBackground, true),
+              size: cardSize, to: out.appendingPathComponent("card-queued.png"))
+
+        // Control panel: the hotkey row, free and taken.
+        let settings = model.settings
+        let saved = settings.commandBarHotKey
+        settings.commandBarHotKey = "optSpace"
+        for (name, taken) in [("control-panel-hotkey", false), ("control-panel-hotkey-taken", true)] {
+            let v = CommandBarSettingsSection(index: 3, settings: settings, taken: taken, clear: {})
+                .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
+            let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
+            write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        settings.commandBarHotKey = saved
+    }
+
     private static func held(_ kind: Hold.Kind, calls: Int) -> AgentSession {
         var s = session(.working)
         let now = Date()

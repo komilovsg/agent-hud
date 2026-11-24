@@ -98,12 +98,16 @@ public struct OwnedSessionLogic: Equatable, Sendable {
     /// always the default one and nothing here pre-approves a tool. Empty when `sessionId` is not a UUID.
     /// `screenTools`: path of the `agenthud-mcp` helper; when given, the session gets the screen tools server
     /// through `--mcp-config` (the tools still go through the usual approval and the consent card).
-    public static func arguments(sessionId: String, resume: Bool, model: String?, screenTools: String? = nil) -> [String] {
+    /// `assistant`: the command bar's assistant session; it gets the fixed `AssistantSession.systemPrompt` appended
+    /// to the CLI's system prompt. A flag, not a string: the text is never taken from user input.
+    public static func arguments(sessionId: String, resume: Bool, model: String?, screenTools: String? = nil,
+                                 assistant: Bool = false) -> [String] {
         guard isValidSessionId(sessionId) else { return [] }
         var args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                     "--include-partial-messages", "--permission-mode", "default"]
         args += [resume ? "--resume" : "--session-id", sessionId.lowercased()]
         if let model, isValidModel(model) { args += ["--model", model] }
+        if assistant { args += ["--append-system-prompt", AssistantSession.systemPrompt] }
         // Last: the flag takes a list of values, so nothing may follow it.
         if let helper = screenTools, let config = ScreenTools.configJSON(helperPath: helper) { args += ["--mcp-config", config] }
         return args

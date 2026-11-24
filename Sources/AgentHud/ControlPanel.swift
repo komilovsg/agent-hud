@@ -14,6 +14,8 @@ struct PanelActions {
     var openMap: () -> Void = {}
     var openSetup: () -> Void = {}
     var newSession: () -> Void = {}
+    var openCommandBar: () -> Void = {}
+    var clearCommandHistory: () -> Void = {}
     var continueSession: () -> Void = {}
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
@@ -47,6 +49,8 @@ struct ControlPanelView: View {
             BrandTabs(titles: ["Sessions", "Settings", "Screen"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
+                PanelButton(title: CommandBarHotKey.menuTitle(id: settings.commandBarHotKey), symbol: "command.square",
+                            action: actions.openCommandBar)
                 HStack(spacing: 8) {
                     PanelButton(title: "New session…", symbol: "plus.bubble", action: actions.newSession)
                     PanelButton(title: "Continue a session…", symbol: "clock.arrow.circlepath", action: actions.continueSession)
@@ -62,8 +66,17 @@ struct ControlPanelView: View {
                 sessionsSection
                 agentsSection
             } else if tab == 1 {
-                lookSection
-                behaviorSection
+                // Three sections no longer fit a laptop screen: they scroll when the tab is taller than the screen allows.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        lookSection
+                        behaviorSection
+                        CommandBarSettingsSection(index: 3, settings: settings, taken: model.commandBarHotKeyTaken,
+                                                  clear: actions.clearCommandHistory)
+                    }
+                }
+                .frame(maxHeight: screenTabLimit)
+                .fixedSize(horizontal: false, vertical: true)
             } else {
                 // Its own tab: with the list of excluded apps the settings would not fit a laptop screen.
                 // The two sections scroll when even this tab is taller than the screen allows.

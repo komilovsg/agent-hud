@@ -76,6 +76,16 @@ project. If the target is still working, Return queues the message and Command-R
 hotkey can be changed or switched off in the settings; the list of recent commands stays on your Mac and can be
 cleared or switched off.
 
+## Voice
+
+Voice is off until you switch it on. Then hold the command bar hotkey and speak: the bar shows what it hears,
+and when you let go the text is sent like a typed command, after a moment in which Escape cancels. The
+Assistant's reply is read out in a short form; the full text is in its card. English and Russian are available.
+
+The microphone is on only while you hold the key. Recognition runs on your Mac; if that is not available for a
+language, the app says so and uses Apple's servers only if you allow it in the settings. Voice sends messages
+and nothing else: approving a request always takes a click.
+
 ## Agents can look at the screen
 
 With your consent an agent can list the open windows, take a screenshot of the screen or of one window, and read

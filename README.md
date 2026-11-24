@@ -67,6 +67,17 @@ pick up where they stopped. "Move to Cursor" or "Move to VS Code" hands a runnin
   <img src="assets/readme/own-sessions.svg" width="100%" alt="The New session window, the chat card, and the Move to Cursor menu">
 </p>
 
+## Agents can look at the screen
+
+With your consent an agent can list the open windows, take a screenshot of the screen or of one window, and read
+a window's text. It is read-only: nothing is clicked or typed. Each look asks you in the card first, or once per
+session if you choose that mode; "Off" refuses every look. Password managers, Keychain Access, Passwords and
+System Settings are never shown, also not inside a full-screen picture, and you can add more apps to that list.
+The session icon shows an eye while an agent is looking, and the log keeps what was looked at, not the picture.
+
+Sessions run by Agent HUD get these tools by themselves. For sessions in an editor or terminal, connect them in
+the setup window.
+
 ## Background tasks
 
 Every background shell and background agent of a session, with its age. Anything older than an hour is
@@ -96,7 +107,8 @@ behaves as if it was never installed.
 </p>
 
 Privacy: the app itself has no network code. To show the chat it reads the session transcript from your disk.
-Sessions that Agent HUD starts are ordinary Claude Code processes that use your own login. The activity log is a
+Sessions that Agent HUD starts are ordinary Claude Code processes that use your own login. A screenshot or window
+text that you allow an agent to take is sent to the model, like any other tool result. The activity log is a
 local file you can switch off in the settings.
 
 Limits: requests reach the app through hooks, so sessions started before you connected do not report. Start a new

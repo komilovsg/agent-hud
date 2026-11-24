@@ -91,6 +91,11 @@ Voice is off until you switch it on. Then hold the command bar hotkey and speak:
 and when you let go the text is sent like a typed command, after a moment in which Escape cancels. The
 Assistant's reply is read out in a short form; the full text is in its card. English and Russian are available.
 
+The reply is spoken with the best voice installed for the language. In the settings you can pick another one,
+listen to it with Preview and set the speed. More natural voices can be downloaded in System Settings under
+Spoken Content; a button in the settings takes you there. A question asked by voice gets a short conversational
+answer in the language you used.
+
 The microphone is on only while you hold the key. Recognition runs on your Mac; if that is not available for a
 language, the app says so and uses Apple's servers only if you allow it in the settings. Voice sends messages
 and nothing else: approving a request always takes a click.

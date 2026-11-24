@@ -10,6 +10,8 @@ public struct AgentEvent: Equatable, Sendable {
         case toolFinished(toolName: String, input: JSONValue, toolUseId: String?, durationMs: Int?, failed: Bool, backgroundId: String? = nil)
         /// `suggestions` - "always allow" rules offered by the agent itself (`permission_suggestions`).
         case permissionRequested(requestId: String, toolName: String, input: JSONValue, deadline: Date, suggestions: [JSONValue])
+        /// The agent asks the user (`AskUserQuestion`); `rawInput` is the tool input as is, it is echoed back with the answers.
+        case questionAsked(requestId: String, questions: [Question], rawInput: JSONValue, deadline: Date)
         case subagentStarted(agentId: String, agentType: String?)
         case subagentStopped(agentId: String)
         case stopped(lastMessage: String?, failed: Bool)

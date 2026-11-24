@@ -291,6 +291,8 @@ final class AppModel: ObservableObject {
     func decide(_ requestId: String, _ decision: Decision) {
         guard let s = store.session(forRequest: requestId),
               let p = s.pending.first(where: { $0.id == requestId }), p.status == .open else { return }
+        // A decision that does not fit the request (a plan sent back without notes, incomplete answers) is not sent.
+        guard p.kind.accepts(decision) else { return }
         let flags = RedFlags.matches(p)
         var decision = decision
         // An "always" rule for a dangerous command is not saved, even if the window managed to offer it.
@@ -301,7 +303,8 @@ final class AppModel: ObservableObject {
         if settings.activityLog {
             ActivityLog.append(ActivityRecord(kind: .decision, time: Date(), agent: s.kind.rawValue, session: s.sessionId,
                                               project: s.projectName, cwd: s.cwd,
-                                              text: DecisionLog.describe(session: s, request: p), detail: decision.logLabel))
+                                              text: DecisionLog.describe(session: s, request: p),
+                                              detail: RequestLog.label(p.kind, decision)))
         }
         if case .passthrough = decision { TerminalFocus.focus(s) }
         // Someone else is waiting - show their request right away; otherwise a window opened by a request closes with a delay.
@@ -767,6 +770,7 @@ enum RedFlags {
     static func matches(_ request: PendingRequest) -> [RedFlagRule] {
         switch request.kind {
         case .permission(let tool, let input): return matches(toolName: tool, input: input)
+        case .question, .plan: return []
         }
     }
 
@@ -780,23 +784,16 @@ enum RedFlags {
 /// Decision log: what was allowed/denied/answered and when.
 enum DecisionLog {
     static func describe(session: AgentSession, request: PendingRequest) -> String {
-        switch request.kind {
-        case .permission(let tool, let input):
-            return Adapters.adapter(for: session.kind).summarize(toolName: tool, input: input, cwd: session.cwd)
-        }
+        RequestLog.title(request.kind, cwd: session.cwd, adapter: Adapters.adapter(for: session.kind))
     }
 
     static func append(session: AgentSession, request: PendingRequest, decision: Decision, redFlags: [RedFlagRule] = []) {
         let f = ISO8601DateFormatter()
         let what = describe(session: session, request: request)
-        var detail = ""
-        switch decision {
-        case .deny(let r): detail = r ?? ""
-        case .allowWith(let updates): detail = updates.compactMap(PermissionRules.describe).joined(separator: "; ")
-        default: break
-        }
+        // A question, its answers and plan feedback are kept only as short summaries; the plan text is not kept.
+        var detail = RequestLog.detail(request.kind, decision)
         if !redFlags.isEmpty { detail += " [red: \(redFlags.map(\.id).joined(separator: ","))]" }
-        let line = [f.string(from: Date()), session.projectName, decision.logLabel, what, detail]
+        let line = [f.string(from: Date()), session.projectName, RequestLog.label(request.kind, decision), what, detail]
             .map { $0.replacingOccurrences(of: "\t", with: " ").replacingOccurrences(of: "\n", with: " ") }
             .joined(separator: "\t") + "\n"
         let url = AgentHUDPaths.decisionsLog

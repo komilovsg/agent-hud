@@ -50,6 +50,32 @@ enum RenderCheck {
         write(card(fb, nil), size: cardSize, to: out.appendingPathComponent("card-fallback.png"))
         write(card(held(.pause, calls: 1), chat), size: cardSize, to: out.appendingPathComponent("card-paused.png"))
 
+        // Questions and plans: sample requests through the normal event path.
+        func requestCard(_ name: String, _ s: AgentSession, _ preset: RequestPreset? = nil) {
+            let v = SessionCard(model: model, session: s, preset: chat, requestPreset: preset)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .environment(\.solidBackground, true)
+            write(v, size: cardSize, to: out.appendingPathComponent("\(name).png"))
+        }
+        requestCard("card-question-single", asking([sampleQuestions[0]]))
+        var multi = QuestionDraft()
+        multi.toggle(0, option: 1, multi: false)
+        multi.toggle(1, option: 0, multi: true)
+        multi.toggle(1, option: 2, multi: true)
+        multi.toggleOther(2, multi: false)
+        multi.other[2] = "Behind a feature flag, off by default"
+        requestCard("card-question-multi", asking(sampleQuestions), RequestPreset(draft: multi))
+        // The same request with one question: "Other…" with its text field is in view.
+        var own = QuestionDraft()
+        own.toggleOther(0, multi: false)
+        own.other[0] = "Behind a feature flag, off by default, and only for signed-in users"
+        requestCard("card-question-other", asking([sampleQuestions[2]]), RequestPreset(draft: own))
+        requestCard("card-question-paused", asking([sampleQuestions[0]], hold: .pause))
+        requestCard("card-question-expired", asking([sampleQuestions[0]], expired: true))
+        requestCard("card-plan", planning())
+        requestCard("card-plan-sendback", planning(),
+                    RequestPreset(sendingBack: true, feedback: "Keep the old endpoint working until the mobile app is updated."))
+
         // The input bar is shown only for a session run by the app (a fixed object, no process).
         let inputId = "0f8fad5b-d9cb-469f-a165-708677289500", inputCwd = "/Users/dev/acme-web"
         var inputStore = SessionStore()
@@ -215,6 +241,90 @@ enum RenderCheck {
             HeldCall(id: "h\(i)", summary: t, since: now, agentId: i > 1 ? "ag1" : nil, deadline: now.addingTimeInterval(3600))
         }
         return s
+    }
+
+    private static let sampleQuestions: [Question] = [
+        Question(question: "Where should the coupon be stored between checkout steps?", header: "Storage", options: [
+            QuestionOption(label: "Cart store", description: "Keeps it with the other cart data; survives going back a step"),
+            QuestionOption(label: "URL query", description: "Shareable link, but visible in the address bar"),
+            QuestionOption(label: "Session storage", description: "Survives a reload, cleared when the tab closes"),
+        ]),
+        Question(question: "Which checks should run before the change is done?", header: "Checks", options: [
+            QuestionOption(label: "Unit tests", description: "npm test -- checkout"),
+            QuestionOption(label: "Type check", description: "tsc --noEmit"),
+            QuestionOption(label: "End-to-end", description: "The checkout flow in a headless browser; takes about four minutes"),
+        ], multiSelect: true),
+        Question(question: "How should the change be rolled out?", header: "Rollout", options: [
+            QuestionOption(label: "All users at once", description: nil),
+            QuestionOption(label: "Ten percent first", description: "Watch the error rate for a day"),
+        ]),
+    ]
+
+    private static let samplePlan = """
+    # Keep the coupon between checkout steps
+
+    The coupon is held in the form state and is lost when the step unmounts. Move it to the **cart store** and read it from there.
+
+    ## Steps
+
+    1. Add `coupon` and `setCoupon` to `src/cart/store.ts`.
+    2. Read the coupon from the store in `CheckoutForm.tsx`; remove the local state.
+    3. Send the coupon with the order in `submitOrder`.
+    4. Add a regression test: apply a coupon, go back a step, return, expect the discount.
+       - cover the empty coupon
+       - cover an expired coupon
+
+    ## Checks
+
+    ```
+    npm test -- checkout
+    npx tsc --noEmit
+    ```
+
+    ## Risks
+
+    - The mobile app reads the coupon from the old endpoint. It keeps working: the response shape does not change.
+    - A stale coupon may stay in the store after the order is placed, so the store is cleared on success.
+    - Server rendering: the store is created per request, nothing leaks between users.
+
+    ## Out of scope
+
+    - Redesign of the coupon field.
+    - Coupons for subscriptions.
+    """
+
+    /// A session whose agent asks `questions`.
+    private static func asking(_ questions: [Question], hold: Hold.Kind? = nil, expired: Bool = false) -> AgentSession {
+        let now = Date()
+        var store = SessionStore()
+        for e in baseEvents(now: now) { _ = store.apply(e) }
+        if let hold { store.hold(sessionKey: "claude:demo", kind: hold, now: now.addingTimeInterval(-139)) }
+        let deadline = expired ? now.addingTimeInterval(-30) : now.addingTimeInterval(412)
+        _ = store.apply(demoEvent(.questionAsked(requestId: "q1", questions: questions, rawInput: [:], deadline: deadline), now: now))
+        if expired { _ = store.tick(now: now, autoHideDoneAfter: nil) }
+        return store.session("claude:demo")!
+    }
+
+    /// A session whose agent waits for the plan to be approved.
+    private static func planning() -> AgentSession {
+        let now = Date()
+        var store = SessionStore()
+        for e in baseEvents(now: now) { _ = store.apply(e) }
+        _ = store.apply(demoEvent(.permissionRequested(requestId: "plan1", toolName: ClaudeCodeAdapter.planTool,
+                                                       input: ["plan": .string(samplePlan)],
+                                                       deadline: now.addingTimeInterval(540), suggestions: []), now: now))
+        return store.session("claude:demo")!
+    }
+
+    private static func demoEvent(_ body: AgentEvent.Body, now: Date, _ t: TimeInterval = 0) -> AgentEvent {
+        AgentEvent(kind: .claude, sessionId: "demo", cwd: "/Users/dev/acme-web",
+                   host: HostInfo(appBundleId: HostInfo.vscode, entrypoint: HostInfo.vscodeEntrypoint),
+                   time: now.addingTimeInterval(t), body: body)
+    }
+
+    private static func baseEvents(now: Date) -> [AgentEvent] {
+        [demoEvent(.sessionStarted(source: nil, model: "claude-sonnet-5-5"), now: now, -600),
+         demoEvent(.promptSubmitted("Fix the checkout form"), now: now, -590)]
     }
 
     private static let sampleCommands: [SlashCommand] = SlashCommands.builtin + [

@@ -40,7 +40,7 @@ public struct SessionStore: Sendable, Equatable {
         if ignored.contains(key) {
             // Service session: synchronous requests are released at once.
             switch e.body {
-            case .permissionRequested(let rid, _, _, _, _): return [rid]
+            case .permissionRequested(let rid, _, _, _, _), .questionAsked(let rid, _, _, _): return [rid]
             default: return []
             }
         }
@@ -140,10 +140,27 @@ public struct SessionStore: Sendable, Equatable {
                 // The agent asks the next thing - so its previous request has already been answered
                 // (for example, "No" in VS Code: PostToolUse will not come then, and the request would hang until the end of the turn).
                 released += Self.resolveSuperseded(&s, agentId: e.agentId)
+                let kind: PendingKind = tool == ClaudeCodeAdapter.planTool
+                    ? .plan(text: input["plan"]?.stringValue ?? "", rawInput: input)
+                    : .permission(toolName: tool, toolInput: input)
                 s.pending.append(PendingRequest(
-                    id: rid, kind: .permission(toolName: tool, toolInput: input), createdAt: e.time,
+                    id: rid, kind: kind, createdAt: e.time,
                     deadline: deadline, status: .open, inputFingerprint: fingerprint(toolName: tool, input: input),
                     suggestions: suggestions, agentId: e.agentId))
+            }
+
+        case .questionAsked(let rid, let qs, let raw, let deadline):
+            // A hold is neither set nor ended here: a question asked by a held session is shown as usual, and its
+            // tool call still waits in the `gate` hook until the hold is released.
+            s.baseState = .working
+            s.revealed = true
+            if !s.pending.contains(where: { $0.id == rid }) {
+                released += Self.resolveSuperseded(&s, agentId: e.agentId)
+                s.pending.append(PendingRequest(
+                    id: rid, kind: .question(qs, rawInput: raw), createdAt: e.time,
+                    deadline: deadline, status: .open,
+                    inputFingerprint: fingerprint(toolName: ClaudeCodeAdapter.questionTool, input: raw),
+                    agentId: e.agentId))
             }
 
         case .subagentStarted(let aid, let type):
@@ -433,7 +450,7 @@ public struct SessionStore: Sendable, Equatable {
     /// Events with which a hidden session is shown again.
     static func unhides(_ b: AgentEvent.Body) -> Bool {
         switch b {
-        case .promptSubmitted, .permissionRequested: return true
+        case .promptSubmitted, .permissionRequested, .questionAsked: return true
         default: return false
         }
     }
@@ -458,6 +475,9 @@ public struct SessionStore: Sendable, Equatable {
                 // while other commands of the same tool run in parallel.
                 if let want = Self.commandText(input), let got = fpCommand { return want == got }
                 return t == toolName
+            // The finished input differs from the asked one (the answers are added to it), so only the tool is compared.
+            case .question: return toolName == ClaudeCodeAdapter.questionTool
+            case .plan: return toolName == ClaudeCodeAdapter.planTool
             }
         }
         guard let i = s.pending.firstIndex(where: match) else { return [] }

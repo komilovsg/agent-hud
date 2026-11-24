@@ -137,9 +137,8 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         var ask = try fixture("permission-PermissionRequest")
         ask["tool_name"] = "AskUserQuestion"
         #expect(!adapter.shouldForward(mode: .permission, payload: ask))
-        // Plan approval stays in the regular Claude Code interface.
-        ask["tool_name"] = "ExitPlanMode"
-        #expect(!adapter.shouldForward(mode: .permission, payload: ask))
+        // The question is answered by its own hook on PreToolUse; a plan is approved from the card.
+        #expect(adapter.shouldForward(mode: .permission, payload: try fixture("permission-ExitPlanMode")))
     }
 
     @Test func permissionOutputs() throws {
@@ -367,14 +366,18 @@ func events(_ m: HookMessage, at t: Date = t0) -> [AgentEvent] { adapter.events(
         let after = installer.install(into: before)
         #expect(after.objectValue?.keys == ["env", "hooks", "model"])
         let pre = try #require(after["hooks"]?["PreToolUse"]?.arrayValue)
-        #expect(pre.count == 2)
+        #expect(pre.count == 3)
         #expect(pre[0]["hooks"]?[0]?["command"] == "bash ~/.claude/hooks/guard.sh")
         // PreToolUse is the synchronous gate (it can hold a tool call), so it is not async and has its own timeout.
         #expect(pre[1]["hooks"]?[0]?["command"]?.stringValue?.hasSuffix("claude gate --timeout 86400") == true)
         #expect(pre[1]["hooks"]?[0]?["async"] == nil)
         #expect(pre[1]["hooks"]?[0]?["timeout"] == 86400)
         #expect(after["hooks"]?["PostToolUse"]?[0]?["hooks"]?[0]?["async"] == true)
-        #expect(!after.compact().contains("claude question"))
+        // The question entry sits next to the gate and waits as long as a permission request.
+        #expect(pre[2]["matcher"] == "AskUserQuestion")
+        #expect(pre[2]["hooks"]?[0]?["command"]?.stringValue?.hasSuffix("claude question --timeout 600") == true)
+        #expect(pre[2]["hooks"]?[0]?["timeout"] == 600)
+        #expect(pre[2]["hooks"]?[0]?["async"] == nil)
         let perm = try #require(after["hooks"]?["PermissionRequest"]?.arrayValue)
         #expect(perm[0]["hooks"]?[0]?["command"]?.stringValue?.hasSuffix("claude permission --timeout 600") == true)
         #expect(after["hooks"]?["Stop"]?[0]?["matcher"] == nil)

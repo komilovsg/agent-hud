@@ -135,7 +135,7 @@ struct TokenView: View {
     private var tooltip: String {
         // A held session shows its own popover on hover; a system tooltip would cover it.
         if session.hold != nil { return "" }
-        var parts = ["\(session.projectName) — \(session.state.title) · \(session.host.label)"]
+        var parts = ["\(session.projectName) — \(session.stateTitle) · \(session.host.label)"]
         if !session.title.isEmpty { parts.append(session.title) }
         if let step = session.currentStep { parts.append(step.summary) }
         return parts.joined(separator: "\n")
@@ -286,11 +286,14 @@ struct SessionCard: View {
     let session: AgentSession
     @StateObject private var loader: ChatLoader
     private let inputPreset: ChatInputPreset?
+    private let requestPreset: RequestPreset?
 
-    init(model: AppModel, session: AgentSession, preset: [ChatItem]? = nil, inputPreset: ChatInputPreset? = nil) {
+    init(model: AppModel, session: AgentSession, preset: [ChatItem]? = nil, inputPreset: ChatInputPreset? = nil,
+         requestPreset: RequestPreset? = nil) {
         self.model = model
         self.session = session
         self.inputPreset = inputPreset
+        self.requestPreset = requestPreset
         _loader = StateObject(wrappedValue: ChatLoader(preset: preset))
     }
 
@@ -299,16 +302,23 @@ struct SessionCard: View {
             header
             if let h = session.hold { HoldBanner(model: model, session: session, hold: h) }
             if let p = session.activePending {
-                Group {
-                    switch p.kind {
-                    case .permission(let tool, let input):
-                        PermissionView(model: model, session: session, request: p, tool: tool, input: input)
-                    }
+                // A request is laid out first; the chat gets the rest.
+                switch p.kind {
+                case .permission(let tool, let input):
+                    PermissionView(model: model, session: session, request: p, tool: tool, input: input)
+                        .id(p.id)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+                // Questions and a plan can be longer than the card: no fixed height, their long part scrolls.
+                case .question(let questions, _):
+                    QuestionView(model: model, session: session, request: p, questions: questions, preset: requestPreset)
+                        .id(p.id)
+                        .layoutPriority(1)
+                case .plan(let text, _):
+                    PlanView(model: model, session: session, request: p, text: text, preset: requestPreset)
+                        .id(p.id)
+                        .layoutPriority(1)
                 }
-                .id(p.id)
-                // A request takes its own height and is laid out first; the chat gets the rest.
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
             } else if let p = session.expiredPending {
                 ExpiredView(model: model, session: session, request: p)
             } else if session.state.needsUser {
@@ -401,7 +411,7 @@ struct SessionCard: View {
                     Text(session.projectName).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 }
                 HStack(spacing: 6) {
-                    Text(session.state.title)
+                    Text(session.stateTitle)
                         .font(.system(size: 10, weight: .semibold))
                         .lineLimit(1)
                         .padding(.horizontal, 6).padding(.vertical, 1.5)

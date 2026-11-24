@@ -67,6 +67,15 @@ pick up where they stopped. "Move to Cursor" or "Move to VS Code" hands a runnin
   <img src="assets/readme/own-sessions.svg" width="100%" alt="The New session window, the chat card, and the Move to Cursor menu">
 </p>
 
+## Command bar
+
+Press Control-Option-Space in any app and a small bar appears. Type what you want and press Return: it goes to
+the Assistant, one long-lived session run by Agent HUD for general requests, and its card opens with the reply.
+The chip on the left sends the command to another session run by Agent HUD instead, or starts a new one in a
+project. If the target is still working, Return queues the message and Command-Return interrupts first. The
+hotkey can be changed or switched off in the settings; the list of recent commands stays on your Mac and can be
+cleared or switched off.
+
 ## Agents can look at the screen
 
 With your consent an agent can list the open windows, take a screenshot of the screen or of one window, and read

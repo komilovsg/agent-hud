@@ -246,8 +246,10 @@ public enum VoiceAvailability: Equatable, Sendable {
         }
         if supportsOnDevice { return .onDevice }
         if allowServer { return .server }
+        // macOS downloads a language's on-device model when the language is added to Dictation.
         return .unavailable("On-device recognition is not available for \(languageLabel). "
-                            + "Turn on \"Allow recognition through Apple's servers\" in the Voice settings to use it.")
+                            + "Add \(languageLabel) under System Settings > Keyboard > Dictation to download it, "
+                            + "or turn on \"Allow recognition through Apple's servers\" in the Voice settings.")
     }
 }
 

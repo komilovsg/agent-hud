@@ -114,6 +114,8 @@ struct TokenView: View {
         }
         .frame(width: 64, height: 64)
         .overlay(alignment: .topLeading) { HungBadge(session: session).offset(x: -3, y: -3) }
+        // An agent wants to look at the screen, or is looking right now.
+        .overlay(alignment: .topTrailing) { if model.isLooking(session.id) { LookBadge().offset(x: 3, y: -3) } }
     }
 
     private var held: Bool { session.state == .paused || session.state == .stopped }
@@ -143,6 +145,8 @@ struct TokenView: View {
 
     @MainActor private var menuEntries: [TokenMenuEntry] {
         let model = model, id = session.id, cwd = session.cwd
+        // The placeholder entry has no session behind it: it can only be hidden, which refuses its request.
+        if session.isUnknownAgent { return [TokenMenuEntry(title: "Hide") { model.hide(id) }] }
         var out = OpenAction.items(for: session, model: model).map { a in
             TokenMenuEntry(title: a.title, enabled: a.enabled, hint: a.hint, run: a.run)
         }
@@ -301,6 +305,15 @@ struct SessionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             if let h = session.hold { HoldBanner(model: model, session: session, hold: h) }
+            if let look = model.look(for: session.id) {
+                // A look request comes first and keeps its full height: its buttons must never leave the card.
+                LookRequestView(model: model, look: look)
+                    .id(look.id)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(2)
+            } else if let kind = model.lookBlocked[session.id] {
+                LookBlockedNotice(model: model, sessionKey: session.id, kind: kind)
+            }
             if let p = session.activePending {
                 // A request is laid out first; the chat gets the rest.
                 switch p.kind {
@@ -332,8 +345,9 @@ struct SessionCard: View {
                 Notice(icon: "arrow.up.forward.app", color: .orange,
                        text: "Moved to \(session.host.label), but it has not picked the session up yet. Open it there, or continue here.")
             }
+            if let notes = model.lookNotes[session.id], !notes.isEmpty { LookNotes(notes: notes) }
             chat.frame(maxWidth: .infinity, maxHeight: .infinity)
-            if session.activePending == nil {
+            if session.activePending == nil, !session.isUnknownAgent {
                 if let owned, owned.isLive {
                     ChatInput(model: model, session: session, owned: owned.state, preset: inputPreset)
                 } else {
@@ -372,7 +386,9 @@ struct SessionCard: View {
     }
 
     @ViewBuilder private var chat: some View {
-        if let owned {
+        if session.isUnknownAgent {
+            UnknownAgentNote()
+        } else if let owned {
             OwnedChat(owned: owned)
         } else if !loader.items.isEmpty {
             ChatView(items: loader.items)
@@ -425,12 +441,14 @@ struct SessionCard: View {
             }
             Spacer(minLength: 4)
             HStack(spacing: 2) {
-                ForEach(HoldAction.items(for: session, model: model)) { a in
-                    IconButton(symbol: a.symbol, help: a.help(for: session), action: a.run)
-                        .disabled(!a.enabled)
-                        .opacity(a.enabled ? 1 : 0.35)
+                if !session.isUnknownAgent {
+                    ForEach(HoldAction.items(for: session, model: model)) { a in
+                        IconButton(symbol: a.symbol, help: a.help(for: session), action: a.run)
+                            .disabled(!a.enabled)
+                            .opacity(a.enabled ? 1 : 0.35)
+                    }
+                    OpenMenuButton(model: model, session: session)
                 }
-                OpenMenuButton(model: model, session: session)
                 IconButton(symbol: "map", help: "Agent map: all sessions and what they are doing") { model.openMap() }
                 IconButton(symbol: "eye.slash", help: "Hide") { model.hide(session.id) }
                 IconButton(symbol: "xmark", help: "Close") { model.select(nil) }
@@ -440,6 +458,7 @@ struct SessionCard: View {
     }
 
     private func subtitle(now: Date) -> String {
+        if session.isUnknownAgent { return "Not one of the listed sessions" }
         var parts = [session.kind.displayName, session.host.label]
         if let tty = session.host.tty { parts.append((tty as NSString).lastPathComponent) }
         parts.append(Fmt.elapsed(from: session.startedAt, to: session.finishedAt ?? now))

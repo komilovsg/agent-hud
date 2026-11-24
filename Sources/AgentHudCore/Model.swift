@@ -389,7 +389,10 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     }
 
     /// Project name: the session folder, and for faceless names ("front", "app") - together with the parent.
-    public var projectName: String { ProjectNames.displayName(cwd: cwd) }
+    public var projectName: String { isUnknownAgent ? LookLabels.unknownAgent : ProjectNames.displayName(cwd: cwd) }
+
+    /// The placeholder entry for a look request whose caller matched no session. It has no agent behind it.
+    public var isUnknownAgent: Bool { sessionId == LookLabels.unknownSessionId }
 
     /// The first open request - that is the one we show.
     public var activePending: PendingRequest? {

@@ -1,10 +1,10 @@
 import Foundation
 
-/// Activity log entry: a prompt, the end of a turn, a decision in the HUD.
+/// Activity log entry: a prompt, the end of a turn, a decision in the HUD, a look at the screen.
 /// The log is one file per day: `~/Library/Application Support/AgentHUD/activity/YYYY-MM-DD.jsonl`.
 /// Local only; the daily summary (for standups) and the "Today" tab of the agent map are built from it.
 public struct ActivityRecord: Equatable, Sendable {
-    public enum Kind: String, Sendable { case prompt, stop, decision, ref }
+    public enum Kind: String, Sendable { case prompt, stop, decision, ref, look }
 
     public var kind: Kind
     public var time: Date
@@ -12,9 +12,11 @@ public struct ActivityRecord: Equatable, Sendable {
     public var session: String
     public var project: String
     public var cwd: String
-    /// A prompt, the agent's final message, the gist of a decision, or a branch/link (for `ref`).
+    /// A prompt, the agent's final message, the gist of a decision, a branch/link (for `ref`), or the tool and
+    /// target of a look (app and window title - never the picture or the text that was read).
     public var text: String
-    /// For a decision - what was decided ("allowed", "denied"...); for `ref` - "branch" or "link".
+    /// For a decision - what was decided ("allowed", "denied"...); for `ref` - "branch" or "link";
+    /// for `look` - "allowed", "denied" or why it was refused.
     public var detail: String?
     public var failed = false
     public var stats: TurnStats?
@@ -178,8 +180,8 @@ public enum DailySummary {
                 }
             case .decision:
                 projects[key]!.decisions[r.detail ?? "decision", default: 0] += 1
-            case .ref:
-                break   // branches and links are collected by PeriodReport
+            case .ref, .look:
+                break   // branches and links are collected by PeriodReport; looks are kept as a record only
             }
         }
         return order.compactMap { projects[$0] }.filter { !$0.turns.isEmpty || !$0.decisions.isEmpty }

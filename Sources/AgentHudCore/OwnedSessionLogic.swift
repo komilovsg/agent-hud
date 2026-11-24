@@ -96,12 +96,16 @@ public struct OwnedSessionLogic: Equatable, Sendable {
 
     /// Arguments of the long-lived CLI process. Approval of tools stays with the person: the permission mode is
     /// always the default one and nothing here pre-approves a tool. Empty when `sessionId` is not a UUID.
-    public static func arguments(sessionId: String, resume: Bool, model: String?) -> [String] {
+    /// `screenTools`: path of the `agenthud-mcp` helper; when given, the session gets the screen tools server
+    /// through `--mcp-config` (the tools still go through the usual approval and the consent card).
+    public static func arguments(sessionId: String, resume: Bool, model: String?, screenTools: String? = nil) -> [String] {
         guard isValidSessionId(sessionId) else { return [] }
         var args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                     "--include-partial-messages", "--permission-mode", "default"]
         args += [resume ? "--resume" : "--session-id", sessionId.lowercased()]
         if let model, isValidModel(model) { args += ["--model", model] }
+        // Last: the flag takes a list of values, so nothing may follow it.
+        if let helper = screenTools, let config = ScreenTools.configJSON(helperPath: helper) { args += ["--mcp-config", config] }
         return args
     }
 

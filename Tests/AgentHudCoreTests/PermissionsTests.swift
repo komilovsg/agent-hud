@@ -12,10 +12,13 @@ import Testing
             #expect(Permissions.all.filter { $0.kind == k }.count == 1)
             #expect(Permissions.info(k).kind == k)
         }
-        #expect(Permissions.all.filter { $0.stage == .now }.count == 3)
+        #expect(Permissions.all.filter { $0.stage == .now }.count == 4)
         #expect(Permissions.info(.accessibility).stage == .coming)
-        #expect(Permissions.info(.screenRecording).stage == .coming)
+        #expect(Permissions.info(.screenRecording).stage == .now)
         #expect(Permissions.info(.fullDiskAccess).stage == .coming)
+        // Agents can look at the screen only when asked: the texts say so.
+        #expect(Permissions.info(.screenRecording).usedFor == "Lets agents take screenshots when you allow it.")
+        #expect(Permissions.info(.accessibility).usedFor.contains("read a window's text"))
     }
 
     @Test func allGranted() {
@@ -40,10 +43,18 @@ import Testing
 
     @Test func missingComingDoesNotLimit() {
         var st = all(.granted)
-        st[.screenRecording] = .notGranted
+        st[.fullDiskAccess] = .notGranted
         let s = Permissions.summary(st)
         #expect(!s.isLimited && s.missingNow.isEmpty)
         #expect(s.headline == "5 of 6 allowed · the rest is not used yet")
+    }
+
+    @Test func missingScreenRecordingLimitsScreenshots() {
+        var st = all(.granted)
+        st[.screenRecording] = .notGranted
+        let s = Permissions.summary(st)
+        #expect(s.isLimited && s.missingNow.map(\.kind) == [.screenRecording])
+        #expect(s.headline == "5 of 6 allowed · limited: agents cannot take screenshots")
     }
 
     @Test func unknownIsNotGrantedAndNotMissing() {
@@ -61,7 +72,7 @@ import Testing
     @Test func nothingGranted() {
         let s = Permissions.summary(all(.notGranted))
         #expect(s.grantedCount == 0)
-        #expect(s.missingNow.map(\.kind) == [.hooks, .automation, .notifications])
+        #expect(s.missingNow.map(\.kind) == [.hooks, .automation, .notifications, .screenRecording])
         #expect(s.headline == "Nothing allowed yet · limited: Agent HUD sees nothing")
     }
 }

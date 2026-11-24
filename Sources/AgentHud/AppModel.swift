@@ -39,6 +39,10 @@ final class Settings: ObservableObject {
     @Published var quickPrompts: [String] { didSet { d.set(quickPrompts, forKey: "quickPrompts") } }
     /// Unused while `Features.typeIntoHost` is off; the stored value is kept.
     @Published var sendByTyping: Bool { didSet { d.set(sendByTyping, forKey: "sendByTyping") } }
+    /// Whether agents may look at the screen, and how often they have to ask.
+    @Published var screenAccess: ScreenAccessMode { didSet { d.set(screenAccess.rawValue, forKey: "screenAccess") } }
+    /// Bundle ids of apps whose windows agents never see.
+    @Published var screenExcludedApps: [String] { didSet { d.set(screenExcludedApps, forKey: "screenExcludedApps") } }
 
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
@@ -60,6 +64,8 @@ final class Settings: ObservableObject {
         activityLog = d.object(forKey: "activityLog") as? Bool ?? true
         sendByTyping = d.object(forKey: "sendByTyping") as? Bool ?? true
         quickPrompts = (d.stringArray(forKey: "quickPrompts") ?? Self.defaultQuickPrompts).filter { !$0.isEmpty }
+        screenAccess = ScreenAccessMode(rawValue: d.string(forKey: "screenAccess") ?? "") ?? .default
+        screenExcludedApps = LookExclusions.normalized(d.stringArray(forKey: "screenExcludedApps") ?? LookExclusions.defaults)
     }
 }
 
@@ -106,6 +112,7 @@ final class AppModel: ObservableObject {
         let s = SocketServer(path: socketPath)
         s.onMessage = { [weak self] m in self?.handle(m) }
         s.onClosed = { [weak self] rid in self?.connectionClosed(rid) }
+        s.onLook = { [weak self] request, peer in self?.handleLook(request, peerPid: peer) }
         try s.start()
         server = s
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -118,6 +125,8 @@ final class AppModel: ObservableObject {
         OwnedSession.shutDown(Array(owned.values))
         // Held tool calls go on: nothing stays paused or stopped without the app.
         release(store.releaseAll())
+        // Looks that are still waiting for a click are refused: nobody can answer them any more.
+        for p in looks { server?.replyLook(LookReply(requestId: p.id, outcome: .refused(LookGate.Refusal.denied.message))) }
         // Release all waiting hooks - agents will ask in the terminal.
         for s in store.sessions.values {
             for p in s.pending where p.status == .open {
@@ -193,6 +202,7 @@ final class AppModel: ObservableObject {
 
     private func autoOpenedCardIsIdle() -> Bool {
         guard let k = selectedKey, !selectedByUser, let s = store.session(k) else { return false }
+        if look(for: k) != nil || lookBlocked[k] != nil { return false }
         return s.activePending == nil && s.expiredPending == nil && !s.state.needsUser
     }
 
@@ -242,7 +252,8 @@ final class AppModel: ObservableObject {
     private var loggedRefs: [String: Set<String>] = [:]
 
     private func requestArrived(_ key: String) {
-        if settings.openCardOnRequest, selectedKey == nil || store.session(selectedKey!)?.activePending == nil {
+        if settings.openCardOnRequest,
+           selectedKey == nil || (store.session(selectedKey!)?.activePending == nil && look(for: selectedKey!) == nil) {
             autoCloseTask?.cancel()
             autoCloseTask = nil
             if selectedKey != key { selectedKey = key }
@@ -256,6 +267,7 @@ final class AppModel: ObservableObject {
 
     private func connectionClosed(_ rid: String) {
         store.connectionClosed(rid, now: Date())
+        lookConnectionClosed(rid)
     }
 
     private func tick() {
@@ -274,6 +286,7 @@ final class AppModel: ObservableObject {
         }
         if next != store { store = next }
         release(released)
+        tickLooks(now: now)
         rememberProjects(now: now)
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
         updateHoldPopover()
@@ -419,6 +432,10 @@ final class AppModel: ObservableObject {
         if let s = store.session(key) {
             for p in s.pending where p.status == .open { release([p.id]) }
         }
+        // Hiding the entry answers its look requests with "no": nothing would be left on screen to click.
+        for p in looks where p.sessionKey == key { decideLook(p.id, .deny) }
+        lookBlocked[key] = nil
+        guard store.session(key) != nil else { return }   // the placeholder entry went away with its request
         // A hidden session must not stay held: there would be nothing on screen to resume it with.
         release(store.release(sessionKey: key))
         // An ended session of ours is let go; a running one keeps running and comes back when it needs you.
@@ -556,7 +573,7 @@ final class AppModel: ObservableObject {
         }
         guard !sessionIdsInUse().contains(id) else { return "This session is already open in Agent HUD" }
         let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
-        let o = OwnedSession(sessionId: id, cwd: cwd, resume: true)
+        let o = OwnedSession(sessionId: id, cwd: cwd, resume: true, screenTools: screenToolsPath)
         o.loadHistory(transcriptPath: transcriptPath(ofSession: id))
         launch(o, key: key, firstMessage: nil)
         return nil
@@ -595,7 +612,7 @@ final class AppModel: ObservableObject {
         }
         let id = UUID().uuidString.lowercased()
         let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
-        launch(OwnedSession(sessionId: id, cwd: cwd, resume: false), key: key, firstMessage: firstMessage)
+        launch(OwnedSession(sessionId: id, cwd: cwd, resume: false, screenTools: screenToolsPath), key: key, firstMessage: firstMessage)
         return nil
     }
 
@@ -633,7 +650,7 @@ final class AppModel: ObservableObject {
         dropOwned(s.sessionId)
         handedOver[key] = nil
         store.register(sessionId: s.sessionId, cwd: s.cwd, host: .ownedByHud, now: Date())
-        let o = OwnedSession(sessionId: s.sessionId, cwd: s.cwd, resume: !neverStarted)
+        let o = OwnedSession(sessionId: s.sessionId, cwd: s.cwd, resume: !neverStarted, screenTools: screenToolsPath)
         if !neverStarted { o.loadHistory(transcriptPath: transcript) }
         launch(o, key: key, firstMessage: nil)
         return nil
@@ -738,6 +755,13 @@ final class AppModel: ObservableObject {
     /// For the offscreen render check: a session object in a fixed state, no process.
     func installPreview(_ o: OwnedSession) { owned[o.sessionId] = o }
 
+    /// For the offscreen render check: a look request (or a finished look) in a fixed state. Nothing is looked at.
+    func installLookPreview(pending: [LookPending] = [], notes: [String: [LookNote]] = [:], blocked: [String: PermissionKind] = [:]) {
+        looks = pending
+        lookNotes = notes
+        lookBlocked = blocked
+    }
+
     func markHandedOverForPreview(_ key: String, at date: Date) { handedOver[key] = date }
 
     // MARK: - For demo and preview
@@ -753,8 +777,254 @@ final class AppModel: ObservableObject {
 
     var hasAttention: Bool {
         // A held session counts too: its icon must stay on screen, otherwise there is nothing to resume it with.
-        store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired || $0.hold != nil }
+        !looks.isEmpty || store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired || $0.hold != nil }
     }
+
+    // MARK: - Looks (agents' read-only view of the screen)
+
+    /// Looks waiting for the person's click, oldest first.
+    @Published private(set) var looks: [LookPending] = []
+    /// Sessions with a look being taken right now (after consent), with the number of looks in progress.
+    @Published private(set) var looking: [String: Int] = [:]
+    /// The last few looks of each session, for the "Looked at" rows of its card.
+    @Published private(set) var lookNotes: [String: [LookNote]] = [:]
+    /// A look was refused because a macOS permission is missing: the card offers the setup window.
+    @Published private(set) var lookBlocked: [String: PermissionKind] = [:]
+    private var allowances = LookAllowances()
+    /// The one object that looks at the screen.
+    var looker: ScreenLooking = SystemScreenLook()
+
+    static let unknownAgentKey = "\(AgentKind.claude.rawValue):\(LookLabels.unknownSessionId)"
+
+    func look(for key: String) -> LookPending? { looks.first { $0.sessionKey == key } }
+
+    /// The session's icon shows the eye: a look is being decided or taken.
+    func isLooking(_ key: String) -> Bool { look(for: key) != nil || (looking[key] ?? 0) > 0 }
+
+    /// Path of the bundled screen tools server for sessions started here; nil while screen access is off.
+    private var screenToolsPath: String? {
+        settings.screenAccess == .off ? nil : ScreenToolsSetup.bundledHelper()?.path
+    }
+
+    /// A look request from `agenthud-mcp`. It is refused, queued for a click, or - for a session the person
+    /// already allowed - carried out. Holds (Pause / Stop) play no part here.
+    private func handleLook(_ request: LookRequest, peerPid: Int32?) {
+        let now = Date()
+        let mode = settings.screenAccess
+        allowances.prune(store)
+        if mode == .off { allowances.removeAll() }
+        let call = request.call
+        // Names and sizes only, and only when the request names a target: the card must say what exactly is asked for.
+        let windows = mode != .off && call.target != .none ? looker.windows() : []
+        let key = callerKey(of: request, peerPid: peerPid)
+        var job = LookJob(request: request, sessionKey: key, window: window(of: call, in: windows))
+        switch gate(job, windows: windows, consented: false) {
+        case .refuse(let refusal):
+            refuse(job, refusal)
+            if let key, let kind = refusal.missingPermission {
+                lookBlocked[key] = kind
+                requestArrived(key)
+            }
+        case .allow:
+            perform(job, detail: "allowed for session")
+        case .ask(let offersSession):
+            let entry = key ?? ensureUnknownEntry(now: now)
+            job.sessionKey = entry
+            store.unhide(entry)
+            let front = call.target == .screen
+                ? LookExclusions.filter(windows, excluded: settings.screenExcludedApps).first(where: \.frontmost)?.app : nil
+            looks.append(LookPending(id: request.requestId, sessionKey: entry, call: call, window: job.window, frontApp: front,
+                                     createdAt: now, deadline: now.addingTimeInterval(LookTiming.consentTimeout),
+                                     offersSession: offersSession))
+            jobs[request.requestId] = job
+            lookBlocked[entry] = nil
+            hudLog.notice("look \(call.tool.rawValue, privacy: .public) asks [\(entry.suffix(8), privacy: .public)]")
+            requestArrived(entry)
+        }
+    }
+
+    /// What a look needs besides the request itself.
+    private struct LookJob {
+        var request: LookRequest
+        /// nil - the caller matched no session.
+        var sessionKey: String?
+        var window: WindowInfo?
+    }
+
+    private var jobs: [String: LookJob] = [:]
+
+    private func window(of call: LookCall, in windows: [WindowInfo]) -> WindowInfo? {
+        guard case .window(let n) = call.target else { return nil }
+        return windows.first { $0.number == n }
+    }
+
+    /// The consent gate with the current settings and permissions (read-only checks; no system prompt).
+    private func gate(_ job: LookJob, windows: [WindowInfo], consented: Bool) -> LookGate.Decision {
+        let known = job.sessionKey != nil && job.sessionKey != Self.unknownAgentKey
+        return LookGate.decide(
+            mode: settings.screenAccess, tool: job.request.call.tool,
+            sessionKnown: known, sessionAllowed: known && allowances.contains(job.sessionKey ?? ""),
+            consented: consented,
+            target: LookGate.targetState(job.request.call.target, windows: windows, excluded: settings.screenExcludedApps),
+            screenRecording: PermissionProbe.state(.screenRecording).status == .granted,
+            accessibility: PermissionProbe.state(.accessibility).status == .granted)
+    }
+
+    /// The session whose agent process is an ancestor of the helper. The ancestors are read here, from the
+    /// connection's peer; the id the helper sends along only picks between sessions of one process.
+    private func callerKey(of request: LookRequest, peerPid: Int32?) -> String? {
+        guard let peerPid else { return nil }
+        let chain = HostProbe.chain(from: peerPid).dropFirst().map(\.pid)
+        let candidates = store.sessions.values.filter { !$0.isUnknownAgent }.map { s -> LookCallerResolver.Candidate in
+            let ownedPid = owned[s.sessionId].flatMap { $0.isLive && $0.processId > 0 ? $0.processId : nil }
+            return LookCallerResolver.Candidate(key: s.id, sessionId: s.sessionId, pid: ownedPid ?? s.host.agentPid,
+                                                ended: s.baseState == .ended, lastEventAt: s.lastEventAt)
+        }
+        return LookCallerResolver.resolve(chain: Array(chain), claimedSessionId: request.sessionId, candidates: candidates)
+    }
+
+    enum LookChoice { case once, session, deny }
+
+    /// The person's click on a request card.
+    func decideLook(_ id: String, _ choice: LookChoice) {
+        guard let i = looks.firstIndex(where: { $0.id == id }) else { return }
+        let pending = looks.remove(at: i)
+        guard let job = jobs.removeValue(forKey: id) else { return }
+        switch choice {
+        case .deny:
+            refuse(job, .denied)
+        case .session where pending.offersSession:
+            allowances.allow(pending.sessionKey)
+            perform(job, detail: "allowed for session")
+        case .once, .session:
+            perform(job, detail: "allowed")
+        }
+        dropUnknownEntryIfIdle()
+        scheduleAutoClose()
+    }
+
+    /// Carries out a look. This is the only caller of the capture and text functions, and it goes through the
+    /// gate once more: the mode, the excluded apps, the permissions or the window may have changed while the card waited.
+    private func perform(_ job: LookJob, detail: String) {
+        let call = job.request.call
+        let excluded = settings.screenExcludedApps
+        let windows = looker.windows()
+        let decision = gate(job, windows: windows, consented: true)
+        guard decision == .allow else {
+            if case .refuse(let refusal) = decision { refuse(job, refusal) }
+            return
+        }
+        let key = job.sessionKey ?? Self.unknownAgentKey
+        let eyes = looker
+        let titles = PermissionProbe.state(.screenRecording).status == .granted
+        looking[key, default: 0] += 1
+        Task { @MainActor [weak self] in
+            var outcome: LookReply.Outcome
+            do {
+                switch call.tool {
+                case .listWindows:
+                    outcome = .text(LookText.windowList(LookExclusions.filter(windows, excluded: excluded), titlesAvailable: titles))
+                case .screenshot:
+                    let picture = try await eyes.screenshot(of: call.target, maxSide: call.maxSide, excluded: excluded)
+                    let what = LookLabels.subject(call, window: job.window)
+                    outcome = .image(data: picture.data.base64EncodedString(), mimeType: picture.mimeType,
+                                     caption: LookImage.caption(what: what, width: picture.width, height: picture.height,
+                                                                mimeType: picture.mimeType))
+                case .readWindowText:
+                    guard case .window(let number) = call.target else { throw LookFailure.windowGone }
+                    let text = LookText.render(try await eyes.windowText(number: number, excluded: excluded))
+                    outcome = .text(text.isEmpty ? "The window has no readable text." : LookText.cap(text))
+                }
+            } catch {
+                outcome = .refused((error as? LookFailure)?.message ?? LookGate.Refusal.failed.message)
+            }
+            guard let self else { return }
+            self.server?.replyLook(LookReply(requestId: job.request.requestId, outcome: outcome))
+            if let n = self.looking[key], n > 1 { self.looking[key] = n - 1 } else { self.looking[key] = nil }
+            if case .refused = outcome {
+                self.logLook(job, result: LookGate.Refusal.failed.logLabel, looked: false)
+            } else {
+                self.logLook(job, result: detail, looked: true)
+            }
+            self.dropUnknownEntryIfIdle()
+        }
+    }
+
+    private func refuse(_ job: LookJob, _ refusal: LookGate.Refusal) {
+        server?.replyLook(LookReply(requestId: job.request.requestId, outcome: .refused(refusal.message)))
+        logLook(job, result: refusal.logLabel, looked: false)
+    }
+
+    /// The record of a look: who, which tool, which app and window, and how it ended. Never the picture or the text.
+    private func logLook(_ job: LookJob, result: String, looked: Bool) {
+        let call = job.request.call
+        let subject = LookLabels.subject(call, window: job.window)
+        let key = job.sessionKey ?? Self.unknownAgentKey
+        let s = store.session(key)
+        hudLog.notice("look \(call.tool.rawValue, privacy: .public) \(result, privacy: .public) [\(key.suffix(8), privacy: .public)]")
+        if settings.activityLog {
+            ActivityLog.append(ActivityRecord(kind: .look, time: Date(), agent: AgentKind.claude.rawValue,
+                                              session: s?.sessionId ?? LookLabels.unknownSessionId,
+                                              project: s?.projectName ?? LookLabels.unknownAgent, cwd: s?.cwd ?? "",
+                                              text: RequestLog.clip("\(call.tool.rawValue): \(subject)"), detail: result))
+        }
+        guard looked, job.sessionKey != nil, key != Self.unknownAgentKey else { return }
+        var notes = lookNotes[key] ?? []
+        notes.append(LookNote(time: Date(), text: "Looked at: \(subject)"))
+        lookNotes[key] = Array(notes.suffix(LookNote.kept))
+    }
+
+    /// The helper left before the person answered (the agent's turn was interrupted, or the helper timed out).
+    private func lookConnectionClosed(_ rid: String) {
+        guard let i = looks.firstIndex(where: { $0.id == rid }) else { return }
+        looks.remove(at: i)
+        if let job = jobs.removeValue(forKey: rid) { logLook(job, result: "cancelled", looked: false) }
+        dropUnknownEntryIfIdle()
+    }
+
+    /// Once a second: a request nobody answered in time is refused; allowances of ended sessions go away.
+    private func tickLooks(now: Date) {
+        for p in looks where now >= p.deadline {
+            looks.removeAll { $0.id == p.id }
+            if let job = jobs.removeValue(forKey: p.id) { refuse(job, .expired) }
+        }
+        allowances.prune(store)
+        for key in lookNotes.keys where store.session(key) == nil { lookNotes[key] = nil }
+        for key in lookBlocked.keys where store.session(key) == nil { lookBlocked[key] = nil }
+        dropUnknownEntryIfIdle()
+    }
+
+    func dismissLookBlocked(_ key: String) {
+        lookBlocked[key] = nil
+        scheduleAutoClose()
+    }
+
+    /// The neutral entry for requests of a caller that matched no session. It exists only while such a request waits.
+    private func ensureUnknownEntry(now: Date) -> String {
+        let key = Self.unknownAgentKey
+        guard store.session(key) == nil else { return key }
+        var next = store
+        next.register(sessionId: LookLabels.unknownSessionId, cwd: "", host: HostInfo(), now: now)
+        next.apply(AgentEvent(kind: .claude, sessionId: LookLabels.unknownSessionId, cwd: "", time: now,
+                              body: .sessionStarted(source: nil, model: nil)))
+        store = next
+        return key
+    }
+
+    private func dropUnknownEntryIfIdle() {
+        let key = Self.unknownAgentKey
+        guard store.session(key) != nil, !isLooking(key) else { return }
+        store.remove(key)
+        if selectedKey == key { selectedKey = nil }
+    }
+}
+
+/// One finished look, as the session's card shows it.
+struct LookNote: Identifiable, Equatable {
+    static let kept = 3
+    let id = UUID()
+    let time: Date
+    let text: String
 }
 
 /// Red flags: the rules file is read on every check (it is tiny), edits apply without a restart.

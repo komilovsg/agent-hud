@@ -122,7 +122,8 @@ final class HUDController: NSObject, NSWindowDelegate {
 
         // A held session must stay reachable: with the HUD switched off there would be no way to resume it.
         let anyHeld = sessions.contains { $0.hold != nil }
-        let shouldShow = (s.hudVisible || anyHeld) && !sessions.isEmpty
+        // The same goes for a look request: without its card the look could only time out.
+        let shouldShow = (s.hudVisible || anyHeld || !model.looks.isEmpty) && !sessions.isEmpty
             && (!s.hideWhenNothingWaits || model.hasAttention || model.selectedKey != nil)
         for t in tokens.values {
             if shouldShow, !t.panel.isVisible { t.panel.orderFrontRegardless() }

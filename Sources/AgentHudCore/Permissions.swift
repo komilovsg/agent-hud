@@ -34,7 +34,7 @@ public enum Permissions {
                        usedFor: "Sees your sessions, lets you answer permission requests, and powers Pause and Stop.",
                        stage: .now, limitedWithout: "Agent HUD sees nothing"),
         PermissionInfo(kind: .accessibility, title: "Accessibility",
-                       usedFor: "Lets Agent HUD type and click for you.",
+                       usedFor: "Lets agents read a window's text when you allow it. Typing and clicking for you is not built yet.",
                        stage: .coming, limitedWithout: ""),
         PermissionInfo(kind: .automation, title: "Automation",
                        usedFor: "Brings the right Terminal or iTerm tab to the front.",
@@ -43,8 +43,8 @@ public enum Permissions {
                        usedFor: "Tells you when an agent needs you while the HUD is hidden.",
                        stage: .now, limitedWithout: "No notifications"),
         PermissionInfo(kind: .screenRecording, title: "Screen Recording",
-                       usedFor: "Lets agents see the screen.",
-                       stage: .coming, limitedWithout: "Agents cannot see the screen"),
+                       usedFor: "Lets agents take screenshots when you allow it.",
+                       stage: .now, limitedWithout: "Agents cannot take screenshots"),
         PermissionInfo(kind: .fullDiskAccess, title: "Full Disk Access",
                        usedFor: "Lets sessions started by Agent HUD read files outside your projects.",
                        stage: .coming, limitedWithout: "Sessions cannot read files outside your projects"),
@@ -88,7 +88,7 @@ public enum Permissions {
 
     /// "Messages are copied" -> "messages are copied"; a name such as "Agent HUD sees nothing" keeps its capital.
     private static func lowerFirst(_ s: String) -> String {
-        guard let first = s.first, !s.hasPrefix("Agent") else { return s }
+        guard let first = s.first, !s.hasPrefix("Agent HUD") else { return s }
         return first.lowercased() + s.dropFirst()
     }
 }

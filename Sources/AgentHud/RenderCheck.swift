@@ -227,6 +227,107 @@ enum RenderCheck {
                 .tint(Brand.accent)
             write(v, size: size, to: out.appendingPathComponent("\(name).png"))
         }
+
+        renderLooks(model: model, out: out)
+    }
+
+    /// Agents looking at the screen: request cards, the eye on the icon, the settings and the setup row.
+    /// Sample values only - no window is listed, nothing is captured and no command is run.
+    private static func renderLooks(model: AppModel, out: URL) {
+        let now = Date()
+        let cardSize = CardMetrics.size
+        let demo = session(.working)
+        let safari = WindowInfo(number: 4021, app: "Safari", bundleId: "com.apple.Safari", pid: 0,
+                                title: "Checkout — Acme Store — Private Browsing", width: 1440, height: 900, frontmost: true)
+        func pending(_ key: String, _ call: LookCall, window: WindowInfo? = nil, front: String? = nil, offers: Bool = true) -> LookPending {
+            LookPending(id: "look1", sessionKey: key, call: call, window: window, frontApp: front,
+                        createdAt: now, deadline: now.addingTimeInterval(97), offersSession: offers)
+        }
+        func card(_ name: String, _ s: AgentSession) {
+            let v = SessionCard(model: model, session: s, preset: chat)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .environment(\.solidBackground, true)
+            write(v, size: cardSize, to: out.appendingPathComponent("\(name).png"))
+        }
+
+        model.installLookPreview(pending: [pending(demo.id, LookCall(tool: .screenshot, target: .window(4021)), window: safari)])
+        card("card-look-screenshot", demo)
+        for (bgName, bg) in [("grey", AnyView(Color(white: 0.5))), ("photo", AnyView(photo))] {
+            let v = ZStack {
+                bg
+                TokenView(model: model, session: demo, selected: false)
+            }
+            .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
+            write(v, size: TokenMetrics.size, to: out.appendingPathComponent("token-looking-\(bgName).png"))
+        }
+        model.installLookPreview(pending: [pending(demo.id, LookCall(tool: .screenshot, target: .screen), front: "Safari")])
+        card("card-look-screen", demo)
+        model.installLookPreview(pending: [pending(demo.id, LookCall(tool: .readWindowText, target: .window(4021)), window: safari)])
+        card("card-look-text", demo)
+        // The same request together with a held session: the hold banner and the look card share the card.
+        model.installLookPreview(pending: [pending(demo.id, LookCall(tool: .listWindows))])
+        card("card-look-list-paused", held(.pause, calls: 1))
+
+        // A caller that matched no session: the neutral entry, and no "for this session" answer.
+        var unknownStore = SessionStore()
+        let unknownKey = unknownStore.register(sessionId: LookLabels.unknownSessionId, cwd: "", host: HostInfo(), now: now)
+        unknownStore.apply(AgentEvent(kind: .claude, sessionId: LookLabels.unknownSessionId, cwd: "", time: now,
+                                      body: .sessionStarted(source: nil, model: nil)))
+        if let unknown = unknownStore.session(unknownKey) {
+            model.installLookPreview(pending: [pending(unknownKey, LookCall(tool: .screenshot, target: .screen), front: "Safari", offers: false)])
+            card("card-look-unknown-session", unknown)
+            let v = ZStack {
+                Color(white: 0.5)
+                TokenView(model: model, session: unknown, selected: false)
+            }
+            .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
+            write(v, size: TokenMetrics.size, to: out.appendingPathComponent("token-looking-unknown.png"))
+        }
+
+        // After the looks: what the card keeps, and a refusal for a missing permission.
+        model.installLookPreview(notes: [demo.id: [
+            LookNote(time: now.addingTimeInterval(-95), text: "Looked at: the list of open windows"),
+            LookNote(time: now.addingTimeInterval(-20), text: "Looked at: Safari — Checkout — Acme Store — Private Browsing"),
+        ]])
+        card("card-look-notes", demo)
+        model.installLookPreview(blocked: [demo.id: .screenRecording])
+        card("card-look-no-permission", demo)
+        model.installLookPreview()
+
+        // Settings: fixed names, so the picture does not depend on what is installed on this Mac.
+        let names = ["com.1password.1password": "1Password", "com.apple.keychainaccess": "Keychain Access",
+                     "com.apple.Passwords": "Passwords", "com.apple.systempreferences": "System Settings",
+                     "com.tinyspeck.slackmacgap": "Slack"]
+        for (name, mode, apps) in [("control-panel-screen-access", ScreenAccessMode.ask, LookExclusions.defaults),
+                                   ("control-panel-screen-access-session", .session, LookExclusions.defaults + ["com.tinyspeck.slackmacgap"]),
+                                   ("control-panel-screen-access-off", .off, [])] {
+            let v = ScreenAccessSection(index: 1, mode: .constant(mode), excluded: .constant(apps), appName: { names[$0] })
+                .padding(16)
+                .frame(width: ControlPanelView.width)
+                .background(Brand.bg)
+                .tint(Brand.accent)
+            write(v, size: NSHostingView(rootView: v).fittingSize, to: out.appendingPathComponent("\(name).png"))
+        }
+
+        // The whole panel on its "Screen" tab, with the stored settings (read only; nothing is written).
+        do {
+            let panel = ControlPanelView(model: model, settings: model.settings, tab: 2).tint(Brand.accent)
+            write(panel, size: NSHostingView(rootView: panel).fittingSize, to: out.appendingPathComponent("control-panel-screen-tab.png"))
+        }
+
+        let granted = Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, PermissionState(status: .granted)) })
+        var partly = granted
+        partly[.screenRecording] = PermissionState(status: .notGranted)
+        partly[.accessibility] = PermissionState(status: .notGranted)
+        let setups: [(String, [PermissionKind: PermissionState], ScreenToolsState)] = [
+            ("setup-screen-tools-connected", granted, ScreenToolsState(status: .registered)),
+            ("setup-screen-tools-not-connected", partly, ScreenToolsState(status: .notRegistered)),
+            ("setup-screen-tools-unknown", partly, ScreenToolsState(status: .unknown, detail: "Claude Code not found")),
+        ]
+        for (name, states, tools) in setups {
+            let v = SetupView(model: SetupModel(states: states, showsSourceBuildNote: false, screenTools: tools)).tint(Brand.accent)
+            write(v, size: CGSize(width: SetupMetrics.width, height: SetupMetrics.height), to: out.appendingPathComponent("\(name).png"))
+        }
     }
 
     /// A held session: paused with 12:41 left, or stopped 8 minutes ago, with `calls` tool calls waiting.

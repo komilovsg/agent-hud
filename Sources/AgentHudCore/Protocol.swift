@@ -167,6 +167,11 @@ public enum AgentHUDPaths {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/agenthud-hook")
     }
 
+    /// Stable path of the screen tools server for agents' configs; points into the installed app.
+    public static var mcpSymlink: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/agenthud-mcp")
+    }
+
     public static var claudeSettings: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     }

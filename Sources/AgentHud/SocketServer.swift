@@ -2,7 +2,7 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-/// Unix socket that `agenthud-hook` sends events to.
+/// Unix socket that `agenthud-hook` sends events to and `agenthud-mcp` sends look requests to.
 /// All descriptor work runs on its own queue; callbacks run on the main thread.
 final class SocketServer {
     enum StartError: Error, CustomStringConvertible {
@@ -38,6 +38,8 @@ final class SocketServer {
     var onMessage: ((HookMessage) -> Void)?
     /// The hook disconnected without waiting for a reply (answered in the terminal, or timed out).
     var onClosed: ((String) -> Void)?
+    /// A look request arrived from `agenthud-mcp`; the second value is the process on the other end of the connection.
+    var onLook: ((LookRequest, Int32?) -> Void)?
 
     init(path: String) { self.path = path }
 
@@ -85,6 +87,16 @@ final class SocketServer {
 
     /// Reply to the hook and close the connection. Does nothing if the hook has already gone.
     func reply(_ reply: HookReply) {
+        queue.async { [weak self] in
+            guard let self, let c = self.byRequest[reply.requestId], !c.replied else { return }
+            c.replied = true
+            SocketIO.writeAll(c.fd, reply.encode())
+            self.drop(c)
+        }
+    }
+
+    /// Answer a look request and close the connection. Does nothing if the helper has already gone.
+    func replyLook(_ reply: LookReply) {
         queue.async { [weak self] in
             guard let self, let c = self.byRequest[reply.requestId], !c.replied else { return }
             c.replied = true
@@ -159,7 +171,25 @@ final class SocketServer {
         }
     }
 
+    /// The process that connected, as the kernel reports it - not something the peer can choose.
+    private static func peerPid(_ fd: Int32) -> Int32? {
+        var pid: pid_t = 0
+        var len = socklen_t(MemoryLayout<pid_t>.size)
+        guard getsockopt(fd, SOL_LOCAL, LOCAL_PEERPID, &pid, &len) == 0, pid > 0 else { return nil }
+        return pid
+    }
+
     private func handleLine(_ line: String, _ c: Connection) {
+        if let look = LookRequest.decode(line) {
+            // An id that is already waiting belongs to another connection; a second one cannot take its reply.
+            guard byRequest[look.requestId] == nil else { drop(c); return }
+            // Always answered, so the connection stays until the reply (or until the helper leaves).
+            c.requestId = look.requestId
+            byRequest[look.requestId] = c
+            let peer = Self.peerPid(c.fd)
+            DispatchQueue.main.async { [weak self] in self?.onLook?(look, peer) }
+            return
+        }
         guard let msg = HookMessage.decode(line) else { drop(c); return }
         if msg.mode.isSync {
             c.requestId = msg.requestId

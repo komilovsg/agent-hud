@@ -36,7 +36,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
 
     private func updateButton() {
         guard let b = item.button else { return }
-        let waiting = model.visibleSessions.filter { $0.state.needsUser }.count
+        let waiting = model.visibleSessions.filter { $0.state.needsUser }.count + model.looks.count
         // Redraw the menu bar icon only when the number of waiting requests changes, not on every event.
         guard waiting != shownWaiting else { return }
         shownWaiting = waiting

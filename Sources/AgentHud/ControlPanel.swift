@@ -41,7 +41,7 @@ struct ControlPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            BrandTabs(titles: ["Sessions", "Settings"], selection: $tab,
+            BrandTabs(titles: ["Sessions", "Settings", "Screen"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
                 HStack(spacing: 8) {
@@ -58,9 +58,12 @@ struct ControlPanelView: View {
                 }
                 sessionsSection
                 agentsSection
-            } else {
+            } else if tab == 1 {
                 lookSection
                 behaviorSection
+            } else {
+                // Its own tab: with the list of excluded apps the settings would not fit a laptop screen.
+                ScreenAccessSection(index: 1, mode: $settings.screenAccess, excluded: $settings.screenExcludedApps)
             }
             footer
         }

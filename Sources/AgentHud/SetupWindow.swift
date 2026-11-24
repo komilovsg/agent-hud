@@ -7,11 +7,15 @@ import SwiftUI
 final class SetupModel: ObservableObject {
     @Published var states: [PermissionKind: PermissionState]
     @Published var highlight: PermissionKind?
+    /// Whether Claude Code has the screen tools server in its user configuration.
+    @Published var screenTools: ScreenToolsState
     let showsSourceBuildNote: Bool
 
-    init(states: [PermissionKind: PermissionState] = [:], showsSourceBuildNote: Bool = false) {
+    init(states: [PermissionKind: PermissionState] = [:], showsSourceBuildNote: Bool = false,
+         screenTools: ScreenToolsState = ScreenToolsState()) {
         self.states = states
         self.showsSourceBuildNote = showsSourceBuildNote
+        self.screenTools = screenTools
     }
 
     func state(_ kind: PermissionKind) -> PermissionState { states[kind] ?? PermissionState(status: .unknown) }
@@ -24,6 +28,8 @@ final class SetupModel: ObservableObject {
 struct SetupActions {
     var request: (PermissionKind) -> Void = { _ in }
     var openSettings: (PermissionKind) -> Void = { _ in }
+    var connectScreenTools: () -> Void = {}
+    var disconnectScreenTools: () -> Void = {}
     var done: () -> Void = {}
 }
 
@@ -58,6 +64,8 @@ final class SetupController: NSObject, NSWindowDelegate {
                     self.refresh()
                 },
                 openSettings: { kind in PermissionProbe.openSettingsPane(kind) },
+                connectScreenTools: { [weak self] in self?.changeScreenTools { await ScreenToolsSetup.connect() } },
+                disconnectScreenTools: { [weak self] in self?.changeScreenTools { await ScreenToolsSetup.disconnect() } },
                 done: { [weak self] in self?.window?.close() })
             w.contentView = NSHostingView(rootView: SetupView(model: model, actions: actions).tint(Brand.accent))
             w.delegate = self
@@ -65,6 +73,7 @@ final class SetupController: NSObject, NSWindowDelegate {
             window = w
         }
         refresh()
+        refreshScreenTools()
         startRefreshing()
         if let highlight {
             model.highlight = highlight
@@ -95,6 +104,27 @@ final class SetupController: NSObject, NSWindowDelegate {
         timer = nil
         if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
         activeObserver = nil
+    }
+
+    /// Asks Claude Code once (when the window opens and after a change): the answer comes from a command, not a file read.
+    private func refreshScreenTools() {
+        guard !model.screenTools.busy else { return }
+        Task { @MainActor in
+            let next = await ScreenToolsSetup.status()
+            if !model.screenTools.busy, next != model.screenTools { model.screenTools = next }
+        }
+    }
+
+    /// Connect or disconnect: the command is shown first; while it runs the button is off.
+    private func changeScreenTools(_ action: @escaping @MainActor () async -> String?) {
+        guard !model.screenTools.busy else { return }
+        Task { @MainActor in
+            model.screenTools.busy = true
+            let problem = await action()
+            model.screenTools.busy = false
+            if let problem { HookSetup.info("Screen tools were not changed", problem, style: .warning) }
+            refreshScreenTools()
+        }
     }
 
     private func refresh() {
@@ -128,7 +158,14 @@ struct SetupView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         group(index: 1, title: "Needed now", stage: .now)
-                        group(index: 2, title: "For what is coming", stage: .coming)
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionLabel(index: 2, title: "Agents outside Agent HUD")
+                            Card {
+                                ScreenToolsRow(state: model.screenTools, connect: actions.connectScreenTools,
+                                               disconnect: actions.disconnectScreenTools)
+                            }
+                        }
+                        group(index: 3, title: "For what is coming", stage: .coming)
                     }
                     .padding(.horizontal, 24).padding(.bottom, 16)
                 }

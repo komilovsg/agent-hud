@@ -29,10 +29,13 @@ let package = Package(
     products: [
         .executable(name: "AgentHud", targets: ["AgentHud"]),
         .executable(name: "agenthud-hook", targets: ["agenthud-hook"]),
+        .executable(name: "agenthud-mcp", targets: ["agenthud-mcp"]),
     ],
     targets: [
         .target(name: "AgentHudCore", swiftSettings: v5),
         .executableTarget(name: "agenthud-hook", dependencies: ["AgentHudCore"], swiftSettings: v5),
+        // The stdio server agents call to look at the screen. It only forwards each call to the app.
+        .executableTarget(name: "agenthud-mcp", dependencies: ["AgentHudCore"], swiftSettings: v5),
         .executableTarget(name: "AgentHud", dependencies: ["AgentHudCore"], swiftSettings: v5),
         // Tests are an executable target: without Xcode `swift test` does not run Swift Testing,
         // so we call the runner ourselves: `swift run AgentHudCoreTests`.

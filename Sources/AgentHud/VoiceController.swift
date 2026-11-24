@@ -37,6 +37,8 @@ final class VoiceController {
             if !on { self?.apply(.escape) }
         }.store(in: &cancellables)
         app.onVoiceReply = { [weak self] text in self?.speakReply(text) }
+        app.installedVoices = { [weak self] in self?.services.speaker.voices() ?? [] }
+        app.onPreviewVoice = { [weak self] language in self?.preview(language) }
     }
 
     func attach(_ bar: CommandBarController) { self.bar = bar }
@@ -272,6 +274,15 @@ final class VoiceController {
               !gesture.isDown else { return }
         let language = VoiceLanguages.info(code: settings.voiceLanguage)
         guard let spoken = SpokenForm.make(text, language: language.code) else { return }
-        services.speaker.speak(text: spoken, language: language.speechLocale)
+        services.speaker.speak(text: spoken, language: language.speechLocale, options: speechOptions(for: language))
+    }
+
+    private func speechOptions(for language: VoiceLanguage) -> SpeechOptions {
+        SpeechOptions(voiceId: settings.voiceId(forLanguage: language.code), rate: settings.voiceRate)
+    }
+
+    /// The settings' Preview button: one fixed sentence with the voice and speed that are set now.
+    private func preview(_ language: VoiceLanguage) {
+        services.speaker.speak(text: language.previewSample, language: language.speechLocale, options: speechOptions(for: language))
     }
 }

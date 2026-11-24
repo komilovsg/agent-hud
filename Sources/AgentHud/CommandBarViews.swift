@@ -366,7 +366,7 @@ struct QueuedMessageRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "clock").font(.system(size: 11)).foregroundStyle(.secondary)
-            Text("Queued: \(text)")
+            Text("Queued: \(SpokenStyle.display(text))")
                 .font(.system(size: 11)).foregroundStyle(.secondary)
                 .lineLimit(2).truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)

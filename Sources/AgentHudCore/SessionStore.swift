@@ -80,7 +80,7 @@ public struct SessionStore: Sendable, Equatable {
         case .promptSubmitted(let text):
             // The title is the first real task. Service insertions (<task-notification>, <command-name>...) are not a task.
             // The last prompt is not taken as the title: it is often a short answer to an agent question ("red").
-            if s.title.isEmpty, !Self.isInjectedPrompt(text) { s.title = Self.makeTitle(text) }
+            if s.title.isEmpty, !Self.isInjectedPrompt(text) { s.title = Self.makeTitle(SpokenStyle.display(text)) }
             s.revealed = true
             s.baseState = .working
             s.lastMessage = nil

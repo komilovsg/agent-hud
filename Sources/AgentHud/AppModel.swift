@@ -73,6 +73,17 @@ final class Settings: ObservableObject {
     @Published var voiceSpeakReplies: Bool { didSet { d.set(voiceSpeakReplies, forKey: "voiceSpeakReplies") } }
     /// Allow recognition through Apple's servers when the language has no on-device model. Audio then leaves the Mac.
     @Published var voiceAllowServerRecognition: Bool { didSet { d.set(voiceAllowServerRecognition, forKey: "voiceAllowServerRecognition") } }
+    /// Id of the synthesizer voice chosen for English replies; empty means the automatic pick.
+    @Published var voiceIdEnglish: String { didSet { d.set(voiceIdEnglish, forKey: "voiceIdEnglish") } }
+    /// The same for Russian replies.
+    @Published var voiceIdRussian: String { didSet { d.set(voiceIdRussian, forKey: "voiceIdRussian") } }
+    /// Speaking speed as a multiple of the normal rate, within `VoiceRate`'s range.
+    @Published var voiceRate: Double { didSet { d.set(voiceRate, forKey: "voiceRate") } }
+
+    /// The chosen voice id for a language code of `VoiceLanguages.all`; empty means automatic.
+    func voiceId(forLanguage code: String) -> String {
+        code == "ru-RU" ? voiceIdRussian : voiceIdEnglish
+    }
 
     /// Routines run on their schedule. Off until the first routine exists; the Routines tab's "Pause all" turns it off again.
     @Published var routinesEnabled: Bool { didSet { d.set(routinesEnabled, forKey: "routinesEnabled") } }
@@ -109,6 +120,9 @@ final class Settings: ObservableObject {
         voiceSendAfterSpeaking = d.object(forKey: "voiceSendAfterSpeaking") as? Bool ?? true
         voiceSpeakReplies = d.object(forKey: "voiceSpeakReplies") as? Bool ?? true
         voiceAllowServerRecognition = d.object(forKey: "voiceAllowServerRecognition") as? Bool ?? false
+        voiceIdEnglish = d.string(forKey: "voiceIdEnglish") ?? ""
+        voiceIdRussian = d.string(forKey: "voiceIdRussian") ?? ""
+        voiceRate = VoiceRate.clamped(d.object(forKey: "voiceRate") as? Double ?? VoiceRate.defaultMultiplier)
         routinesEnabled = d.object(forKey: "routinesEnabled") as? Bool ?? false
         let stopped = d.double(forKey: "handsStoppedAt")
         handsStoppedAt = handsAccess == .off && stopped > 0 ? Date(timeIntervalSince1970: stopped) : nil
@@ -148,6 +162,9 @@ final class AppModel: ObservableObject {
     var onOpenCommandBar: (() -> Void)?
     /// The Assistant answered a spoken command: the text of the answer (held by the command bar).
     var onVoiceReply: ((String) -> Void)?
+    /// The settings' Voice section: the installed voices, and a spoken sample. Set by the voice controller.
+    var installedVoices: () -> [VoiceInfo] = { [] }
+    var onPreviewVoice: ((VoiceLanguage) -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -310,7 +327,7 @@ final class AppModel: ObservableObject {
         case .promptSubmitted(let text):
             guard !SessionStore.isInjectedPrompt(text) else { return }
             ActivityLog.append(ActivityRecord(kind: .prompt, time: e.time, agent: s.kind.rawValue, session: s.sessionId,
-                                              project: s.projectName, cwd: s.cwd, text: String(text.prefix(600))))
+                                              project: s.projectName, cwd: s.cwd, text: String(SpokenStyle.display(text).prefix(600))))
         case .stopped(let msg, let failed):
             ActivityLog.append(ActivityRecord(kind: .stop, time: e.time, agent: s.kind.rawValue, session: s.sessionId,
                                               project: s.projectName, cwd: s.cwd, text: String((msg ?? "").prefix(600)),

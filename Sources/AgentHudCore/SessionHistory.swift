@@ -52,7 +52,7 @@ public enum SessionHistory {
             guard let info = inspect(c.url, size: c.size, headBytes: headBytes, tailBytes: tailBytes),
                   let title = info.title ?? info.firstMessage else { continue }
             seen.insert(c.id)
-            out.append(PastSession(id: c.id, cwd: info.cwd, title: title, lastActivity: c.date, sizeBytes: c.size))
+            out.append(PastSession(id: c.id, cwd: info.cwd, title: SpokenStyle.display(title), lastActivity: c.date, sizeBytes: c.size))
             if out.count == limit { break }
         }
         return out

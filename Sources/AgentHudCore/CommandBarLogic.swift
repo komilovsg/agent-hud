@@ -15,7 +15,10 @@ public enum AssistantSession {
     /// Fixed text appended to the CLI's system prompt for this session. A constant: no user input ever reaches it.
     public static let systemPrompt = "You run inside Agent HUD on the person's Mac as a general assistant. "
         + "You can look at the screen and act in other apps through the agenthud tools, but only when the person allows it. "
-        + "Keep replies short, and say plainly what you did or could not do."
+        + "Keep replies short, and say plainly what you did or could not do. "
+        + "Reply in the language the person used. "
+        + "When a message starts with \"\(SpokenStyle.marker.trimmingCharacters(in: .whitespaces))\", it was spoken and your reply will be read aloud: "
+        + "answer in one or two plain conversational sentences with no lists, headings, code or links, then do the work as usual."
 
     /// True for the assistant's working folder (used to label its token).
     public static func isAssistantFolder(_ path: String) -> Bool {

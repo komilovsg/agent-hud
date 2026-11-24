@@ -125,6 +125,11 @@ enum RenderCheck {
             ChatItem(id: "9", time: nil, kind: .assistant("All 42 tests pass now. The coupon is kept in the cart store, so going back a step no longer loses it.")),
         ]
         ownedCard("card-owned-idle", "0f8fad5b-d9cb-469f-a165-708677289501", .idle, items: done, cost: 0.42)
+        // A message sent by voice: the marker travels to the Assistant but the card shows the plain text.
+        ownedCard("card-owned-voice", "0f8fad5b-d9cb-469f-a165-708677289504", .idle, items: [
+            ChatItem(id: "1", time: nil, kind: .user(SpokenStyle.mark("Open the quarterly report and tell me which sheet has the totals"))),
+            ChatItem(id: "2", time: nil, kind: .assistant("The totals are on the Summary sheet, in the last column.")),
+        ], cost: 0.05)
         ownedCard("card-owned-streaming", "0f8fad5b-d9cb-469f-a165-708677289502", .running,
                   items: Array(chat.prefix(6)),
                   partial: "One test fails: the fixture has no coupon. I'll update the fixture and run the suite again, then check that the",
@@ -605,16 +610,43 @@ enum RenderCheck {
         settings.commandBarHotKey = saved
 
         // Control panel: the Voice section, off and on (plain bindings: the saved settings stay as they are).
-        for (name, on, server) in [("control-panel-voice-off", false, false), ("control-panel-voice-on", true, false),
-                                   ("control-panel-voice-on-server", true, true)] {
+        // Fake voice lists only. "choice": a voice picked for English; Russian stays on automatic.
+        let fakeVoices = Self.fakeVoices
+        let ava = fakeVoices[0].id
+        for (name, on, server, english, voices) in [("control-panel-voice-off", false, false, "", fakeVoices),
+                                                    ("control-panel-voice-on", true, false, "", fakeVoices),
+                                                    ("control-panel-voice-on-server", true, true, "", fakeVoices),
+                                                    ("control-panel-voice-choice", true, false, ava, fakeVoices),
+                                                    ("control-panel-voice-none-installed", true, false, "", [VoiceInfo]())] {
             let v = VoiceSettingsSection(index: 4, enabled: .constant(on), language: .constant("en-US"), sendAfterSpeaking: .constant(true),
-                                         speakReplies: .constant(true), allowServer: .constant(server))
+                                         speakReplies: .constant(true), allowServer: .constant(server), voices: voices,
+                                         voiceIdEnglish: .constant(english), voiceIdRussian: .constant(""), voiceRate: .constant(1.0))
+                .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
+            let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
+            write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        // The speed slider at its two ends.
+        for (name, rate) in [("control-panel-voice-slow", 0.8), ("control-panel-voice-fast", 1.3)] {
+            let v = VoiceSettingsSection(index: 4, enabled: .constant(true), language: .constant("ru-RU"), sendAfterSpeaking: .constant(true),
+                                         speakReplies: .constant(true), allowServer: .constant(false), voices: fakeVoices,
+                                         voiceIdEnglish: .constant(""), voiceIdRussian: .constant(fakeVoices[3].id), voiceRate: .constant(rate))
                 .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
             let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
             write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
                   to: out.appendingPathComponent("\(name).png"))
         }
     }
+
+    /// Made-up installed voices: premium, enhanced and standard ones, a novelty voice and another English region.
+    private static let fakeVoices: [VoiceInfo] = [
+        VoiceInfo(id: "fake.premium.en-US.Ava", name: "Ava", language: "en-US", quality: .premium),
+        VoiceInfo(id: "fake.compact.en-US.Samantha", name: "Samantha", language: "en-US", quality: .standard),
+        VoiceInfo(id: "fake.enhanced.en-GB.Serena", name: "Serena", language: "en-GB", quality: .enhanced),
+        VoiceInfo(id: "fake.enhanced.ru-RU.Milena", name: "Milena", language: "ru-RU", quality: .enhanced),
+        VoiceInfo(id: "fake.compact.ru-RU.Yuri", name: "Yuri", language: "ru-RU", quality: .standard),
+        VoiceInfo(id: "fake.novelty.en-US.Zarvox", name: "Zarvox", language: "en-US", quality: .standard, isNovelty: true),
+    ]
 
     private static func held(_ kind: Hold.Kind, calls: Int) -> AgentSession {
         var s = session(.working)

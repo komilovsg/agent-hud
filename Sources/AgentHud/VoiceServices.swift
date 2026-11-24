@@ -1,3 +1,4 @@
+import AgentHudCore
 import Foundation
 
 /// What a recognizer can do for one language on this Mac.
@@ -23,10 +24,18 @@ protocol SpeechRecognizing: AnyObject {
     func cancel()
 }
 
+/// How a text is read: the chosen voice (empty - the automatic pick for the language) and the speed multiplier.
+struct SpeechOptions: Equatable {
+    var voiceId = ""
+    var rate = VoiceRate.defaultMultiplier
+}
+
 /// Reads a short text aloud.
 @MainActor
 protocol SpeechSpeaking: AnyObject {
-    func speak(text: String, language: String)
+    /// The voices installed on this Mac. Read-only: nothing is spoken.
+    func voices() -> [VoiceInfo]
+    func speak(text: String, language: String, options: SpeechOptions)
     /// Stops at once; harmless when nothing is spoken.
     func stop()
 }

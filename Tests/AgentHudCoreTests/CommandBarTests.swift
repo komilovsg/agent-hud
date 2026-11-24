@@ -265,7 +265,7 @@ import Testing
 
     @Test func assistantPromptIsPlainText() {
         let p = AssistantSession.systemPrompt
-        #expect(!p.isEmpty && !p.contains("\n") && p.count < 500)
+        #expect(!p.isEmpty && !p.contains("\n") && p.count < 900)
         #expect(!p.hasPrefix("-"))
     }
 }

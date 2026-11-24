@@ -234,7 +234,8 @@ final class OwnedSession: ObservableObject {
     func send(_ text: String, byVoice: Bool = false) -> Bool {
         guard logic.canSend, let stdin else { return false }
         turnByVoice = byVoice
-        let line = StreamParser.userLine(text)
+        // Only the Assistant knows what the marker means; a plain session would see it as part of the message.
+        let line = StreamParser.userLine(assistant && byVoice ? SpokenStyle.mark(text) : text)
         apply(.userSent)
         userSeq += 1
         StreamParser.merge([ChatItem(id: "sent-\(userSeq)", time: Date(), kind: .user(text))], into: &items)

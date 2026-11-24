@@ -15,6 +15,8 @@ public struct VoiceLanguage: Equatable, Sendable, Identifiable {
     /// What is spoken in place of a code block and in place of a link.
     public let codeOmitted: String
     public let linkWord: String
+    /// The fixed sentence the settings' Preview button speaks.
+    public let previewSample: String
     public var id: String { code }
 }
 
@@ -22,11 +24,16 @@ public enum VoiceLanguages {
     public static let defaultCode = "en-US"
 
     public static let all: [VoiceLanguage] = [
-        VoiceLanguage(code: "en-US", label: "English (US)", speechLocale: "en-US", codeOmitted: "code omitted", linkWord: "link"),
+        VoiceLanguage(code: "en-US", label: "English (US)", speechLocale: "en-US", codeOmitted: "code omitted", linkWord: "link",
+                      previewSample: "Done. The report is saved in your Documents folder."),
         // "kod propushchen" and "ssylka" in Russian, written as escapes.
         VoiceLanguage(code: "ru-RU", label: "Russian", speechLocale: "ru-RU",
                       codeOmitted: "\u{043A}\u{043E}\u{0434} \u{043F}\u{0440}\u{043E}\u{043F}\u{0443}\u{0449}\u{0435}\u{043D}",
-                      linkWord: "\u{0441}\u{0441}\u{044B}\u{043B}\u{043A}\u{0430}"),
+                      linkWord: "\u{0441}\u{0441}\u{044B}\u{043B}\u{043A}\u{0430}",
+                      // "Gotovo. Otchyot sokhranyon v papke Dokumenty." in Russian.
+                      previewSample: "\u{0413}\u{043E}\u{0442}\u{043E}\u{0432}\u{043E}. "
+                          + "\u{041E}\u{0442}\u{0447}\u{0451}\u{0442} \u{0441}\u{043E}\u{0445}\u{0440}\u{0430}\u{043D}\u{0451}\u{043D} "
+                          + "\u{0432} \u{043F}\u{0430}\u{043F}\u{043A}\u{0435} \u{00AB}\u{0414}\u{043E}\u{043A}\u{0443}\u{043C}\u{0435}\u{043D}\u{0442}\u{044B}\u{00BB}."),
     ]
 
     /// An unknown or missing stored value falls back to English.

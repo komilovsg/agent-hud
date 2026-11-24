@@ -16,6 +16,8 @@ struct PanelActions {
     var newSession: () -> Void = {}
     var openCommandBar: () -> Void = {}
     var clearCommandHistory: () -> Void = {}
+    var previewVoice: (VoiceLanguage) -> Void = { _ in }
+    var openSpokenContent: () -> Void = {}
     var continueSession: () -> Void = {}
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
@@ -39,6 +41,8 @@ struct ControlPanelView: View {
     var permissions: Permissions.Summary?
     @State var tab = 0
     @State private var quickText = ""
+    /// Installed synthesizer voices, read when the Settings tab shows (listing them is silent).
+    @State private var voices: [VoiceInfo] = []
 
     static let width: CGFloat = 340
     /// Room for the "Screen" tab's sections; the default leaves the header, the tabs and the footer on a laptop screen.
@@ -76,9 +80,13 @@ struct ControlPanelView: View {
                                                   clear: actions.clearCommandHistory)
                         VoiceSettingsSection(index: 4, enabled: $settings.voiceEnabled, language: $settings.voiceLanguage,
                                              sendAfterSpeaking: $settings.voiceSendAfterSpeaking, speakReplies: $settings.voiceSpeakReplies,
-                                             allowServer: $settings.voiceAllowServerRecognition)
+                                             allowServer: $settings.voiceAllowServerRecognition,
+                                             voices: voices, voiceIdEnglish: $settings.voiceIdEnglish,
+                                             voiceIdRussian: $settings.voiceIdRussian, voiceRate: $settings.voiceRate,
+                                             preview: actions.previewVoice, openSpokenContent: actions.openSpokenContent)
                     }
                 }
+                .onAppear { voices = model.installedVoices() }
                 .frame(maxHeight: screenTabLimit)
                 .fixedSize(horizontal: false, vertical: true)
             } else if tab == 3 {

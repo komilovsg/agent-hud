@@ -205,6 +205,11 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self?.model.openCommandBar()
         }
         a.clearCommandHistory = { [weak self] in self?.model.clearCommandHistory() }
+        a.previewVoice = { [weak self] language in self?.model.onPreviewVoice?(language) }
+        a.openSpokenContent = { [weak self] in
+            self?.closePopover()
+            SpokenContentSettings.open()
+        }
         a.newSession = { [weak self] in
             self?.closePopover()
             self?.model.newSession()

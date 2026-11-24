@@ -125,7 +125,7 @@ struct ChatRow: View {
         case .user(let text):
             HStack(spacing: 0) {
                 Spacer(minLength: 54)    // about 15% of the card width: a bubble is at most 85%
-                Text(verbatim: text)
+                Text(verbatim: SpokenStyle.display(text))
                     .font(.system(size: 12))
                     .textSelection(.enabled)
                     .padding(.horizontal, 10).padding(.vertical, 6)

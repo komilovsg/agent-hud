@@ -5,6 +5,7 @@ import Foundation
 /// Other people's hooks are left alone; ours are recognised by the name `agenthud-hook` in the command.
 public struct HookInstaller: Sendable {
     public static let marker = "agenthud-hook"
+    static let questionMatcher = ClaudeCodeAdapter.questionTool
 
     public var agent: AgentKind
     public var hookPath: String
@@ -34,6 +35,8 @@ public struct HookInstaller: Sendable {
                 Spec(event: "UserPromptSubmit", matcher: nil, mode: .event),
                 // Synchronous, so that Pause / Stop can hold the next tool call.
                 Spec(event: "PreToolUse", matcher: "*", mode: .gate),
+                // The agent's question is answered from the card. Both PreToolUse entries run for this tool.
+                Spec(event: "PreToolUse", matcher: Self.questionMatcher, mode: .question),
                 Spec(event: "PermissionRequest", matcher: "*", mode: .permission),
                 Spec(event: "PostToolUse", matcher: "*", mode: .event),
                 Spec(event: "PostToolUseFailure", matcher: "*", mode: .event),
@@ -53,7 +56,8 @@ public struct HookInstaller: Sendable {
         return cmd
     }
 
-    /// The gate entry has its own fixed timeout (how long a Stop can hold); `timeout` is the time to answer a request.
+    /// The gate entry has its own fixed timeout (how long a Stop can hold); `timeout` is the time to answer a request
+    /// (a permission, a plan or a question).
     func syncTimeout(_ mode: HookMode) -> Int { mode == .gate ? HookTiming.gateTimeout : timeout }
 
     func hookEntry(_ spec: Spec) -> JSONValue {
@@ -138,15 +142,29 @@ public struct HookInstaller: Sendable {
         return false
     }
 
-    /// Our hooks are installed, but the PreToolUse entry is not the current `gate` form (an install made before
-    /// Pause / Stop, or with another gate timeout). Connecting again replaces it.
+    /// Our hooks are installed, but the PreToolUse entries are not the current ones: the `gate` entry is missing or
+    /// has another form (an install made before Pause / Stop, or with another gate timeout), or there is no
+    /// `question` entry for `AskUserQuestion` (an install made before questions were answered from the card).
+    /// Connecting again replaces them.
     public static func needsUpdate(in settings: JSONValue) -> Bool {
         guard isInstalled(in: settings) else { return false }
-        let ours = (settings["hooks"]?["PreToolUse"]?.arrayValue ?? [])
-            .flatMap { $0["hooks"]?.arrayValue ?? [] }.filter(isOurs)
-        guard !ours.isEmpty else { return true }
+        var gates: [JSONValue] = []
+        var hasQuestion = false
+        let questionMark = " \(HookMode.question.rawValue) --timeout "
+        for group in settings["hooks"]?["PreToolUse"]?.arrayValue ?? [] {
+            for hook in (group["hooks"]?.arrayValue ?? []).filter(isOurs) {
+                if hook["command"]?.stringValue?.contains(questionMark) == true {
+                    // The question entry may have any answer time, but it must be bound to its tool and have a timeout.
+                    if group["matcher"]?.stringValue == questionMatcher, (hook["timeout"]?.intValue ?? 0) > 0 { hasQuestion = true }
+                    else { return true }
+                } else {
+                    gates.append(hook)
+                }
+            }
+        }
+        guard !gates.isEmpty, hasQuestion else { return true }
         let wanted = " \(HookMode.gate.rawValue) --timeout \(HookTiming.gateTimeout)"
-        return !ours.allSatisfy {
+        return !gates.allSatisfy {
             $0["command"]?.stringValue?.hasSuffix(wanted) == true && $0["timeout"]?.intValue == HookTiming.gateTimeout
         }
     }

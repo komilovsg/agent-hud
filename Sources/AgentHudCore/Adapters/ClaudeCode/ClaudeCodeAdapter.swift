@@ -7,15 +7,52 @@ public struct ClaudeCodeAdapter: AgentAdapter {
 
     public var kind: AgentKind { .claude }
 
-    /// Tools the permission hook does not answer for: the question and plan approval stay
-    /// in the regular Claude Code interface.
-    static let permissionPassthroughTools: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
+    public static let questionTool = "AskUserQuestion"
+    public static let planTool = "ExitPlanMode"
+
+    /// Tools the permission hook does not answer for. A question is answered by its own hook on PreToolUse
+    /// (`question` mode); if that one stepped aside, the question belongs to the regular Claude Code interface.
+    static let permissionPassthroughTools: Set<String> = [questionTool]
 
     public func shouldForward(mode: HookMode, payload: JSONValue) -> Bool {
         let tool = payload["tool_name"]?.stringValue ?? ""
+        let hasSession = payload["session_id"]?.stringValue != nil
         switch mode {
-        case .event, .gate: return payload["session_id"]?.stringValue != nil
-        case .permission: return !Self.permissionPassthroughTools.contains(tool)
+        case .event, .gate: return hasSession
+        case .permission:
+            if Self.permissionPassthroughTools.contains(tool) { return false }
+            // A plan without text cannot be shown, so it cannot be approved from the card.
+            if tool == Self.planTool { return hasSession && Self.planText(payload["tool_input"]) != nil }
+            return true
+        case .question:
+            guard hasSession, tool == Self.questionTool, let input = payload["tool_input"] else { return false }
+            return Self.canAnswer(input)
+        }
+    }
+
+    /// The card can answer only what it can show in full and send back unambiguously: every entry of `questions`
+    /// is a question with a text, and the texts differ (answers are keyed by the question text).
+    static func canAnswer(_ input: JSONValue) -> Bool {
+        let raw = input["questions"]?.arrayValue ?? []
+        let texts = parseQuestions(input).map(\.question)
+        return !raw.isEmpty && texts.count == raw.count && Set(texts).count == texts.count
+            && !texts.contains { $0.isEmpty }
+    }
+
+    static func planText(_ input: JSONValue?) -> String? {
+        guard let t = input?["plan"]?.stringValue, !t.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return t
+    }
+
+    public static func parseQuestions(_ input: JSONValue) -> [Question] {
+        (input["questions"]?.arrayValue ?? []).compactMap { q in
+            guard let text = q["question"]?.stringValue else { return nil }
+            let opts = (q["options"]?.arrayValue ?? []).compactMap { o -> QuestionOption? in
+                guard let label = o["label"]?.stringValue else { return nil }
+                return QuestionOption(label: label, description: o["description"]?.stringValue)
+            }
+            return Question(question: text, header: q["header"]?.stringValue, options: opts,
+                            multiSelect: q["multiSelect"]?.boolValue ?? false)
         }
     }
 
@@ -39,6 +76,9 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         case .permission:
             return [make(.permissionRequested(requestId: message.requestId, toolName: toolName, input: input, deadline: deadline,
                                               suggestions: p["permission_suggestions"]?.arrayValue ?? []))]
+        case .question:
+            return [make(.questionAsked(requestId: message.requestId, questions: Self.parseQuestions(input),
+                                        rawInput: input, deadline: deadline))]
         case .event, .gate:
             // A gate message carries the same PreToolUse payload as the event it replaced.
             break
@@ -93,16 +133,54 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         case (.permission, .allowWith(let updates)):
             return Self.permissionOutput(Self.allowDecision(payload: payload, updates: updates))
         case (.permission, .deny(let reason)):
+            let isPlan = payload["tool_name"]?.stringValue == Self.planTool
             let given = (reason?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
-            let msg = given ?? "The user denied this action in Agent HUD."
+            let msg: String
+            switch (isPlan, given) {
+            case (true, let r?): msg = "The user did not approve the plan. Feedback: \(r)"
+            case (true, nil): msg = "The user did not approve the plan in Agent HUD. Keep planning and ask what to change."
+            case (false, let r?): msg = r
+            case (false, nil): msg = "The user denied this action in Agent HUD."
+            }
             return Self.permissionOutput(["behavior": "deny", "message": .string(msg)])
+        case (.permission, .answer):
+            return nil
+        case (.question, .answer(let answers)):
+            // Documentation ("Tools that require user interaction"): `permissionDecision: "allow"` together with
+            // `updatedInput` that echoes the original `questions` and adds `answers` (question text -> answer).
+            guard var input = payload["tool_input"]?.objectValue else { return nil }
+            var a = JSONObject()
+            for q in input["questions"]?.arrayValue ?? [] {
+                // Without an answer to every question the hook steps aside: no partial or guessed answers.
+                guard let text = q["question"]?.stringValue, let ans = answers[text], !ans.isEmpty else { return nil }
+                a[text] = .string(ans)
+            }
+            guard !a.isEmpty else { return nil }
+            input["answers"] = .object(a)
+            let out: JSONValue = ["hookSpecificOutput": [
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "updatedInput": .object(input),
+            ]]
+            return out.compact()
+        case (.question, _):
+            // Only answers are sent from a question. "allow" alone does not answer it, and the card never refuses
+            // a question on the user's behalf - Claude Code asks by itself.
+            return nil
         }
     }
 
-    /// `allow` for PermissionRequest. Documentation: `updatedPermissions` - rules and mode (one of the `permission_suggestions` can be returned unchanged).
+    /// `allow` for PermissionRequest. Documentation: `updatedPermissions` - rules and mode (one of the
+    /// `permission_suggestions` can be returned unchanged); `ExitPlanMode` needs `updatedInput` (the input goes back as is).
     static func allowDecision(payload: JSONValue, updates: [JSONValue]) -> JSONValue {
         var d = JSONObject()
         d["behavior"] = "allow"
+        var updates = updates
+        if payload["tool_name"]?.stringValue == planTool {
+            if let input = payload["tool_input"], input.objectValue != nil { d["updatedInput"] = input }
+            // Approving a plan may only switch the session to a mode that keeps asking.
+            updates = PlanApproval.sanitized(updates)
+        }
         if !updates.isEmpty { d["updatedPermissions"] = .array(updates) }
         return .object(d)
     }
@@ -162,6 +240,9 @@ public struct ClaudeCodeAdapter: AgentAdapter {
         case "Task", "Agent":
             return "Agent: " + firstLine(input["description"]?.stringValue ?? input["subagent_type"]?.stringValue ?? "")
         case "TodoWrite": return "Updated the task list"
+        case "AskUserQuestion":
+            return "Question: " + firstLine(input["questions"]?[0]?["question"]?.stringValue ?? "", max: 70)
+        case "ExitPlanMode": return "Proposed a plan"
         case "Skill": return "Skill " + (input["skill"]?.stringValue ?? "")
         default:
             if toolName.hasPrefix("mcp__") {

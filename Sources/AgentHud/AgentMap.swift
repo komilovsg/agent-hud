@@ -205,6 +205,8 @@ struct MapSessionCard: View {
             switch p.kind {
             case .permission(let tool, let input):
                 return "Permission: " + Adapters.adapter(for: session.kind).summarize(toolName: tool, input: input, cwd: session.cwd)
+            case .question, .plan:
+                return RequestLog.title(p.kind, cwd: session.cwd, adapter: Adapters.adapter(for: session.kind))
             }
         }()
         return HStack(spacing: 8) {

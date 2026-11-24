@@ -2,7 +2,7 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-// agenthud-hook <agent> <event|permission|gate> [--timeout N]
+// agenthud-hook <agent> <event|permission|gate|question> [--timeout N]
 //
 // Rule: the hook never breaks the agent's session. Any problem -> exit code 0 and empty stdout,
 // and the agent behaves as if AgentHUD were not there.
@@ -15,7 +15,7 @@ let args = Array(CommandLine.arguments.dropFirst())
 guard args.count >= 2,
       let kind = AgentKind(rawValue: args[0]),
       let mode = HookMode(rawValue: args[1]) else {
-    FileHandle.standardError.write(Data("usage: agenthud-hook <claude> <event|permission|gate> [--timeout N]\n".utf8))
+    FileHandle.standardError.write(Data("usage: agenthud-hook <claude> <event|permission|gate|question> [--timeout N]\n".utf8))
     passthrough()
 }
 
@@ -70,8 +70,10 @@ if mode == .gate {
     passthrough()
 }
 
-// Wait for the user's decision. If the agent kills the hook itself (answered in the terminal),
-// the connection closes and the app removes the popup.
+// Permission, plan or question: wait for the user's decision, never past `deadline`. If the agent kills the hook
+// itself (answered in the terminal), the connection closes and the app removes the popup.
+// No reply in time, a closed connection or a line that is not a reply to this request -> no output,
+// and Claude Code shows its own prompt or question.
 guard let line = SocketIO.readLine(fd, until: deadline),
       let reply = HookReply.decode(line),
       reply.requestId == message.requestId else {

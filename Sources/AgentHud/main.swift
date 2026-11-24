@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let center = UNUserNotificationCenter.current()
             guard granted else { return }
             let c = UNMutableNotificationContent()
-            c.title = "\(s.projectName): \(s.state.title.lowercased())"
+            c.title = "\(s.projectName): \(s.stateTitle.lowercased())"
             c.body = s.title.isEmpty ? "The agent is waiting for a reply" : s.title
             center.add(UNNotificationRequest(identifier: s.activePending?.id ?? UUID().uuidString, content: c, trigger: nil))
         }

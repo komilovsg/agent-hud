@@ -219,6 +219,13 @@ public struct BackgroundTask: Identifiable, Equatable, Sendable {
 
 public enum PendingKind: Equatable, Sendable {
     case permission(toolName: String, toolInput: JSONValue)
+    /// A multiple-choice question from the agent; `rawInput` is the tool input as is.
+    case question([Question], rawInput: JSONValue)
+    /// A plan waiting for approval; `text` is Markdown.
+    case plan(text: String, rawInput: JSONValue)
+
+    public var isQuestion: Bool { if case .question = self { return true } else { return false } }
+    public var isPlan: Bool { if case .plan = self { return true } else { return false } }
 }
 
 public enum PendingStatus: String, Sendable {
@@ -309,6 +316,8 @@ public enum Decision: Equatable, Sendable {
     /// "allow always".
     case allowWith([JSONValue])
     case deny(reason: String?)
+    /// Answers to a question: question text -> the chosen labels joined with ", " and/or the user's own text.
+    case answer([String: String])
     case passthrough               // "answer in the terminal" / no answer
 
     public var logLabel: String {
@@ -317,6 +326,7 @@ public enum Decision: Equatable, Sendable {
         case .allowWith(let updates):
             return updates.contains { $0["type"]?.stringValue == "addRules" } ? "allowed always" : "allowed + mode"
         case .deny: return "denied"
+        case .answer: return "answered"
         case .passthrough: return "to agent"
         }
     }

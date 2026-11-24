@@ -5,6 +5,7 @@ public enum HookMode: String, Sendable {
     case event        // asynchronous event, no reply needed
     case permission   // permission request, waiting for a decision
     case gate         // a tool call is about to start: the app may hold it (Pause / Stop), then lets it proceed
+    case question     // the agent asks a multiple-choice question, waiting for the answers
 
     public var isSync: Bool { self != .event }
 }
@@ -77,6 +78,11 @@ public struct HookReply: Equatable, Sendable {
         case .deny(let reason):
             o["decision"] = "deny"
             if let r = reason { o["reason"] = .string(r) }
+        case .answer(let answers):
+            o["decision"] = "answer"
+            var a = JSONObject()
+            for k in answers.keys.sorted() { a[k] = .string(answers[k]!) }
+            o["answers"] = .object(a)
         case .passthrough: o["decision"] = "passthrough"
         }
         return JSONValue.object(o).compact()
@@ -93,6 +99,15 @@ public struct HookReply: Equatable, Sendable {
             }
             return HookReply(requestId: rid, decision: .allow)
         case "deny": return HookReply(requestId: rid, decision: .deny(reason: v["reason"]?.stringValue))
+        case "answer":
+            // An answer line without answers is not an answer: the hook steps aside.
+            guard let entries = v["answers"]?.objectValue?.entries, !entries.isEmpty else { return nil }
+            var answers: [String: String] = [:]
+            for e in entries {
+                guard let s = e.value.stringValue else { return nil }
+                answers[e.key] = s
+            }
+            return HookReply(requestId: rid, decision: .answer(answers))
         case "passthrough": return HookReply(requestId: rid, decision: .passthrough)
         default: return nil
         }
@@ -161,6 +176,7 @@ public enum AgentHUDPaths {
 /// so that the agent does not kill it and asks the user in the terminal.
 public enum HookTiming {
     public static let safetyMargin: TimeInterval = 5
+    /// Time to answer a permission request, a plan or a question (the user can change it in the settings).
     public static let defaultTimeout = 600
     public static let connectTimeoutMs: Int32 = 200
 

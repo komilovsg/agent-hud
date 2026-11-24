@@ -424,7 +424,8 @@ import Testing
     @Test func freshInstallHasTheGateEntry() throws {
         let after = installer.install(into: .object(JSONObject()))
         let pre = ours(after, "PreToolUse")
-        #expect(pre.count == 1)
+        #expect(pre.count == 2)
+        #expect(pre[1]["command"]?.stringValue == "\(hook) claude question --timeout 600")
         #expect(pre[0]["command"]?.stringValue == "\(hook) claude gate --timeout 86400")
         #expect(pre[0]["timeout"] == 86400)
         #expect(pre[0]["async"] == nil)
@@ -478,7 +479,8 @@ import Testing
         #expect(ClaudeHookInstaller.isInstalled(in: after))
         #expect(after["model"] == "opus")
         // One entry of ours per event, and the PreToolUse one is the gate.
-        #expect(ours(after, "PreToolUse").map { $0["command"]?.stringValue } == ["\(hook) claude gate --timeout 86400"])
+        #expect(ours(after, "PreToolUse").map { $0["command"]?.stringValue }
+                == ["\(hook) claude gate --timeout 86400", "\(hook) claude question --timeout 600"])
         #expect(ours(after, "PermissionRequest").count == 1)
         #expect(ours(after, "Stop").count == 1)
         #expect(!after.compact().contains("claude event\",\"async\":true,\"timeout\":10}]},{\"matcher\":\"Write\""))

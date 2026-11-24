@@ -76,6 +76,15 @@ project. If the target is still working, Return queues the message and Command-R
 hotkey can be changed or switched off in the settings; the list of recent commands stays on your Mac and can be
 cleared or switched off.
 
+## Routines
+
+A routine is a saved request that Agent HUD starts by itself: every day at a set time on the days you choose,
+every few hours, or only when you press "Run now". Each run is a new session with its own icon and card.
+Routines run only while the app is open and the Mac is awake; a run missed within the last 12 hours happens
+once when the app is back. Nothing is approved in advance: a run that needs your approval asks like any
+session and waits, and you get a notification. The list lives in a `routines.json` file you can also edit by
+hand, and a log keeps the outcome of each run without the text of the request or the reply.
+
 ## Voice
 
 Voice is off until you switch it on. Then hold the command bar hotkey and speak: the bar shows what it hears,

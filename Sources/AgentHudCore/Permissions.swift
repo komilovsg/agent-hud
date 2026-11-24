@@ -34,8 +34,8 @@ public enum Permissions {
                        usedFor: "Sees your sessions, lets you answer permission requests, and powers Pause and Stop.",
                        stage: .now, limitedWithout: "Agent HUD sees nothing"),
         PermissionInfo(kind: .accessibility, title: "Accessibility",
-                       usedFor: "Lets agents read a window's text when you allow it. Typing and clicking for you is not built yet.",
-                       stage: .coming, limitedWithout: ""),
+                       usedFor: "Lets agents read window text and act in apps when you allow it",
+                       stage: .now, limitedWithout: "Agents cannot read window text or act"),
         PermissionInfo(kind: .automation, title: "Automation",
                        usedFor: "Brings the right Terminal or iTerm tab to the front.",
                        stage: .now, limitedWithout: "Terminal sessions cannot be opened or answered from the HUD"),
@@ -64,12 +64,20 @@ public enum Permissions {
         public let headline: String
     }
 
+    /// Permissions that limit the app only once the feature behind them is in use. Accessibility serves agents
+    /// acting in apps (off by default) and reading window text (asked for by few sessions).
+    public static let neededOnlyInUse: Set<PermissionKind> = [.accessibility]
+
     /// A kind missing from `statuses` counts as unknown.
-    public static func summary(_ statuses: [PermissionKind: PermissionStatus]) -> Summary {
+    /// `inUse`: which of the `neededOnlyInUse` permissions are wanted right now - agent actions are switched on,
+    /// or a read of window text was refused for the missing permission. The others do not count as a limit.
+    public static func summary(_ statuses: [PermissionKind: PermissionStatus], inUse: Set<PermissionKind> = []) -> Summary {
         func status(_ i: PermissionInfo) -> PermissionStatus { statuses[i.kind] ?? .unknown }
         let granted = all.filter { status($0) == .granted }.count
         let unknown = all.filter { status($0) == .unknown }.count
-        let missing = all.filter { $0.stage == .now && status($0) == .notGranted }
+        let missing = all.filter {
+            $0.stage == .now && status($0) == .notGranted && (!neededOnlyInUse.contains($0.kind) || inUse.contains($0.kind))
+        }
         let total = all.count
 
         let headline: String

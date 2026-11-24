@@ -2,10 +2,11 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-// agenthud-mcp: an MCP server on stdin/stdout (one JSON-RPC message per line) with three read-only tools.
+// agenthud-mcp: an MCP server on stdin/stdout (one JSON-RPC message per line) with three read-only tools
+// for looking at the screen and seven for acting in other apps.
 //
-// It looks at nothing itself and holds no macOS permission. Every tool call becomes one request to the
-// Agent HUD app over its socket; the app asks the person, does the looking and answers. Without the app,
+// It looks at nothing and does nothing itself, and holds no macOS permission. Every tool call becomes one request
+// to the Agent HUD app over its socket; the app asks the person, does the work and answers. Without the app,
 // without consent or without an answer in time the call ends as a normal tool result marked as an error.
 // Every wait has a deadline, and closing stdin ends the process.
 
@@ -116,6 +117,17 @@ func handle(_ line: String) {
             let request = LookRequest(requestId: UUID().uuidString.lowercased(), call: call, sessionId: claimedSession,
                                       deadline: Date().addingTimeInterval(LookTiming.helperTimeout))
             let outcome = LookClient.perform(request, socketPath: socketPath) { fd in calls.connected(key, fd) }
+            if calls.finished(key) { return }
+            output.write(MCPServer.callResult(id: id, outcome: outcome, modern: modern).compact())
+        }
+    case .act(let id, let call, let modern):
+        let key = id.compact()
+        calls.started()
+        Thread.detachNewThread {
+            defer { calls.ended() }
+            let request = ActRequest(requestId: UUID().uuidString.lowercased(), call: call, sessionId: claimedSession,
+                                     deadline: Date().addingTimeInterval(LookTiming.helperTimeout))
+            let outcome = ActClient.perform(request, socketPath: socketPath) { fd in calls.connected(key, fd) }
             if calls.finished(key) { return }
             output.write(MCPServer.callResult(id: id, outcome: outcome, modern: modern).compact())
         }

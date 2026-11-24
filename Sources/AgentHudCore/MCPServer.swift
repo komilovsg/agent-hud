@@ -16,7 +16,7 @@ public enum MCPServer {
     public static let serverName = "agenthud"
     public static let serverTitle = "Agent HUD"
     public static let serverVersion = "0.2.1"
-    public static let instructions = "Read-only views of the person's Mac screen. Every call is shown to the person in Agent HUD and waits for their consent, so a call can take up to two minutes and may be refused. Nothing here clicks, types or changes anything."
+    public static let instructions = "Views of the person's Mac screen and, only when the person has turned that on in Agent HUD, actions in other apps: press an element, click, type, press keys, scroll, bring a window forward, open an app. Every call is shown to the person in Agent HUD and waits for their consent, so a call can take up to two minutes and may be refused. To act on a window, call list_windows first; to press an element, call read_window_text and use the reference it prints."
 
     static let versionKey = "io.modelcontextprotocol/protocolVersion"
     static let capabilitiesKey = "io.modelcontextprotocol/clientCapabilities"
@@ -36,6 +36,8 @@ public enum MCPServer {
         case reply(JSONValue)
         /// A valid tool call: the caller performs it and answers with `callResult`.
         case call(id: JSONValue, call: LookCall, modern: Bool)
+        /// A valid act call: performed and answered the same way.
+        case act(id: JSONValue, call: ActCall, modern: Bool)
         /// The client gave up on a request that may still be running.
         case cancel(id: JSONValue)
     }
@@ -115,6 +117,12 @@ public enum MCPServer {
         case "tools/list":
             return .reply(result(id: id, modern: modern, ["tools": .array(tools)]))
         case "tools/call":
+            if let kind = params?["name"]?.stringValue.flatMap(ActKind.init(rawValue:)) {
+                switch ActCall.parse(kind: kind, arguments: params?["arguments"] ?? .object(JSONObject())) {
+                case .success(let call): return .act(id: id, call: call, modern: modern)
+                case .failure(let problem): return .reply(error(id: id, ErrorCode.invalidParams, problem.message))
+                }
+            }
             switch parseCall(params) {
             case .success(let call): return .call(id: id, call: call, modern: modern)
             case .failure(let problem): return .reply(error(id: id, ErrorCode.invalidParams, problem.message))
@@ -125,11 +133,13 @@ public enum MCPServer {
     }
 
     /// The whole exchange for one line when the tool call can be answered on the spot.
-    public static func handle(line: String, call perform: (LookCall) -> LookReply.Outcome) -> String? {
+    public static func handle(line: String, call perform: (LookCall) -> LookReply.Outcome,
+                              act: (ActCall) -> LookReply.Outcome = { _ in .refused(LookGate.Refusal.failed.message) }) -> String? {
         switch step(line: line) {
         case .ignore, .cancel: return nil
         case .reply(let v): return v.compact()
         case .call(let id, let call, let modern): return callResult(id: id, outcome: perform(call), modern: modern).compact()
+        case .act(let id, let call, let modern): return callResult(id: id, outcome: act(call), modern: modern).compact()
         }
     }
 
@@ -188,7 +198,73 @@ public enum MCPServer {
 
     // MARK: - Tool list
 
-    public static var tools: [JSONValue] {
+    public static var tools: [JSONValue] { lookTools + actTools }
+
+    /// The tools that act in other apps. None is read-only; the ones that can change or send something are marked destructive.
+    public static var actTools: [JSONValue] {
+        let consent = "Works only when the person turned agent actions on in Agent HUD, and asks them first."
+        let window: JSONValue = ["type": "string", "description": "A window id from list_windows, for example \"w1234\""]
+        func tool(_ kind: ActKind, _ title: String, _ description: String, destructive: Bool,
+                  properties: JSONValue, required: [String]) -> JSONValue {
+            var schema: JSONValue = ["type": "object", "properties": properties]
+            if !required.isEmpty { schema["required"] = .array(required.map { .string($0) }) }
+            schema["additionalProperties"] = false
+            return [
+                "name": .string(kind.rawValue),
+                "title": .string(title),
+                "description": .string("\(description) \(consent)"),
+                "inputSchema": schema,
+                "annotations": ["title": .string(title), "readOnlyHint": false, "destructiveHint": .bool(destructive),
+                                "idempotentHint": false, "openWorldHint": true],
+            ]
+        }
+        return [
+            tool(.pressElement, "Press element",
+                 "Presses one control (a button, a checkbox, a menu item, a link) through its accessibility press action. element is a reference such as \"e12\" that read_window_text printed for this window; references stop working when the window is read again.",
+                 destructive: true,
+                 properties: ["window": window,
+                              "element": ["type": "string", "description": "A reference from read_window_text, for example \"e12\""]],
+                 required: ["window", "element"]),
+            tool(.clickAt, "Click at a point",
+                 "Clicks at a point of a window, for things that have no accessibility element. x and y are window points from the window's top-left corner. The window is brought to the front first.",
+                 destructive: true,
+                 properties: ["window": window,
+                              "x": ["type": "number", "minimum": 0, "description": "Points from the window's left edge"],
+                              "y": ["type": "number", "minimum": 0, "description": "Points from the window's top edge"],
+                              "button": ["type": "string", "enum": ["left", "right"], "description": "Default \"left\""],
+                              "count": ["type": "integer", "enum": [1, 2], "description": "2 for a double click. Default 1"]],
+                 required: ["window", "x", "y"]),
+            tool(.typeText, "Type text",
+                 "Types text into whatever has the keyboard focus in a window, after bringing the window to the front. At most \(ActText.limit) characters: printable characters, tabs and newlines; a newline is typed as the Return key. Never types into a password field.",
+                 destructive: true,
+                 properties: ["window": window,
+                              "text": ["type": "string", "maxLength": .int(ActText.limit), "description": "The characters to type"]],
+                 required: ["window", "text"]),
+            tool(.pressKeys, "Press keys",
+                 "Presses one key combination in a window, after bringing it to the front, for example \"cmd+s\", \"shift+tab\" or \"escape\". Modifiers: cmd, shift, option, control. Keys: \(KeyCombo.keyNamesHelp).",
+                 destructive: true,
+                 properties: ["window": window,
+                              "keys": ["type": "string", "description": "Modifiers and exactly one key joined by +, for example \"cmd+s\""]],
+                 required: ["window", "keys"]),
+            tool(.scroll, "Scroll",
+                 "Scrolls a window by lines from its centre, after bringing it to the front. dy is positive to scroll down, dx is positive to scroll right; each is capped at \(ActCall.scrollCap).",
+                 destructive: false,
+                 properties: ["window": window,
+                              "dx": ["type": "integer", "minimum": .int(-ActCall.scrollCap), "maximum": .int(ActCall.scrollCap), "description": "Lines to the right (negative: left)"],
+                              "dy": ["type": "integer", "minimum": .int(-ActCall.scrollCap), "maximum": .int(ActCall.scrollCap), "description": "Lines down (negative: up)"]],
+                 required: ["window"]),
+            tool(.focusWindow, "Focus window", "Brings a window to the front.", destructive: false,
+                 properties: ["window": window], required: ["window"]),
+            tool(.openApp, "Open app",
+                 "Opens an installed app, or brings it to the front when it is already running. Give exactly one of bundle_id and name.",
+                 destructive: false,
+                 properties: ["bundle_id": ["type": "string", "description": "For example \"com.apple.Notes\""],
+                              "name": ["type": "string", "description": "The app's name as shown in the Applications folder, for example \"Notes\""]],
+                 required: []),
+        ]
+    }
+
+    public static var lookTools: [JSONValue] {
         func annotations(_ title: String) -> JSONValue {
             ["title": .string(title), "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false]
         }
@@ -220,7 +296,7 @@ public enum MCPServer {
             [
                 "name": .string(LookTool.readWindowText.rawValue),
                 "title": "Read window text",
-                "description": .string("Returns the visible text of one window from its accessibility tree: roles and values, indented, at most \(LookText.limit) characters. No image. window is a window id from list_windows. \(consent)"),
+                "description": .string("Returns the visible text of one window from its accessibility tree: roles and values, indented, at most \(LookText.limit) characters. No image. window is a window id from list_windows. While agent actions are on, controls carry a reference such as [e12] for press_element. \(consent)"),
                 "inputSchema": [
                     "type": "object",
                     "properties": ["window": ["type": "string", "description": "A window id from list_windows, for example \"w1234\""]],

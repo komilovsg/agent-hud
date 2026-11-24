@@ -229,6 +229,112 @@ enum RenderCheck {
         }
 
         renderLooks(model: model, out: out)
+        renderActs(model: model, out: out)
+    }
+
+    /// Agents acting in other apps: request cards, the hand on the icon and the settings.
+    /// Sample values only - no window is listed, nothing is pressed, clicked or typed, and no setting is written.
+    private static func renderActs(model: AppModel, out: URL) {
+        let now = Date()
+        let cardSize = CardMetrics.size
+        let demo = session(.working)
+        let mail = ActSubject(app: "Mail", bundleId: "com.apple.mail", windowTitle: "Re: Invoice 2041 — Inbox",
+                              elementRole: "AXButton", elementLabel: "Send")
+        let notes = ActSubject(app: "Notes", bundleId: "com.apple.Notes", windowTitle: "Release checklist")
+        let safari = ActSubject(app: "Safari", bundleId: "com.apple.Safari", windowTitle: "Checkout — Acme Store — Private Browsing")
+        func pending(_ body: ActCall.Body, _ subject: ActSubject, offers: Bool = false, risky: Bool = false) -> ActPending {
+            ActPending(id: "act1", sessionKey: demo.id, call: ActCall(window: 4021, body: body), subject: subject,
+                       createdAt: now, deadline: now.addingTimeInterval(97), offersApp: offers, risky: risky)
+        }
+        func card(_ name: String, _ s: AgentSession) {
+            let v = SessionCard(model: model, session: s, preset: chat)
+                .frame(width: cardSize.width, height: cardSize.height)
+                .environment(\.solidBackground, true)
+            write(v, size: cardSize, to: out.appendingPathComponent("\(name).png"))
+        }
+
+        model.installActPreview(pending: [pending(.pressElement(element: 12), mail, offers: true)])
+        card("card-act-press", demo)
+        for (bgName, bg) in [("grey", AnyView(Color(white: 0.5))), ("photo", AnyView(photo))] {
+            let v = ZStack {
+                bg
+                TokenView(model: model, session: demo, selected: false)
+            }
+            .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
+            write(v, size: TokenMetrics.size, to: out.appendingPathComponent("token-acting-\(bgName).png"))
+        }
+
+        // A long text with newlines: all of it is on the card, inside a box that scrolls.
+        let typedText = """
+        Release checklist
+        1. Run the test suite on Linux
+        2. Bump the version to 0.2.2
+        3. Update the changelog:\tfixes for the coupon field, the order filters and the admin table
+        4. Tag the release
+        5. Tell the support team that the old endpoint stays until the mobile app is updated
+
+        Notes: the staging database was refreshed on Monday, so the order ids start again from 1000.
+        """
+        model.installActPreview(pending: [pending(.typeText(typedText), notes, offers: true)])
+        card("card-act-type", demo)
+        model.installActPreview(pending: [pending(.typeText("npm test"), notes)])
+        card("card-act-type-short", demo)
+
+        model.installActPreview(pending: [pending(.pressKeys(KeyCombo(modifiers: [.cmd, .shift], key: "w")), safari, risky: true)])
+        card("card-act-keys-risky", demo)
+        model.installActPreview(pending: [pending(.pressKeys(KeyCombo(modifiers: .cmd, key: "s")), notes, offers: true)])
+        card("card-act-keys", demo)
+        model.installActPreview(pending: [pending(.clickAt(x: 412, y: 236, button: .left, count: 2), safari)])
+        card("card-act-click", demo)
+        model.installActPreview(pending: [pending(.scroll(dx: 0, dy: 12), safari, offers: true)])
+        card("card-act-scroll", demo)
+        model.installActPreview(pending: [ActPending(id: "act1", sessionKey: demo.id, call: ActCall(window: nil, body: .openApp(.name("Notes"))),
+                                                     subject: ActSubject(app: "Notes", bundleId: "com.apple.Notes"),
+                                                     createdAt: now, deadline: now.addingTimeInterval(97), offersApp: true)])
+        card("card-act-open-app", demo)
+        // The same request together with a held session's banner.
+        model.installActPreview(pending: [pending(.focusWindow, safari)])
+        card("card-act-focus-paused", held(.pause, calls: 1))
+
+        // After an action, and a refusal for the missing permission.
+        model.installActPreview()
+        model.installLookPreview(notes: [demo.id: [
+            LookNote(time: now.addingTimeInterval(-95), text: "Looked at: text of Mail — Re: Invoice 2041 — Inbox"),
+            LookNote(time: now.addingTimeInterval(-20), text: ActLabels.didRow(ActCall(window: 4021, body: .pressElement(element: 12)), mail),
+                     symbol: "hand.point.up.left"),
+        ]])
+        card("card-act-notes", demo)
+        model.installLookPreview()
+        model.installActPreview(blocked: [demo.id])
+        card("card-act-no-permission", demo)
+        // While the action runs there is no card, only the hand on the icon.
+        model.installActPreview(acting: [demo.id])
+        let running = ZStack {
+            Color(white: 0.5)
+            TokenView(model: model, session: demo, selected: false)
+        }
+        .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
+        write(running, size: TokenMetrics.size, to: out.appendingPathComponent("token-acting-running.png"))
+        model.installActPreview()
+
+        // Settings: fixed names and values, so the picture does not depend on this Mac or on the stored settings.
+        let names = ["com.1password.1password": "1Password", "com.agilebits.onepassword7": "1Password 7",
+                     "com.apple.keychainaccess": "Keychain Access", "com.apple.Passwords": "Passwords",
+                     "com.apple.systempreferences": "System Settings"]
+        let stopped = Calendar.current.date(bySettingHour: 14, minute: 32, second: 0, of: now) ?? now
+        let states: [(String, HandsAccessMode, Date?)] = [
+            ("control-panel-hands-off", .off, nil), ("control-panel-hands-ask", .ask, nil),
+            ("control-panel-hands-per-app", .perApp, nil), ("control-panel-hands-stopped", .off, stopped),
+        ]
+        for (name, mode, stoppedAt) in states {
+            let v = HandsAccessSection(index: 2, mode: .constant(mode), stoppedAt: stoppedAt,
+                                       alwaysExcluded: ActExclusions.always(ownBundleId: HostInfo.agentHud), appName: { names[$0] })
+                .padding(16)
+                .frame(width: ControlPanelView.width)
+                .background(Brand.bg)
+                .tint(Brand.accent)
+            write(v, size: NSHostingView(rootView: v).fittingSize, to: out.appendingPathComponent("\(name).png"))
+        }
     }
 
     /// Agents looking at the screen: request cards, the eye on the icon, the settings and the setup row.
@@ -313,6 +419,9 @@ enum RenderCheck {
         do {
             let panel = ControlPanelView(model: model, settings: model.settings, tab: 2).tint(Brand.accent)
             write(panel, size: NSHostingView(rootView: panel).fittingSize, to: out.appendingPathComponent("control-panel-screen-tab.png"))
+            // On a short screen the two sections scroll and the footer stays in view.
+            let short = ControlPanelView(model: model, settings: model.settings, tab: 2, screenTabLimit: 420).tint(Brand.accent)
+            write(short, size: NSHostingView(rootView: short).fittingSize, to: out.appendingPathComponent("control-panel-screen-tab-short.png"))
         }
 
         let granted = Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0, PermissionState(status: .granted)) })

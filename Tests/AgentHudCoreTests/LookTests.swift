@@ -538,6 +538,7 @@ private final class FakeApp: @unchecked Sendable {
 
     @Test func silentAppEndsAtTheDeadline() throws {
         let app = try FakeApp { _ in nil }
+        defer { withExtendedLifetime(app) {} }   // the listener closes when the fake is released
         let started = Date()
         #expect(LookClient.perform(request(wait: 0.4), socketPath: app.path) == .refused("Timed out waiting for an answer"))
         let took = Date().timeIntervalSince(started)
@@ -551,6 +552,7 @@ private final class FakeApp: @unchecked Sendable {
 
     @Test func denial() throws {
         let app = try FakeApp { r in [LookReply(requestId: r.requestId, outcome: .refused(LookGate.Refusal.denied.message)).encode()] }
+        defer { withExtendedLifetime(app) {} }   // the listener closes when the fake is released
         let r = request(.screenshot, target: .window(42))
         #expect(LookClient.perform(r, socketPath: app.path) == .refused("The person did not allow this"))
         // The app got exactly this request (the deadline travels in whole seconds).
@@ -561,6 +563,7 @@ private final class FakeApp: @unchecked Sendable {
     @Test func allowedText() throws {
         let text = "Window \"Checkout\"\n  Button \"Pay\""
         let app = try FakeApp { r in [LookReply(requestId: r.requestId, outcome: .text(text)).encode()] }
+        defer { withExtendedLifetime(app) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(.readWindowText, target: .window(7)), socketPath: app.path) == .text(text))
         #expect(app.requests.first?.call == LookCall(tool: .readWindowText, target: .window(7)))
     }
@@ -583,6 +586,7 @@ private final class FakeApp: @unchecked Sendable {
 
     @Test func oversizedReply() throws {
         let app = try FakeApp { r in [LookReply(requestId: r.requestId, outcome: .text(String(repeating: "x", count: 300_000))).encode()] }
+        defer { withExtendedLifetime(app) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(), socketPath: app.path, maxReplyBytes: 64_000) == .refused("The answer from Agent HUD was too large"))
         // The same reply under the real limit is fine.
         if case .text(let t) = LookClient.perform(request(), socketPath: app.path) { #expect(t.count == 300_000) } else { Issue.record("expected text") }
@@ -590,19 +594,24 @@ private final class FakeApp: @unchecked Sendable {
 
     @Test func brokenAnswers() throws {
         let closing = try FakeApp { _ in [] }
+        defer { withExtendedLifetime(closing) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(), socketPath: closing.path) == .refused("Agent HUD closed the connection without an answer"))
         let garbage = try FakeApp { _ in ["what?"] }
+        defer { withExtendedLifetime(garbage) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(), socketPath: garbage.path) == .refused(LookClient.unreadable))
         // An answer to some other request is not taken.
         let other = try FakeApp { _ in [LookReply(requestId: "someone-else", outcome: .text("secret")).encode()] }
+        defer { withExtendedLifetime(other) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(), socketPath: other.path) == .refused(LookClient.unreadable))
         // A hook reply is not a look reply: "allow" for a tool permission never turns into a look.
         let hook = try FakeApp { r in [HookReply(requestId: r.requestId, decision: .allow).encode()] }
+        defer { withExtendedLifetime(hook) {} }   // the listener closes when the fake is released
         #expect(LookClient.perform(request(), socketPath: hook.path) == .refused(LookClient.unreadable))
     }
 
     @Test func aCancelledCallStopsWaiting() throws {
         let app = try FakeApp { _ in nil }
+        defer { withExtendedLifetime(app) {} }   // the listener closes when the fake is released
         let started = Date()
         let outcome = LookClient.perform(request(wait: 20), socketPath: app.path) { fd in
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { shutdown(fd, SHUT_RDWR) }

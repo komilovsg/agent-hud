@@ -43,6 +43,20 @@ final class Settings: ObservableObject {
     @Published var screenAccess: ScreenAccessMode { didSet { d.set(screenAccess.rawValue, forKey: "screenAccess") } }
     /// Bundle ids of apps whose windows agents never see.
     @Published var screenExcludedApps: [String] { didSet { d.set(screenExcludedApps, forKey: "screenExcludedApps") } }
+    /// Whether agents may act in other apps (press, click, type, keys, scroll). Off until the person turns it on.
+    @Published var handsAccess: HandsAccessMode {
+        didSet {
+            d.set(handsAccess.rawValue, forKey: "handsAccess")
+            // Turning actions back on is the person's choice and ends the "stopped" notice.
+            if handsAccess != .off, handsStoppedAt != nil { handsStoppedAt = nil }
+        }
+    }
+    /// When the stop switch turned agent actions off; nil when they were not stopped that way.
+    @Published var handsStoppedAt: Date? {
+        didSet {
+            if let t = handsStoppedAt { d.set(t.timeIntervalSince1970, forKey: "handsStoppedAt") } else { d.removeObject(forKey: "handsStoppedAt") }
+        }
+    }
 
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
@@ -66,6 +80,9 @@ final class Settings: ObservableObject {
         quickPrompts = (d.stringArray(forKey: "quickPrompts") ?? Self.defaultQuickPrompts).filter { !$0.isEmpty }
         screenAccess = ScreenAccessMode(rawValue: d.string(forKey: "screenAccess") ?? "") ?? .default
         screenExcludedApps = LookExclusions.normalized(d.stringArray(forKey: "screenExcludedApps") ?? LookExclusions.defaults)
+        handsAccess = HandsAccessMode(rawValue: d.string(forKey: "handsAccess") ?? "") ?? .default
+        let stopped = d.double(forKey: "handsStoppedAt")
+        handsStoppedAt = handsAccess == .off && stopped > 0 ? Date(timeIntervalSince1970: stopped) : nil
     }
 }
 
@@ -104,6 +121,7 @@ final class AppModel: ObservableObject {
         sender = PromptSender(settings: settings)
         sender.onNeedAccessibility = { [weak self] in self?.onOpenSetup?(.accessibility) }
         settings.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &cancellables)
+        settings.$handsAccess.dropFirst().sink { [weak self] mode in self?.handsModeChanged(to: mode) }.store(in: &cancellables)
     }
 
     // MARK: - Startup
@@ -113,6 +131,7 @@ final class AppModel: ObservableObject {
         s.onMessage = { [weak self] m in self?.handle(m) }
         s.onClosed = { [weak self] rid in self?.connectionClosed(rid) }
         s.onLook = { [weak self] request, peer in self?.handleLook(request, peerPid: peer) }
+        s.onAct = { [weak self] request, peer in self?.handleAct(request, peerPid: peer) }
         try s.start()
         server = s
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -127,6 +146,10 @@ final class AppModel: ObservableObject {
         release(store.releaseAll())
         // Looks that are still waiting for a click are refused: nobody can answer them any more.
         for p in looks { server?.replyLook(LookReply(requestId: p.id, outcome: .refused(LookGate.Refusal.denied.message))) }
+        // The same for actions that wait for a click or for their turn.
+        for id in acts.map(\.id) + actQueue.map(\.request.requestId) {
+            server?.replyLook(LookReply(requestId: id, outcome: .refused(ActGate.Refusal.denied.message)))
+        }
         // Release all waiting hooks - agents will ask in the terminal.
         for s in store.sessions.values {
             for p in s.pending where p.status == .open {
@@ -202,7 +225,7 @@ final class AppModel: ObservableObject {
 
     private func autoOpenedCardIsIdle() -> Bool {
         guard let k = selectedKey, !selectedByUser, let s = store.session(k) else { return false }
-        if look(for: k) != nil || lookBlocked[k] != nil { return false }
+        if look(for: k) != nil || lookBlocked[k] != nil || isActing(k) || actBlocked.contains(k) { return false }
         return s.activePending == nil && s.expiredPending == nil && !s.state.needsUser
     }
 
@@ -253,7 +276,8 @@ final class AppModel: ObservableObject {
 
     private func requestArrived(_ key: String) {
         if settings.openCardOnRequest,
-           selectedKey == nil || (store.session(selectedKey!)?.activePending == nil && look(for: selectedKey!) == nil) {
+           selectedKey == nil || (store.session(selectedKey!)?.activePending == nil && look(for: selectedKey!) == nil
+                                  && act(for: selectedKey!) == nil) {
             autoCloseTask?.cancel()
             autoCloseTask = nil
             if selectedKey != key { selectedKey = key }
@@ -268,6 +292,7 @@ final class AppModel: ObservableObject {
     private func connectionClosed(_ rid: String) {
         store.connectionClosed(rid, now: Date())
         lookConnectionClosed(rid)
+        actConnectionClosed(rid)
     }
 
     private func tick() {
@@ -287,6 +312,7 @@ final class AppModel: ObservableObject {
         if next != store { store = next }
         release(released)
         tickLooks(now: now)
+        tickActs(now: now)
         rememberProjects(now: now)
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
         updateHoldPopover()
@@ -435,6 +461,8 @@ final class AppModel: ObservableObject {
         // Hiding the entry answers its look requests with "no": nothing would be left on screen to click.
         for p in looks where p.sessionKey == key { decideLook(p.id, .deny) }
         lookBlocked[key] = nil
+        for p in acts where p.sessionKey == key { decideAct(p.id, .deny) }
+        actBlocked.remove(key)
         guard store.session(key) != nil else { return }   // the placeholder entry went away with its request
         // A hidden session must not stay held: there would be nothing on screen to resume it with.
         release(store.release(sessionKey: key))
@@ -764,6 +792,13 @@ final class AppModel: ObservableObject {
 
     func markHandedOverForPreview(_ key: String, at date: Date) { handedOver[key] = date }
 
+    /// For the offscreen render check: an action request (or a running action) in a fixed state. Nothing is done.
+    func installActPreview(pending: [ActPending] = [], acting: Set<String> = [], blocked: Set<String> = []) {
+        acts = pending
+        self.acting = Dictionary(uniqueKeysWithValues: acting.map { ($0, 1) })
+        actBlocked = blocked
+    }
+
     // MARK: - For demo and preview
 
     func inject(_ events: [AgentEvent]) {
@@ -777,7 +812,7 @@ final class AppModel: ObservableObject {
 
     var hasAttention: Bool {
         // A held session counts too: its icon must stay on screen, otherwise there is nothing to resume it with.
-        !looks.isEmpty || store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired || $0.hold != nil }
+        !looks.isEmpty || !acts.isEmpty || store.visibleSessions.contains { $0.state.needsUser || $0.state == .expired || $0.hold != nil }
     }
 
     // MARK: - Looks (agents' read-only view of the screen)
@@ -801,9 +836,9 @@ final class AppModel: ObservableObject {
     /// The session's icon shows the eye: a look is being decided or taken.
     func isLooking(_ key: String) -> Bool { look(for: key) != nil || (looking[key] ?? 0) > 0 }
 
-    /// Path of the bundled screen tools server for sessions started here; nil while screen access is off.
+    /// Path of the bundled screen tools server for sessions started here; nil while both looking and acting are off.
     private var screenToolsPath: String? {
-        settings.screenAccess == .off ? nil : ScreenToolsSetup.bundledHelper()?.path
+        settings.screenAccess == .off && settings.handsAccess == .off ? nil : ScreenToolsSetup.bundledHelper()?.path
     }
 
     /// A look request from `agenthud-mcp`. It is refused, queued for a click, or - for a session the person
@@ -816,11 +851,13 @@ final class AppModel: ObservableObject {
         let call = request.call
         // Names and sizes only, and only when the request names a target: the card must say what exactly is asked for.
         let windows = mode != .off && call.target != .none ? looker.windows() : []
-        let key = callerKey(of: request, peerPid: peerPid)
+        let key = callerKey(claimedSessionId: request.sessionId, peerPid: peerPid)
         var job = LookJob(request: request, sessionKey: key, window: window(of: call, in: windows))
         switch gate(job, windows: windows, consented: false) {
         case .refuse(let refusal):
             refuse(job, refusal)
+            // From now on the missing permission counts as a limit: something asked for it.
+            if refusal == .noAccessibility { accessibilityAskedFor = true }
             if let key, let kind = refusal.missingPermission {
                 lookBlocked[key] = kind
                 requestArrived(key)
@@ -872,7 +909,7 @@ final class AppModel: ObservableObject {
 
     /// The session whose agent process is an ancestor of the helper. The ancestors are read here, from the
     /// connection's peer; the id the helper sends along only picks between sessions of one process.
-    private func callerKey(of request: LookRequest, peerPid: Int32?) -> String? {
+    private func callerKey(claimedSessionId: String?, peerPid: Int32?) -> String? {
         guard let peerPid else { return nil }
         let chain = HostProbe.chain(from: peerPid).dropFirst().map(\.pid)
         let candidates = store.sessions.values.filter { !$0.isUnknownAgent }.map { s -> LookCallerResolver.Candidate in
@@ -880,7 +917,7 @@ final class AppModel: ObservableObject {
             return LookCallerResolver.Candidate(key: s.id, sessionId: s.sessionId, pid: ownedPid ?? s.host.agentPid,
                                                 ended: s.baseState == .ended, lastEventAt: s.lastEventAt)
         }
-        return LookCallerResolver.resolve(chain: Array(chain), claimedSessionId: request.sessionId, candidates: candidates)
+        return LookCallerResolver.resolve(chain: Array(chain), claimedSessionId: claimedSessionId, candidates: candidates)
     }
 
     enum LookChoice { case once, session, deny }
@@ -932,7 +969,8 @@ final class AppModel: ObservableObject {
                                                                 mimeType: picture.mimeType))
                 case .readWindowText:
                     guard case .window(let number) = call.target else { throw LookFailure.windowGone }
-                    let text = LookText.render(try await eyes.windowText(number: number, excluded: excluded))
+                    let tree = try await eyes.windowText(number: number, excluded: excluded)
+                    let text = self?.windowText(tree, window: number) ?? LookText.render(tree.root)
                     outcome = .text(text.isEmpty ? "The window has no readable text." : LookText.cap(text))
                 }
             } catch {
@@ -972,6 +1010,14 @@ final class AppModel: ObservableObject {
         var notes = lookNotes[key] ?? []
         notes.append(LookNote(time: Date(), text: "Looked at: \(subject)"))
         lookNotes[key] = Array(notes.suffix(LookNote.kept))
+    }
+
+    /// The text of a window that was just read. While agents may act, every control that can be pressed gets a
+    /// reference, and the references of the window's earlier read stop working.
+    private func windowText(_ tree: LookTree, window: UInt32) -> String {
+        guard settings.handsAccess != .off else { return LookText.render(tree.root) }
+        elementHandles[window] = tree.handles
+        return elementRefs.read(window: window, tree.root)
     }
 
     /// The helper left before the person answered (the agent's turn was interrupted, or the helper timed out).
@@ -1017,6 +1063,331 @@ final class AppModel: ObservableObject {
         store.remove(key)
         if selectedKey == key { selectedKey = nil }
     }
+
+    // MARK: - Hands (agents acting in other apps)
+
+    /// Actions waiting for the person's click, oldest first.
+    @Published private(set) var acts: [ActPending] = []
+    /// Sessions with an action being carried out right now.
+    @Published private(set) var acting: [String: Int] = [:]
+    /// An action was refused because the Accessibility permission is missing: the card offers the setup window.
+    @Published private(set) var actBlocked: Set<String> = []
+    /// The Accessibility permission was asked for by a read of window text (it counts as a limit from then on).
+    private var accessibilityAskedFor = false
+    private var actJobs: [String: ActJob] = [:]
+    /// Allowed actions waiting for their turn: one runs at a time, across all sessions.
+    private var actQueue: [ActJob] = []
+    private var actRunning: String?
+    private var actAllowances = ActAllowances()
+    private var actRate = ActRate()
+    private var elementRefs = ElementRefs()
+    /// The elements behind the references of each window's latest read.
+    private var elementHandles: [UInt32: AXHandles] = [:]
+    /// The one object that acts in other apps.
+    var hands: ScreenActing = SystemScreenAct()
+
+    static var ownBundleId: String { Bundle.main.bundleIdentifier ?? HostInfo.agentHud }
+
+    func act(for key: String) -> ActPending? { acts.first { $0.sessionKey == key } }
+
+    /// The session's icon shows the hand: an action is being decided or carried out.
+    func isActing(_ key: String) -> Bool { act(for: key) != nil || (acting[key] ?? 0) > 0 }
+
+    /// Which permissions count as a limit when missing (see `Permissions.summary`).
+    var permissionsInUse: Set<PermissionKind> {
+        settings.handsAccess != .off || accessibilityAskedFor ? [.accessibility] : []
+    }
+
+    /// What an action needs besides the request itself.
+    private struct ActJob {
+        var request: ActRequest
+        /// nil - the caller matched no session (such a call is always refused).
+        var sessionKey: String?
+        var subject: ActSubject
+        var target = ActTarget()
+        /// The person clicked "Allow" on this request's card.
+        var consented = false
+        var detail = "allowed"
+    }
+
+    /// Where an action goes, as the gate and the executor need it.
+    private struct ActTarget {
+        var state = ActGate.TargetState.available
+        var bundleId: String?
+        var pid: Int32?
+        var element: ElementRefs.Entry?
+        var app: ActApp?
+    }
+
+    /// An action request from `agenthud-mcp`: refused, queued for a click, or - for an app the person allowed
+    /// for that session - put in line to be carried out.
+    private func handleAct(_ request: ActRequest, peerPid: Int32?) {
+        let now = Date()
+        actAllowances.prune(store)
+        let key = callerKey(claimedSessionId: request.sessionId, peerPid: peerPid)
+        var job = ActJob(request: request, sessionKey: key, subject: ActSubject(app: "an app"))
+        switch actDecision(&job, consented: false, now: now) {
+        case .refuse(let refusal):
+            refuseAct(job, refusal)
+            if refusal == .noAccessibility, let key {
+                actBlocked.insert(key)
+                requestArrived(key)
+            }
+        case .allow:
+            job.detail = "allowed in app"
+            enqueueAct(job)
+        case .ask(let offersApp):
+            // The gate asks only for a session it knows.
+            guard let key else { refuseAct(job, .unknownSession); return }
+            store.unhide(key)
+            var risky = false
+            if case .pressKeys(let combo) = request.call.body { risky = ActRisk.isRisky(combo, targetBundleId: job.target.bundleId) }
+            acts.append(ActPending(id: request.requestId, sessionKey: key, call: request.call, subject: job.subject,
+                                   createdAt: now, deadline: now.addingTimeInterval(LookTiming.consentTimeout),
+                                   offersApp: offersApp, risky: risky))
+            actJobs[request.requestId] = job
+            actBlocked.remove(key)
+            hudLog.notice("act \(request.call.kind.rawValue, privacy: .public) asks [\(key.suffix(8), privacy: .public)]")
+            requestArrived(key)
+        }
+    }
+
+    /// The gate with the facts of this moment (read-only checks; no system prompt). Fills in the job's target.
+    private func actDecision(_ job: inout ActJob, consented: Bool, now: Date) -> ActGate.Decision {
+        let mode = settings.handsAccess
+        actAllowances.sync(mode: mode)
+        let call = job.request.call
+        let key = job.sessionKey
+        let held = key.flatMap { store.session($0) }?.hold != nil
+        let trusted = PermissionProbe.state(.accessibility).status == .granted
+        // Nothing about other apps is read for a call that the first rules refuse anyway.
+        let probing = mode != .off && key != nil && !held && trusted
+        if probing { (job.target, job.subject) = actTarget(of: call) }
+        let target = job.target
+        let excluded = ActExclusions.isExcluded(target.bundleId, screenExcluded: settings.screenExcludedApps, ownBundleId: Self.ownBundleId)
+        var secure = false
+        if probing, !excluded, target.state == .available, call.kind.usesKeyboard, let pid = target.pid {
+            secure = hands.focusedElementIsSecure(pid: pid)
+        }
+        var risky = false
+        if case .pressKeys(let combo) = call.body { risky = ActRisk.isRisky(combo, targetBundleId: target.bundleId) }
+        return ActGate.decide(
+            mode: mode, kind: call.kind, sessionKnown: key != nil, sessionHeld: held, accessibilityGranted: trusted,
+            target: target.state, targetExcluded: excluded, secureField: secure, riskyKeys: risky,
+            rateExceeded: key.map { actRate.exceeded($0, at: now) } ?? false,
+            appAllowedForSession: key.map { actAllowances.contains(session: $0, bundleId: target.bundleId) } ?? false,
+            consented: consented)
+    }
+
+    /// The app, window and element a call names, as they are right now.
+    private func actTarget(of call: ActCall) -> (ActTarget, ActSubject) {
+        if case .openApp(let ref) = call.body {
+            guard let app = hands.installedApp(ref) else { return (ActTarget(state: .unknownApp), ActSubject(app: ref.text)) }
+            return (ActTarget(bundleId: app.bundleId, app: app), ActSubject(app: app.name, bundleId: app.bundleId))
+        }
+        let windows = looker.windows()
+        // References of windows that are gone go with them.
+        let live = Set(windows.map(\.number))
+        elementRefs.prune(keeping: live)
+        elementHandles = elementHandles.filter { live.contains($0.key) }
+        guard let number = call.window, let w = windows.first(where: { $0.number == number }) else {
+            return (ActTarget(state: .unknownWindow), ActSubject(app: "a window"))
+        }
+        var subject = ActSubject(app: w.app, bundleId: w.bundleId, windowTitle: w.title)
+        var target = ActTarget(bundleId: w.bundleId, pid: w.pid)
+        // Exclusions and allowances go by bundle id: a window whose app has none is not acted in.
+        guard let bundle = w.bundleId, !bundle.isEmpty else {
+            target.state = .unknownApp
+            return (target, subject)
+        }
+        if case .pressElement(let ref) = call.body {
+            guard let entry = elementRefs.resolve(window: number, ref: ref),
+                  elementHandles[number]?.elements.indices.contains(entry.handle) == true else {
+                target.state = .staleElement
+                return (target, subject)
+            }
+            target.element = entry
+            subject.elementRole = entry.role
+            subject.elementLabel = entry.label
+        }
+        return (target, subject)
+    }
+
+    enum ActChoice { case once, app, deny }
+
+    /// The person's click on an action card.
+    func decideAct(_ id: String, _ choice: ActChoice) {
+        guard let i = acts.firstIndex(where: { $0.id == id }) else { return }
+        let pending = acts.remove(at: i)
+        guard var job = actJobs.removeValue(forKey: id) else { return }
+        switch choice {
+        case .deny:
+            refuseAct(job, .denied)
+        case .app where pending.offersApp:
+            actAllowances.allow(session: pending.sessionKey, bundleId: pending.subject.bundleId)
+            job.consented = true
+            job.detail = "allowed in app"
+            enqueueAct(job)
+        case .once, .app:
+            job.consented = true
+            job.detail = "allowed"
+            enqueueAct(job)
+        }
+        scheduleAutoClose()
+    }
+
+    private func enqueueAct(_ job: ActJob) {
+        actQueue.append(job)
+        runNextAct()
+    }
+
+    /// Carries out the next action in line. This is the only caller of the executor, and every action goes
+    /// through the gate once more right before it: the mode, the hold, the window, the element, the focus or
+    /// the permission may have changed while it waited for a click or for its turn.
+    private func runNextAct() {
+        while actRunning == nil, !actQueue.isEmpty {
+            var job = actQueue.removeFirst()
+            let now = Date()
+            let decision = actDecision(&job, consented: job.consented, now: now)
+            guard decision == .allow, let key = job.sessionKey, let order = actOrder(job) else {
+                if case .refuse(let refusal) = decision { refuseAct(job, refusal) } else { refuseAct(job, .changed) }
+                continue
+            }
+            if hands.isScreenLocked() {
+                refuseAct(job, .screenLocked)
+                continue
+            }
+            actRate.record(key, at: now)
+            actRunning = job.request.requestId
+            acting[key, default: 0] += 1
+            let executor = hands
+            Task { @MainActor [weak self] in
+                let failure = await executor.perform(order) { [weak self] in
+                    guard let self else { return ActGate.Refusal.failed.message }
+                    return self.actStopReason(key)
+                }
+                guard let self else { return }
+                let call = job.request.call
+                let outcome: LookReply.Outcome = failure.map { .refused($0.message) } ?? .text(ActLabels.done(call, job.subject))
+                self.server?.replyLook(LookReply(requestId: job.request.requestId, outcome: outcome))
+                self.logAct(job, result: failure == nil ? job.detail : ActGate.Refusal.failed.logLabel, done: failure == nil)
+                if let n = self.acting[key], n > 1 { self.acting[key] = n - 1 } else { self.acting[key] = nil }
+                self.actRunning = nil
+                self.scheduleAutoClose()
+                self.runNextAct()
+            }
+        }
+    }
+
+    /// Why a running action must stop before its next event; nil while it may go on.
+    private func actStopReason(_ key: String) -> String? {
+        if settings.handsAccess == .off {
+            return (settings.handsStoppedAt != nil ? ActGate.Refusal.stopped : ActGate.Refusal.off).message
+        }
+        if store.session(key)?.hold != nil { return ActGate.Refusal.sessionHeld.message }
+        return nil
+    }
+
+    private func actOrder(_ job: ActJob) -> ActOrder? {
+        let call = job.request.call, target = job.target
+        if case .openApp = call.body { return target.app.map { .open($0) } }
+        guard let window = call.window, let pid = target.pid else { return nil }
+        switch call.body {
+        case .pressElement:
+            guard let entry = target.element, let handles = elementHandles[window] else { return nil }
+            return .press(handles: handles, index: entry.handle)
+        case .clickAt(let x, let y, let button, let count):
+            return .click(window: window, pid: pid, x: x, y: y, button: button, count: count)
+        case .typeText(let text): return .type(window: window, pid: pid, text: text)
+        case .pressKeys(let combo): return .keys(window: window, pid: pid, combo: combo)
+        case .scroll(let dx, let dy): return .scroll(window: window, pid: pid, dx: dx, dy: dy)
+        case .focusWindow: return .focus(window: window, pid: pid)
+        case .openApp: return nil
+        }
+    }
+
+    private func refuseAct(_ job: ActJob, _ refusal: ActGate.Refusal) {
+        server?.replyLook(LookReply(requestId: job.request.requestId, outcome: .refused(refusal.message)))
+        logAct(job, result: refusal.logLabel, done: false)
+    }
+
+    /// The record of an action: who, what, in which app, and how it ended. Typed text is kept only as its
+    /// first characters and its length.
+    private func logAct(_ job: ActJob, result: String, done: Bool) {
+        let call = job.request.call
+        let summary = ActLabels.summary(call, job.subject)
+        let s = job.sessionKey.flatMap { store.session($0) }
+        hudLog.notice("act \(call.kind.rawValue, privacy: .public) \(result, privacy: .public) [\((job.sessionKey ?? "-").suffix(8), privacy: .public)]")
+        if settings.activityLog {
+            ActivityLog.append(ActivityRecord(kind: .act, time: Date(), agent: AgentKind.claude.rawValue,
+                                              session: s?.sessionId ?? LookLabels.unknownSessionId,
+                                              project: s?.projectName ?? LookLabels.unknownAgent, cwd: s?.cwd ?? "",
+                                              text: RequestLog.clip("\(call.kind.rawValue): \(summary)"), detail: result))
+        }
+        guard done, let key = job.sessionKey else { return }
+        var notes = lookNotes[key] ?? []
+        notes.append(LookNote(time: Date(), text: ActLabels.didRow(call, job.subject), symbol: "hand.point.up.left"))
+        lookNotes[key] = Array(notes.suffix(LookNote.kept))
+    }
+
+    /// The stop switch (the global hotkey, the status menu, the control panel): agent actions go off, everything
+    /// that waits is refused, and every "allow in this app" answer is forgotten. An action that is running stops
+    /// before its next event. Turning actions back on is done in the settings.
+    func stopAgentActions() {
+        guard settings.handsAccess != .off || !acts.isEmpty || !actQueue.isEmpty || actRunning != nil else { return }
+        refuseWaitingActs(.stopped)
+        actAllowances.removeAll()
+        settings.handsAccess = .off
+        settings.handsStoppedAt = Date()
+        hudLog.notice("agent actions stopped")
+        scheduleAutoClose()
+    }
+
+    private func refuseWaitingActs(_ refusal: ActGate.Refusal) {
+        for p in acts {
+            if let job = actJobs.removeValue(forKey: p.id) { refuseAct(job, refusal) }
+        }
+        acts.removeAll()
+        for job in actQueue { refuseAct(job, refusal) }
+        actQueue.removeAll()
+    }
+
+    /// The setting changed: allowances belong to the mode they were given in, and with actions off nothing waits.
+    private func handsModeChanged(to mode: HandsAccessMode) {
+        actAllowances.sync(mode: mode)
+        if mode == .off {
+            refuseWaitingActs(.off)
+            elementRefs.removeAll()
+            elementHandles.removeAll()
+        }
+    }
+
+    /// The helper left before the action was decided or carried out.
+    private func actConnectionClosed(_ rid: String) {
+        if let i = acts.firstIndex(where: { $0.id == rid }) {
+            acts.remove(at: i)
+            if let job = actJobs.removeValue(forKey: rid) { logAct(job, result: "cancelled", done: false) }
+        }
+        if let i = actQueue.firstIndex(where: { $0.request.requestId == rid }) {
+            logAct(actQueue.remove(at: i), result: "cancelled", done: false)
+        }
+    }
+
+    /// Once a second: a card nobody answered in time is refused; allowances of ended sessions go away.
+    private func tickActs(now: Date) {
+        for p in acts where now >= p.deadline {
+            acts.removeAll { $0.id == p.id }
+            if let job = actJobs.removeValue(forKey: p.id) { refuseAct(job, .expired) }
+        }
+        actAllowances.prune(store)
+        actAllowances.sync(mode: settings.handsAccess)
+        for key in actBlocked where store.session(key) == nil { actBlocked.remove(key) }
+    }
+
+    func dismissActBlocked(_ key: String) {
+        actBlocked.remove(key)
+        scheduleAutoClose()
+    }
 }
 
 /// One finished look, as the session's card shows it.
@@ -1025,6 +1396,8 @@ struct LookNote: Identifiable, Equatable {
     let id = UUID()
     let time: Date
     let text: String
+    /// "eye" for a look, a hand for something the agent did.
+    var symbol = "eye"
 }
 
 /// Red flags: the rules file is read on every check (it is tiny), edits apply without a restart.

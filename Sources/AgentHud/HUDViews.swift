@@ -115,7 +115,14 @@ struct TokenView: View {
         .frame(width: 64, height: 64)
         .overlay(alignment: .topLeading) { HungBadge(session: session).offset(x: -3, y: -3) }
         // An agent wants to look at the screen, or is looking right now.
-        .overlay(alignment: .topTrailing) { if model.isLooking(session.id) { LookBadge().offset(x: 3, y: -3) } }
+        // An agent wants to act in an app, or is acting right now: the hand takes the eye's place.
+        .overlay(alignment: .topTrailing) {
+            if model.isActing(session.id) {
+                ActBadge().offset(x: 3, y: -3)
+            } else if model.isLooking(session.id) {
+                LookBadge().offset(x: 3, y: -3)
+            }
+        }
     }
 
     private var held: Bool { session.state == .paused || session.state == .stopped }
@@ -305,6 +312,15 @@ struct SessionCard: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             if let h = session.hold { HoldBanner(model: model, session: session, hold: h) }
+            if let act = model.act(for: session.id) {
+                // An action request keeps its full height too: what will be done and the buttons stay in view.
+                ActRequestView(model: model, act: act)
+                    .id(act.id)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(3)
+            } else if model.actBlocked.contains(session.id) {
+                ActBlockedNotice(model: model, sessionKey: session.id)
+            }
             if let look = model.look(for: session.id) {
                 // A look request comes first and keeps its full height: its buttons must never leave the card.
                 LookRequestView(model: model, look: look)

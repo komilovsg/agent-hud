@@ -92,7 +92,7 @@ struct LookBadge: View {
     }
 }
 
-/// "Looked at: …" - the session's latest looks, newest last. Only the target is named.
+/// "Looked at: …" and "Did: …" - the session's latest looks and actions, newest last.
 struct LookNotes: View {
     let notes: [LookNote]
 
@@ -107,7 +107,7 @@ struct LookNotes: View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(notes.suffix(2)) { n in
                 HStack(spacing: 6) {
-                    Image(systemName: "eye").font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 14)
+                    Image(systemName: n.symbol).font(.system(size: 10)).foregroundStyle(.secondary).frame(width: 14)
                     Text(verbatim: n.text).font(.system(size: 11)).foregroundStyle(.secondary)
                         .lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 4)

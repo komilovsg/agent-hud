@@ -36,7 +36,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
 
     private func updateButton() {
         guard let b = item.button else { return }
-        let waiting = model.visibleSessions.filter { $0.state.needsUser }.count + model.looks.count
+        let waiting = model.visibleSessions.filter { $0.state.needsUser }.count + model.looks.count + model.acts.count
         // Redraw the menu bar icon only when the number of waiting requests changes, not on every event.
         guard waiting != shownWaiting else { return }
         shownWaiting = waiting
@@ -79,6 +79,12 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         m.addItem(ClosureMenuItem(title: "Control panel") { [weak self] in self?.show() })
         m.addItem(ClosureMenuItem(title: "Agent map") { [weak self] in self?.model.openMap() })
         m.addItem(.separator())
+        // The same switch as the global hotkey; there is nothing to stop while agent actions are off.
+        let stop = ClosureMenuItem(title: "\(ActLabels.stopTitle)  \(ActLabels.stopHotKey)") { [weak self] in self?.model.stopAgentActions() }
+        stop.isEnabled = model.settings.handsAccess != .off
+        m.autoenablesItems = false
+        m.addItem(stop)
+        m.addItem(.separator())
         m.addItem(ClosureMenuItem(title: "Quit Agent HUD") { NSApp.terminate(nil) })
         m.popUp(positioning: nil, at: NSPoint(x: 0, y: b.bounds.height + 4), in: b)
     }
@@ -91,8 +97,9 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         popover.contentViewController?.view.window?.makeKey()
         Task { @MainActor [weak self] in
             let states = await PermissionProbe.states()
-            self?.permissions = Permissions.summary(states.mapValues(\.status))
-            self?.refresh()
+            guard let self else { return }
+            self.permissions = Permissions.summary(states.mapValues(\.status), inUse: self.model.permissionsInUse)
+            self.refresh()
         }
     }
 
@@ -199,6 +206,10 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self.closePopover()
             let r = ReportPreset.since15Yesterday.range(now: Date(), calendar: .current)
             NSWorkspace.shared.open(self.model.writeReport(from: r.from, to: r.to))
+        }
+        a.stopActions = { [weak self] in
+            self?.model.stopAgentActions()
+            self?.refresh()
         }
         a.quit = { NSApp.terminate(nil) }
         return a

@@ -18,6 +18,7 @@ struct PanelActions {
     var openSummary: () -> Void = {}
     var openReport: () -> Void = {}
     var quickReport: () -> Void = {}
+    var stopActions: () -> Void = {}
     var quit: () -> Void = {}
 }
 
@@ -37,6 +38,8 @@ struct ControlPanelView: View {
     @State private var quickText = ""
 
     static let width: CGFloat = 340
+    /// Room for the "Screen" tab's sections; the default leaves the header, the tabs and the footer on a laptop screen.
+    var screenTabLimit: CGFloat = max(320, (NSScreen.main?.visibleFrame.height ?? 800) - 240)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -63,7 +66,16 @@ struct ControlPanelView: View {
                 behaviorSection
             } else {
                 // Its own tab: with the list of excluded apps the settings would not fit a laptop screen.
-                ScreenAccessSection(index: 1, mode: $settings.screenAccess, excluded: $settings.screenExcludedApps)
+                // The two sections scroll when even this tab is taller than the screen allows.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ScreenAccessSection(index: 1, mode: $settings.screenAccess, excluded: $settings.screenExcludedApps)
+                        HandsAccessSection(index: 2, mode: $settings.handsAccess, stoppedAt: settings.handsStoppedAt,
+                                           stop: actions.stopActions)
+                    }
+                }
+                .frame(maxHeight: screenTabLimit)
+                .fixedSize(horizontal: false, vertical: true)
             }
             footer
         }

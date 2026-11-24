@@ -12,13 +12,49 @@ import Testing
             #expect(Permissions.all.filter { $0.kind == k }.count == 1)
             #expect(Permissions.info(k).kind == k)
         }
-        #expect(Permissions.all.filter { $0.stage == .now }.count == 4)
-        #expect(Permissions.info(.accessibility).stage == .coming)
+        #expect(Permissions.all.filter { $0.stage == .now }.count == 5)
+        #expect(Permissions.info(.accessibility).stage == .now)
         #expect(Permissions.info(.screenRecording).stage == .now)
         #expect(Permissions.info(.fullDiskAccess).stage == .coming)
         // Agents can look at the screen only when asked: the texts say so.
         #expect(Permissions.info(.screenRecording).usedFor == "Lets agents take screenshots when you allow it.")
-        #expect(Permissions.info(.accessibility).usedFor.contains("read a window's text"))
+        #expect(Permissions.info(.accessibility).usedFor == "Lets agents read window text and act in apps when you allow it")
+        #expect(Permissions.info(.accessibility).limitedWithout == "Agents cannot read window text or act")
+        #expect(Permissions.neededOnlyInUse == [.accessibility])
+    }
+
+    @Test func missingAccessibilityLimitsOnlyWhenItIsInUse() {
+        var st = all(.granted)
+        st[.accessibility] = .notGranted
+        // Agent actions are off and nothing asked for window text: the app is not limited.
+        let idle = Permissions.summary(st)
+        #expect(!idle.isLimited && idle.missingNow.isEmpty && idle.grantedCount == 5)
+        #expect(idle.headline == "5 of 6 allowed · the rest is not used yet")
+        #expect(Permissions.summary(st, inUse: []) == idle)
+        // Agent actions are on, or a read of window text was refused for it.
+        let used = Permissions.summary(st, inUse: [.accessibility])
+        #expect(used.isLimited && used.missingNow.map(\.kind) == [.accessibility])
+        #expect(used.headline == "5 of 6 allowed · limited: agents cannot read window text or act")
+        // Granted: being in use changes nothing.
+        #expect(Permissions.summary(all(.granted), inUse: [.accessibility]).headline == "All 6 allowed")
+        #expect(!Permissions.summary(all(.granted), inUse: [.accessibility]).isLimited)
+        // Unknown is not "missing", in use or not.
+        st[.accessibility] = .unknown
+        #expect(!Permissions.summary(st, inUse: [.accessibility]).isLimited)
+    }
+
+    @Test func inUseDoesNotChangeTheOtherPermissions() {
+        // The other permissions limit the app whether or not anything is passed as in use.
+        var st = all(.granted)
+        st[.screenRecording] = .notGranted
+        #expect(Permissions.summary(st, inUse: []).missingNow.map(\.kind) == [.screenRecording])
+        #expect(Permissions.summary(st, inUse: [.accessibility]).missingNow.map(\.kind) == [.screenRecording])
+        // Passing a kind that is always needed is harmless.
+        #expect(Permissions.summary(st, inUse: [.screenRecording, .hooks]).missingNow.map(\.kind) == [.screenRecording])
+        // In the order of the list: Accessibility comes before Automation.
+        let nothing = Permissions.summary(all(.notGranted), inUse: [.accessibility])
+        #expect(nothing.missingNow.map(\.kind) == [.hooks, .accessibility, .automation, .notifications, .screenRecording])
+        #expect(nothing.headline == "Nothing allowed yet · limited: Agent HUD sees nothing")
     }
 
     @Test func allGranted() {

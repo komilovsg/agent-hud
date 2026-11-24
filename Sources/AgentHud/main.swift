@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var map: AgentMapController!
     var setup: SetupController!
     var newSession: NewSessionController!
+    var stopHotKey: StopHotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLoader.register()
@@ -36,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu = StatusMenu(model: model, hud: hud)
         map = AgentMapController(model: model)
         setup = SetupController(settings: settings)
+        setup.permissionsInUse = { [weak self] in self?.model.permissionsInUse ?? [] }
         model.onRequestNeedsAttention = { [weak self] s in self?.notifyIfHidden(s) }
         model.onOpenMap = { [weak self] in self?.map.show() }
         model.onOpenSetup = { [weak self] kind in self?.setup.show(highlight: kind) }
@@ -48,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // First launch (also the first launch of an install that predates the setup window): show the setup window once.
         // Not in test mode with its own socket. Opening it requests nothing.
         let testMode = ProcessInfo.processInfo.environment["AGENTHUD_SOCKET"] != nil
+        // The global "stop agent actions" hotkey. A test instance with its own socket leaves it to the real one.
+        if !testMode {
+            let hotKey = StopHotKey { [weak self] in self?.model.stopAgentActions() }
+            if !hotKey.register() { NSLog("AgentHUD: the stop hotkey could not be registered") }
+            stopHotKey = hotKey
+        }
         let defaults = UserDefaults.standard
         if CommandLine.arguments.contains("--setup") {
             setup.show()

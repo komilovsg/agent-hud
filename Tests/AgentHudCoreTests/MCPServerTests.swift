@@ -99,12 +99,15 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
 @Suite struct MCPToolTests {
     @Test func toolListSchema() throws {
         let r = try #require(reply(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#))
-        let tools = try #require(r["result"]?["tools"]?.arrayValue)
+        let all = try #require(r["result"]?["tools"]?.arrayValue)
+        // The look tools come first; the tools that act follow them (see ActWireTests).
+        #expect(all.count == LookTool.allCases.count + ActKind.allCases.count)
+        let tools = Array(all.prefix(LookTool.allCases.count))
+        #expect(tools == MCPServer.lookTools)
         #expect(tools.compactMap { $0["name"]?.stringValue } == ["list_windows", "screenshot", "read_window_text"])
-        #expect(tools.count == LookTool.allCases.count)
         for t in tools {
             #expect(t["description"]?.stringValue?.isEmpty == false)
-            #expect((t["description"]?.stringValue?.count ?? 999) < 420)
+            #expect((t["description"]?.stringValue?.count ?? 999) < 520)
             #expect(t["inputSchema"]?["type"]?.stringValue == "object")
             #expect(t["inputSchema"]?["properties"]?.objectValue != nil)
             #expect(t["inputSchema"]?["additionalProperties"] == .bool(false))
@@ -119,15 +122,19 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
         // The same list for the new revision, marked as complete.
         let modern = try #require(reply(#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{\#(meta())}}"#))
         #expect(modern["result"]?["resultType"]?.stringValue == "complete")
-        #expect(modern["result"]?["tools"]?.arrayValue == tools)
+        #expect(modern["result"]?["tools"]?.arrayValue == all)
     }
 
-    @Test func nothingInTheToolListActs() {
-        // Read-only by construction: no tool name or description offers to click, type, move or change anything.
-        let text = JSONValue.array(MCPServer.tools).compact().lowercased()
+    @Test func noLookToolActs() {
+        // The look tools are read-only by construction: none offers to click, type, move or change anything.
+        // (The one mention of pressing is the reference that read_window_text prints for press_element.)
+        let text = JSONValue.array(MCPServer.lookTools).compact().lowercased().replacingOccurrences(of: "press_element", with: "")
         for word in ["click", "type text", "press", "move the", "drag", "write", "delete", "close the"] {
             #expect(!text.contains(word), "\(word)")
         }
+        // And every tool that is marked read-only is one of them.
+        let readOnly = MCPServer.tools.filter { $0["annotations"]?["readOnlyHint"] == .bool(true) }.compactMap { $0["name"]?.stringValue }
+        #expect(readOnly == LookTool.allCases.map(\.rawValue))
     }
 
     @Test func callsAreRouted() {
@@ -172,8 +179,8 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
         for params in bad { #expect(code(params) == -32602, "\(params)") }
         #expect(errorCode(#"{"jsonrpc":"2.0","id":9,"method":"tools/call"}"#) == -32602)
         #expect(errorCode(#"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":[1]}"#) == -32602)
-        let unknown = try #require(reply(#"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"type_text"}}"#))
-        #expect(unknown["error"]?["message"]?.stringValue == "Unknown tool: type_text")
+        let unknown = try #require(reply(#"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"drag_to"}}"#))
+        #expect(unknown["error"]?["message"]?.stringValue == "Unknown tool: drag_to")
         #expect(unknown["id"] == .number("9"))
     }
 

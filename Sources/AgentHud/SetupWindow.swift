@@ -10,6 +10,8 @@ final class SetupModel: ObservableObject {
     /// Whether Claude Code has the screen tools server in its user configuration.
     @Published var screenTools: ScreenToolsState
     let showsSourceBuildNote: Bool
+    /// Permissions that count as a limit only while their feature is in use (see `Permissions.summary`).
+    @Published var inUse: Set<PermissionKind> = []
 
     init(states: [PermissionKind: PermissionState] = [:], showsSourceBuildNote: Bool = false,
          screenTools: ScreenToolsState = ScreenToolsState()) {
@@ -21,7 +23,7 @@ final class SetupModel: ObservableObject {
     func state(_ kind: PermissionKind) -> PermissionState { states[kind] ?? PermissionState(status: .unknown) }
 
     var summary: Permissions.Summary {
-        Permissions.summary(states.mapValues(\.status))
+        Permissions.summary(states.mapValues(\.status), inUse: inUse)
     }
 }
 
@@ -43,6 +45,8 @@ final class SetupController: NSObject, NSWindowDelegate {
     private var timer: Timer?
     private var activeObserver: NSObjectProtocol?
     private var refreshing = false
+    /// Asked on every refresh: whether agent actions are on or a read of window text was refused.
+    var permissionsInUse: () -> Set<PermissionKind> = { [] }
 
     init(settings: Settings) {
         self.settings = settings
@@ -133,6 +137,8 @@ final class SetupController: NSObject, NSWindowDelegate {
         Task { @MainActor in
             let next = await PermissionProbe.states()
             if next != model.states { model.states = next }
+            let inUse = permissionsInUse()
+            if inUse != model.inUse { model.inUse = inUse }
             refreshing = false
         }
     }

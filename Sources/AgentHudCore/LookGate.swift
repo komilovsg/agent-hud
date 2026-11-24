@@ -283,12 +283,15 @@ public struct LookNode: Equatable, Sendable {
     public var title: String
     public var value: String
     public var children: [LookNode]
+    /// Set for an element that can be pressed: the walker's own index of it. nil for everything else.
+    public var handle: Int?
 
-    public init(role: String, title: String = "", value: String = "", children: [LookNode] = []) {
+    public init(role: String, title: String = "", value: String = "", children: [LookNode] = [], handle: Int? = nil) {
         self.role = role
         self.title = title
         self.value = value
         self.children = children
+        self.handle = handle
     }
 }
 
@@ -306,20 +309,42 @@ public enum LookText {
     /// Roles and values, two spaces per level. A node without any text is printed only when something under it has text.
     public static func render(_ root: LookNode) -> String {
         var lines: [String] = []
-        _ = append(root, depth: 0, into: &lines)
+        var refs: [ElementRefs.Entry]?
+        _ = append(root, depth: 0, into: &lines, refs: &refs, firstRef: 0)
         return lines.joined(separator: "\n")
     }
 
-    private static func append(_ node: LookNode, depth: Int, into lines: inout [String]) -> Bool {
+    /// The same text with a reference in front of every element that can be pressed: `[e12] Button "Send"`.
+    /// References are numbered from `firstRef` in the order they are printed. A pressable element is printed
+    /// even when it has no text of its own.
+    public static func render(_ root: LookNode, firstRef: Int) -> (text: String, entries: [ElementRefs.Entry]) {
+        var lines: [String] = []
+        var refs: [ElementRefs.Entry]? = []
+        _ = append(root, depth: 0, into: &lines, refs: &refs, firstRef: firstRef)
+        return (lines.joined(separator: "\n"), refs ?? [])
+    }
+
+    private static func append(_ node: LookNode, depth: Int, into lines: inout [String], refs: inout [ElementRefs.Entry]?,
+                               firstRef: Int) -> Bool {
         let title = oneLine(node.title), value = oneLine(node.value)
         let role = node.role.hasPrefix("AX") ? String(node.role.dropFirst(2)) : node.role
-        var line = String(repeating: "  ", count: depth) + (role.isEmpty ? "Element" : role)
+        var line = String(repeating: "  ", count: depth)
+        var pressable = false
+        if let handle = node.handle, refs != nil {
+            let ref = firstRef + (refs?.count ?? 0)
+            let label = title.isEmpty ? value : title
+            refs?.append(ElementRefs.Entry(ref: ref, handle: handle, role: node.role,
+                                           label: label.count > 80 ? String(label.prefix(80)) + "…" : label))
+            line += "[\(ActCall.elementId(ref))] "
+            pressable = true
+        }
+        line += role.isEmpty ? "Element" : role
         if !title.isEmpty { line += " \"\(title)\"" }
         if !value.isEmpty, value != title { line += ": \(value)" }
         let index = lines.count
         lines.append(line)
-        var hasText = !title.isEmpty || !value.isEmpty
-        for child in node.children where append(child, depth: depth + 1, into: &lines) { hasText = true }
+        var hasText = pressable || !title.isEmpty || !value.isEmpty
+        for child in node.children where append(child, depth: depth + 1, into: &lines, refs: &refs, firstRef: firstRef) { hasText = true }
         if !hasText { lines.removeSubrange(index...) }
         return hasText
     }

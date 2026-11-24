@@ -2,7 +2,7 @@ import AgentHudCore
 import Darwin
 import Foundation
 
-/// Unix socket that `agenthud-hook` sends events to and `agenthud-mcp` sends look requests to.
+/// Unix socket that `agenthud-hook` sends events to and `agenthud-mcp` sends look and action requests to.
 /// All descriptor work runs on its own queue; callbacks run on the main thread.
 final class SocketServer {
     enum StartError: Error, CustomStringConvertible {
@@ -40,6 +40,8 @@ final class SocketServer {
     var onClosed: ((String) -> Void)?
     /// A look request arrived from `agenthud-mcp`; the second value is the process on the other end of the connection.
     var onLook: ((LookRequest, Int32?) -> Void)?
+    /// An action request arrived from `agenthud-mcp`; answered through `replyLook` like a look.
+    var onAct: ((ActRequest, Int32?) -> Void)?
 
     init(path: String) { self.path = path }
 
@@ -188,6 +190,15 @@ final class SocketServer {
             byRequest[look.requestId] = c
             let peer = Self.peerPid(c.fd)
             DispatchQueue.main.async { [weak self] in self?.onLook?(look, peer) }
+            return
+        }
+        // Hook messages can be large: they are parsed as an action only when they could be one.
+        if line.contains("\"act\""), let act = ActRequest.decode(line) {
+            guard byRequest[act.requestId] == nil else { drop(c); return }
+            c.requestId = act.requestId
+            byRequest[act.requestId] = c
+            let peer = Self.peerPid(c.fd)
+            DispatchQueue.main.async { [weak self] in self?.onAct?(act, peer) }
             return
         }
         guard let msg = HookMessage.decode(line) else { drop(c); return }

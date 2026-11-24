@@ -186,16 +186,23 @@ public enum LookClient {
                                connectTimeoutMs: Int32 = LookTiming.connectTimeoutMs,
                                maxReplyBytes: Int = LookTiming.maxReplyBytes,
                                onConnected: (Int32) -> Void = { _ in }) -> LookReply.Outcome {
+        exchange(line: request.encode(), requestId: request.requestId, deadline: request.deadline, socketPath: socketPath,
+                 connectTimeoutMs: connectTimeoutMs, maxReplyBytes: maxReplyBytes, onConnected: onConnected)
+    }
+
+    /// One request line out, one reply line back. Shared by the look tools and the act tools.
+    static func exchange(line: String, requestId: String, deadline: Date, socketPath: String, connectTimeoutMs: Int32,
+                         maxReplyBytes: Int, onConnected: (Int32) -> Void) -> LookReply.Outcome {
         guard let fd = SocketIO.connect(path: socketPath, timeoutMs: connectTimeoutMs) else { return .refused(notRunning) }
         defer { close(fd) }
         onConnected(fd)
-        guard SocketIO.writeAll(fd, request.encode()) else { return .refused(notRunning) }
-        switch readLine(fd, until: request.deadline, maxBytes: maxReplyBytes) {
+        guard SocketIO.writeAll(fd, line) else { return .refused(notRunning) }
+        switch readLine(fd, until: deadline, maxBytes: maxReplyBytes) {
         case .timeout: return .refused(timedOut)
         case .closed: return .refused(noAnswer)
         case .tooLarge: return .refused(tooLarge)
         case .line(let line):
-            guard let reply = LookReply.decode(line), reply.requestId == request.requestId else { return .refused(unreadable) }
+            guard let reply = LookReply.decode(line), reply.requestId == requestId else { return .refused(unreadable) }
             return reply.outcome
         }
     }

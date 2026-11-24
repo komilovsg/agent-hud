@@ -28,13 +28,26 @@ enum LookFailure: Error {
     }
 }
 
+/// The elements behind the handles of one read of a window (`LookNode.handle` is an index into the list).
+/// Opaque outside the files that talk to the Accessibility API.
+final class AXHandles: @unchecked Sendable {
+    let elements: [AXUIElement]
+    init(_ elements: [AXUIElement] = []) { self.elements = elements }
+}
+
+/// A window's text as a tree, with the pressable elements it found.
+struct LookTree: Sendable {
+    let root: LookNode
+    let handles: AXHandles
+}
+
 /// Everything that looks at the screen goes through this protocol. `windows` returns names and sizes only;
 /// the other two return pixels or text and are called by `AppModel.perform` alone, after the consent gate allowed the look.
 protocol ScreenLooking: Sendable {
     /// On-screen windows front to back: owner, title, size. No pixels, no content. Never shows a system prompt.
     func windows() -> [WindowInfo]
     func screenshot(of target: LookTarget, maxSide: Int, excluded: [String]) async throws -> LookPicture
-    func windowText(number: UInt32, excluded: [String]) async throws -> LookNode
+    func windowText(number: UInt32, excluded: [String]) async throws -> LookTree
 }
 
 /// The real thing: the window list from the window server, pictures from ScreenCaptureKit, text from the
@@ -46,6 +59,11 @@ struct SystemScreenLook: ScreenLooking {
     }
 
     func windows() -> [WindowInfo] { listed().map(\.info) }
+
+    /// An on-screen window with its current frame (top-left based screen points); nil when it is gone.
+    func placed(number: UInt32) -> (info: WindowInfo, bounds: CGRect)? {
+        listed().first { $0.info.number == number }.map { ($0.info, $0.bounds) }
+    }
 
     private func listed() -> [Listed] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -143,7 +161,8 @@ struct SystemScreenLook: ScreenLooking {
     // MARK: - Text
 
     private static let attributes = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXValueAttribute,
-                                     kAXDescriptionAttribute, kAXVisibleChildrenAttribute, kAXChildrenAttribute]
+                                     kAXDescriptionAttribute, kAXVisibleChildrenAttribute, kAXChildrenAttribute,
+                                     kAXEnabledAttribute]
 
     /// Limits of one walk: a window can hold a table with a hundred thousand cells or an app that answers slowly.
     private struct Budget {
@@ -153,21 +172,25 @@ struct SystemScreenLook: ScreenLooking {
         static let maxChildren = 400
     }
 
-    func windowText(number: UInt32, excluded: [String]) async throws -> LookNode {
+    func windowText(number: UInt32, excluded: [String]) async throws -> LookTree {
         guard let target = listed().first(where: { $0.info.number == number }) else { throw LookFailure.windowGone }
         if LookExclusions.isExcluded(target.info.bundleId, excluded: excluded) { throw LookFailure.excludedApp }
         // Off the main thread: every attribute read is a round trip to the other app.
         return try await Task.detached(priority: .userInitiated) {
             let app = AXUIElementCreateApplication(target.info.pid)
             AXUIElementSetMessagingTimeout(app, 1.5)
-            guard let window = Self.axWindow(of: app, matching: target) else { throw LookFailure.cannotMatchWindow }
+            guard let window = Self.axWindow(of: app, bounds: target.bounds, title: target.info.title) else {
+                throw LookFailure.cannotMatchWindow
+            }
             var budget = Budget()
-            return Self.node(window, depth: 0, budget: &budget) ?? LookNode(role: "AXWindow", title: target.info.title)
+            var pressable: [AXUIElement] = []
+            let root = Self.node(window, depth: 0, budget: &budget, pressable: &pressable)
+            return LookTree(root: root ?? LookNode(role: "AXWindow", title: target.info.title), handles: AXHandles(pressable))
         }.value
     }
 
     /// The Accessibility tree has no window numbers: the window is matched by its frame, then by its title.
-    private static func axWindow(of app: AXUIElement, matching target: Listed) -> AXUIElement? {
+    static func axWindow(of app: AXUIElement, bounds: CGRect, title: String) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
               let windows = value as? [AXUIElement], !windows.isEmpty else { return nil }
@@ -183,16 +206,16 @@ struct SystemScreenLook: ScreenLooking {
         func close(_ a: CGRect, _ b: CGRect) -> Bool {
             abs(a.minX - b.minX) <= 3 && abs(a.minY - b.minY) <= 3 && abs(a.width - b.width) <= 3 && abs(a.height - b.height) <= 3
         }
-        if let byFrame = windows.first(where: { frame($0).map { close($0, target.bounds) } ?? false }) { return byFrame }
-        guard !target.info.title.isEmpty else { return nil }
+        if let byFrame = windows.first(where: { frame($0).map { close($0, bounds) } ?? false }) { return byFrame }
+        guard !title.isEmpty else { return nil }
         let byTitle = windows.filter { w in
             var t: CFTypeRef?
-            return AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &t) == .success && (t as? String) == target.info.title
+            return AXUIElementCopyAttributeValue(w, kAXTitleAttribute as CFString, &t) == .success && (t as? String) == title
         }
         return byTitle.count == 1 ? byTitle[0] : nil
     }
 
-    private static func node(_ element: AXUIElement, depth: Int, budget: inout Budget) -> LookNode? {
+    private static func node(_ element: AXUIElement, depth: Int, budget: inout Budget, pressable: inout [AXUIElement]) -> LookNode? {
         guard budget.nodes > 0, depth <= Budget.maxDepth, Date() < budget.deadline else { return nil }
         budget.nodes -= 1
         var raw: CFArray?
@@ -210,11 +233,17 @@ struct SystemScreenLook: ScreenLooking {
         let value = subrole == (kAXSecureTextFieldSubrole as String) ? "(hidden)" : text(values[3])
         // Lists and tables report the rows that are on screen separately; the rest of the rows are not visible text.
         let kids = (values[5] as? [AXUIElement]) ?? (values[6] as? [AXUIElement]) ?? []
+        // A control that can be pressed is remembered, so that a later press finds the very same element.
+        var handle: Int?
+        if ActElements.isPressable(role: role, enabled: (values[7] as? Bool) ?? true) {
+            handle = pressable.count
+            pressable.append(element)
+        }
         var children: [LookNode] = []
         for kid in kids.prefix(Budget.maxChildren) {
-            guard let child = node(kid, depth: depth + 1, budget: &budget) else { continue }
+            guard let child = node(kid, depth: depth + 1, budget: &budget, pressable: &pressable) else { continue }
             children.append(child)
         }
-        return LookNode(role: role, title: title, value: value, children: children)
+        return LookNode(role: role, title: title, value: value, children: children, handle: handle)
     }
 }

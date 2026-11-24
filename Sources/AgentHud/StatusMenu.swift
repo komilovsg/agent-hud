@@ -79,6 +79,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         m.addItem(ClosureMenuItem(title: "Continue a session…") { [weak self] in self?.model.continueSessionWindow() })
         m.addItem(ClosureMenuItem(title: "Control panel") { [weak self] in self?.show() })
         m.addItem(ClosureMenuItem(title: "Agent map") { [weak self] in self?.model.openMap() })
+        m.addItem(ClosureMenuItem(title: "Routines") { [weak self] in self?.show(tab: 3) })
         m.addItem(.separator())
         // The same switch as the global hotkey; there is nothing to stop while agent actions are off.
         let stop = ClosureMenuItem(title: "\(ActLabels.stopTitle)  \(ActLabels.stopHotKey)") { [weak self] in self?.model.stopAgentActions() }
@@ -90,9 +91,9 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         m.popUp(positioning: nil, at: NSPoint(x: 0, y: b.bounds.height + 4), in: b)
     }
 
-    func show() {
+    func show(tab: Int = 0) {
         guard let b = item.button else { return }
-        popover.contentViewController = NSHostingController(rootView: panel())
+        popover.contentViewController = NSHostingController(rootView: panel(tab: tab))
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: b.bounds, of: b, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -105,7 +106,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     }
 
     /// Config and launch-at-login statuses are read on every open (and after actions).
-    private func panel() -> ControlPanelView {
+    private func panel(tab: Int = 0) -> ControlPanelView {
         var installed: [AgentKind: Bool] = [:]
         var present: [AgentKind: Bool] = [:]
         for k in AgentKind.allCases {
@@ -114,7 +115,7 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
         }
         return ControlPanelView(model: model, settings: model.settings, actions: actions(),
                                 installed: installed, present: present,
-                                loginItem: LoginItem.isEnabled, permissions: permissions)
+                                loginItem: LoginItem.isEnabled, permissions: permissions, tab: tab)
     }
 
     private func refresh() {
@@ -126,6 +127,24 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
     private func afterClose(_ body: @escaping @MainActor () -> Void) {
         closePopover()
         Task { @MainActor in body() }
+    }
+
+    /// Deleting a routine asks first; the alert is shown once the popover is closed.
+    private func confirmDelete(_ id: String) {
+        guard let r = model.routines.routines.first(where: { $0.id == id }) else { return }
+        afterClose { [weak self] in
+            let alert = NSAlert()
+            alert.messageText = "Delete the routine \"\(r.name)\"?"
+            alert.informativeText = "It stops running. Its past runs stay in the sessions list."
+            alert.addButton(withTitle: "Delete")
+            alert.addButton(withTitle: "Cancel")
+            alert.buttons.first?.hasDestructiveAction = true
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            do { try self?.model.routines.delete(id) } catch {
+                HookSetup.info("Couldn't delete the routine", "routines.json has a problem that must be fixed by hand first.", style: .warning)
+            }
+        }
     }
 
     private func actions() -> PanelActions {
@@ -217,6 +236,21 @@ final class StatusMenu: NSObject, NSPopoverDelegate {
             self?.model.stopAgentActions()
             self?.refresh()
         }
+        a.routines = RoutinesActions(
+            newRoutine: { [weak self] in
+                self?.closePopover()
+                self?.model.onEditRoutine?(nil)
+            },
+            edit: { [weak self] id in
+                guard let self else { return }
+                self.closePopover()
+                self.model.onEditRoutine?(self.model.routines.routines.first { $0.id == id })
+            },
+            delete: { [weak self] id in self?.confirmDelete(id) },
+            openFile: { [weak self] in
+                self?.closePopover()
+                self?.model.routines.openFile()
+            })
         a.quit = { NSApp.terminate(nil) }
         return a
     }

@@ -274,7 +274,7 @@ private struct PastSessionRow: View {
     }
 }
 
-private struct RecentFolderRow: View {
+struct RecentFolderRow: View {
     let path: String
     let selected: Bool
     let pick: () -> Void

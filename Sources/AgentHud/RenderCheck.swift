@@ -240,6 +240,93 @@ enum RenderCheck {
 
         renderLooks(model: model, out: out)
         renderActs(model: model, out: out)
+        renderRoutines(model: model, out: out)
+    }
+
+    /// Routines: the tab (empty, and with four routines in mixed states), the editor and a labelled token.
+    /// Sample values only - the file and the log are not read, and no session is started.
+    private static func renderRoutines(model: AppModel, out: URL) {
+        let settings = model.settings
+        let had = settings.routinesEnabled
+        settings.routinesEnabled = true
+        defer { settings.routinesEnabled = had }
+        let now = Date()
+        func ago(_ s: TimeInterval) -> Date { now.addingTimeInterval(-s) }
+        func rec(_ id: String, _ o: RoutineLogRecord.Outcome, _ s: TimeInterval) -> RoutineHistory {
+            let r = RoutineLogRecord(time: ago(s), routine: id, outcome: o)
+            return RoutineHistory(lastRun: o == .started || o == .finished || o == .failed ? r.time : nil, lastAttempt: r.time, last: r)
+        }
+
+        func tab(_ name: String, _ routines: RoutineController) {
+            // A tall limit: the real tab scrolls on a short screen, the picture should show every row.
+            let panel = ControlPanelView(model: model, settings: settings, tab: 3, screenTabLimit: 1400).tint(Brand.accent)
+            write(panel, size: NSHostingView(rootView: panel).fittingSize, to: out.appendingPathComponent("\(name).png"))
+        }
+        model.routines.installPreview(set: RoutineSet(), history: [:])
+        tab("routines-tab-empty", model.routines)
+
+        let list = [
+            Routine(id: "morning-report", name: "Morning report", prompt: "Summarise the open pull requests", folder: "/Users/dev/acme-web",
+                    schedule: .daily(hour: 9, minute: 0, weekdays: Set(1...5))),
+            Routine(id: "dependency-check", name: "Dependency check and audit of the whole monorepo", prompt: "Check the dependencies",
+                    folder: "/Users/dev/storefront/mobile", schedule: .every(hours: 4)),
+            Routine(id: "release-notes", name: "Release notes", prompt: "Draft the release notes", folder: "/Users/dev/gone",
+                    schedule: .daily(hour: 18, minute: 30, weekdays: [5])),
+            Routine(id: "archive", name: "Archive old logs", prompt: "Archive logs", enabled: false, schedule: .manual),
+        ]
+        var broken = RoutineSet(routines: list, problems: [
+            "Routine nightly: unknown schedule kind \"weekly\" - skipped",
+            "Routine #6: a prompt is required - skipped",
+        ])
+        broken.routines = list
+        model.routines.installPreview(
+            set: broken,
+            history: [
+                "morning-report": rec("morning-report", .finished, 2 * 3600),
+                "dependency-check": rec("dependency-check", .started, 600),
+                "release-notes": rec("release-notes", .skipped("folder missing"), 7200),
+                "archive": rec("archive", .failed, 3 * 86400),
+            ],
+            running: ["dependency-check"])
+        tab("routines-tab-mixed", model.routines)
+
+        model.routines.installPreview(set: RoutineSet(routines: [list[0], list[1]]), history: [
+            "morning-report": rec("morning-report", .skipped("still running"), 300),
+            "dependency-check": rec("dependency-check", .needsYou, 900),
+        ], queued: ["morning-report"])
+        tab("routines-tab-waiting", model.routines)
+        model.routines.installPreview(set: RoutineSet(), history: [:])
+
+        func editor(_ name: String, _ m: RoutineEditorModel) {
+            // Taller than the real window, which scrolls: every section is in the picture.
+            write(RoutineEditorView(model: m, height: 1080).tint(Brand.accent), size: CGSize(width: RoutineEditorMetrics.width, height: 1080),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        let recent = ["/Users/dev/acme-web", "/Users/dev/storefront/mobile", "/Users/dev/acme-api"]
+        editor("routine-editor-daily", RoutineEditorModel(routine: list[0], recent: recent))
+        var everyEdit = list[1]
+        everyEdit.name = ""
+        let invalid = RoutineEditorModel(routine: everyEdit, recent: recent)
+        invalid.prompt = String(repeating: "Check everything. ", count: 240)
+        invalid.showProblems = true
+        editor("routine-editor-every-invalid", invalid)
+        let fresh = RoutineEditorModel(routine: nil, recent: recent)
+        editor("routine-editor-new", fresh)
+
+        // A token of a run started by a routine carries the routine's name instead of the project.
+        let id = "0f8fad5b-d9cb-469f-a165-708677289521", cwd = "/Users/dev/acme-web"
+        var store = SessionStore()
+        let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: now.addingTimeInterval(-60))
+        store.apply(AgentEvent(kind: .claude, sessionId: id, cwd: cwd, time: now.addingTimeInterval(-50),
+                               body: .sessionStarted(source: nil, model: "claude-sonnet-5-5")))
+        let o = OwnedSession(previewId: id, cwd: cwd, state: .running, items: [])
+        o.routineLabel = "Morning report"
+        model.installPreview(o)
+        for (bgName, bg) in [("grey", AnyView(Color(white: 0.5))), ("photo", AnyView(photo))] {
+            let v = ZStack { bg; TokenView(model: model, session: store.session(key)!, selected: false) }
+                .frame(width: TokenMetrics.size.width, height: TokenMetrics.size.height)
+            write(v, size: TokenMetrics.size, to: out.appendingPathComponent("token-routine-\(bgName).png"))
+        }
     }
 
     /// Agents acting in other apps: request cards, the hand on the icon and the settings.

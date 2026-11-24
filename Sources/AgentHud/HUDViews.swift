@@ -128,7 +128,7 @@ struct TokenView: View {
     private var held: Bool { session.state == .paused || session.state == .stopped }
 
     private var label: some View {
-        Text(session.projectName)
+        Text(model.tokenLabel(for: session))
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.white)
             .lineLimit(1)
@@ -144,7 +144,7 @@ struct TokenView: View {
     private var tooltip: String {
         // A held session shows its own popover on hover; a system tooltip would cover it.
         if session.hold != nil { return "" }
-        var parts = ["\(session.projectName) — \(session.stateTitle) · \(session.host.label)"]
+        var parts = ["\(model.tokenLabel(for: session)) — \(session.stateTitle) · \(session.host.label)"]
         if !session.title.isEmpty { parts.append(session.title) }
         if let step = session.currentStep { parts.append(step.summary) }
         return parts.joined(separator: "\n")

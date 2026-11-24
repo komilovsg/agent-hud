@@ -52,6 +52,8 @@ final class OwnedSession: ObservableObject {
     let screenTools: String?
     /// The command bar's assistant: its start gets the fixed system prompt text.
     let assistant: Bool
+    /// Set for a run started by a routine: the routine's name, shown on the token instead of the project name.
+    var routineLabel: String?
 
     @Published private(set) var items: [ChatItem] = []
     /// Earlier conversation of a continued session, read once from its transcript.

@@ -74,6 +74,11 @@ final class Settings: ObservableObject {
     /// Allow recognition through Apple's servers when the language has no on-device model. Audio then leaves the Mac.
     @Published var voiceAllowServerRecognition: Bool { didSet { d.set(voiceAllowServerRecognition, forKey: "voiceAllowServerRecognition") } }
 
+    /// Routines run on their schedule. Off until the first routine exists; the Routines tab's "Pause all" turns it off again.
+    @Published var routinesEnabled: Bool { didSet { d.set(routinesEnabled, forKey: "routinesEnabled") } }
+    /// The switch was never set: it follows the first routine that appears.
+    var routinesSwitchIsUnset: Bool { d.object(forKey: "routinesEnabled") == nil }
+
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
     init() {
@@ -104,6 +109,7 @@ final class Settings: ObservableObject {
         voiceSendAfterSpeaking = d.object(forKey: "voiceSendAfterSpeaking") as? Bool ?? true
         voiceSpeakReplies = d.object(forKey: "voiceSpeakReplies") as? Bool ?? true
         voiceAllowServerRecognition = d.object(forKey: "voiceAllowServerRecognition") as? Bool ?? false
+        routinesEnabled = d.object(forKey: "routinesEnabled") as? Bool ?? false
         let stopped = d.double(forKey: "handsStoppedAt")
         handsStoppedAt = handsAccess == .off && stopped > 0 ? Date(timeIntervalSince1970: stopped) : nil
     }
@@ -119,6 +125,8 @@ final class AppModel: ObservableObject {
 
     let settings: Settings
     let sender: PromptSender
+    /// Saved prompts that start sessions on a schedule.
+    private(set) lazy var routines = RoutineController(app: self)
     private var server: SocketServer?
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
@@ -134,6 +142,8 @@ final class AppModel: ObservableObject {
     var onContinueSession: (() -> Void)?
     /// Open the same window with the typed text of the command bar (held by AppDelegate).
     var onNewSessionWithText: ((String) -> Void)?
+    /// Open the routine editor (held by AppDelegate): nil for a new routine.
+    var onEditRoutine: ((Routine?) -> Void)?
     /// Open the command bar (held by AppDelegate).
     var onOpenCommandBar: (() -> Void)?
     /// The Assistant answered a spoken command: the text of the answer (held by the command bar).
@@ -174,9 +184,11 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
+        routines.begin()
     }
 
     func stop() {
+        routines.stop()
         // Sessions run by the app end with it: nothing would show their permission requests afterwards.
         OwnedSession.shutDown(Array(owned.values))
         // Held tool calls go on: nothing stays paused or stopped without the app.
@@ -351,6 +363,7 @@ final class AppModel: ObservableObject {
         tickLooks(now: now)
         tickActs(now: now)
         rememberProjects(now: now)
+        routines.tick()
         if let k = selectedKey, store.session(k) == nil || store.session(k)?.hidden == true { selectedKey = nil }
         updateHoldPopover()
         scheduleAutoClose()
@@ -659,9 +672,13 @@ final class AppModel: ObservableObject {
         return nil
     }
 
+    /// Developer checks replace the hook test (the real one reads the person's Claude Code settings).
+    var refusalOverride: (() -> String?)?
+
     /// Why a session cannot be started right now; nil when it can. Without the hooks every tool call of such
     /// a session would be refused with nothing shown, so it is not started at all.
     func startRefusal() -> String? {
+        if let check = refusalOverride { return check() }
         if !HookSetup.isInstalled(.claude) {
             return "Agent HUD is not connected to Claude Code, so the agent's permission requests could not reach you. Connect it in the setup window first."
         }
@@ -674,15 +691,34 @@ final class AppModel: ObservableObject {
     /// Starts a new session in `cwd`. Returns the reason when it was not started.
     @discardableResult
     func startSession(cwd: String, firstMessage: String?) -> String? {
-        if let refusal = startRefusal() { return refusal }
+        startSession(cwd: cwd, firstMessage: firstMessage, label: nil, reveal: true).refusal
+    }
+
+    /// The one place a new session is started - from the "New session" window, a token's menu and a routine.
+    /// `label` names the session on its token (a routine's name); `reveal` selects its card and shows the HUD,
+    /// which a run started by a schedule must not do.
+    func startSession(cwd: String, firstMessage: String?, label: String?, reveal: Bool) -> (session: OwnedSession?, refusal: String?) {
+        if let refusal = startRefusal() { return (nil, refusal) }
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
-            return "The project folder does not exist"
+            return (nil, "The project folder does not exist")
         }
         let id = UUID().uuidString.lowercased()
         let key = store.register(sessionId: id, cwd: cwd, host: .ownedByHud, now: Date())
-        launch(makeOwned(id: id, cwd: cwd, resume: false), key: key, firstMessage: firstMessage)
-        return nil
+        let o = makeOwned(id: id, cwd: cwd, resume: false)
+        o.routineLabel = label
+        launch(o, key: key, firstMessage: firstMessage, reveal: reveal)
+        return (o, nil)
+    }
+
+    /// The registry key of a session object (it may have moved to the id the CLI reported); nil once it is gone.
+    func sessionKey(of o: OwnedSession) -> String? {
+        registryId(of: o).map { "\(AgentKind.claude.rawValue):\($0)" }
+    }
+
+    /// The name shown under a token: a routine's name for its runs, otherwise the project.
+    func tokenLabel(for s: AgentSession) -> String {
+        owned[s.sessionId]?.routineLabel ?? s.projectName
     }
 
     /// One owner per session: only a session that has ended (or that this app ran and saw exit, or handed over
@@ -725,7 +761,7 @@ final class AppModel: ObservableObject {
         return nil
     }
 
-    private func launch(_ o: OwnedSession, key: String, firstMessage: String?, byVoice: Bool = false) {
+    private func launch(_ o: OwnedSession, key: String, firstMessage: String?, byVoice: Bool = false, reveal: Bool = true) {
         let id = o.sessionId
         owned[id] = o
         store.keep(key, true)
@@ -751,9 +787,11 @@ final class AppModel: ObservableObject {
         queueSubscriptions[id] = o.$state.filter { $0 == .idle }.sink { [weak self, weak o] _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { if let self, let o { self.flushQueue(o) } } }
         }
-        if !settings.hudVisible { settings.hudVisible = true }
-        selectedKey = key
-        selectedByUser = true
+        if reveal {
+            if !settings.hudVisible { settings.hudVisible = true }
+            selectedKey = key
+            selectedByUser = true
+        }
         o.start()
         if let text = firstMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty { o.send(text, byVoice: byVoice) }
         hudLog.notice("owned start [\(id.prefix(8), privacy: .public)]")

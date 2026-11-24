@@ -21,6 +21,7 @@ struct PanelActions {
     var openReport: () -> Void = {}
     var quickReport: () -> Void = {}
     var stopActions: () -> Void = {}
+    var routines = RoutinesActions()
     var quit: () -> Void = {}
 }
 
@@ -46,7 +47,7 @@ struct ControlPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
-            BrandTabs(titles: ["Sessions", "Settings", "Screen"], selection: $tab,
+            BrandTabs(titles: ["Sessions", "Settings", "Screen", "Routines"], selection: $tab,
                       badges: [0: model.visibleSessions.filter { $0.state.needsUser }.count])
             if tab == 0 {
                 PanelButton(title: CommandBarHotKey.menuTitle(id: settings.commandBarHotKey), symbol: "command.square",
@@ -77,6 +78,13 @@ struct ControlPanelView: View {
                                              sendAfterSpeaking: $settings.voiceSendAfterSpeaking, speakReplies: $settings.voiceSpeakReplies,
                                              allowServer: $settings.voiceAllowServerRecognition)
                     }
+                }
+                .frame(maxHeight: screenTabLimit)
+                .fixedSize(horizontal: false, vertical: true)
+            } else if tab == 3 {
+                // Many routines do not fit a laptop screen: the list scrolls.
+                ScrollView {
+                    RoutinesTab(controller: model.routines, settings: settings, actions: actions.routines)
                 }
                 .frame(maxHeight: screenTabLimit)
                 .fixedSize(horizontal: false, vertical: true)

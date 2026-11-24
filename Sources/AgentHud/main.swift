@@ -20,9 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var newSession: NewSessionController!
     var hotKeys: HotKeyRegistry?
     var commandBar: CommandBarController!
+    var routineEditor: RoutineEditorController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FontLoader.register()
+        // Before the start: routines that are due at launch may need to tell the person right away.
+        model.routines.postNotice = { [weak self] title, body, id in self?.postNotification(title: title, body: body, id: id) }
         do {
             try model.start()
         } catch {
@@ -47,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onNewSession = { [weak self] folder, message in self?.newSession.show(folder: folder, message: message) }
         model.onContinueSession = { [weak self] in self?.newSession.show(tab: .continueSession) }
         model.onNewSessionWithText = { [weak self] text in self?.newSession.show(text: text) }
+        routineEditor = RoutineEditorController(app: model)
+        model.onEditRoutine = { [weak self] routine in self?.routineEditor.show(editing: routine) }
         hud.updateVisibility()
         if CommandLine.arguments.contains("--map") { map.show() }
 
@@ -78,15 +83,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func notifyIfHidden(_ s: AgentSession) {
-        guard settings.notifications, !hud.isShown, Bundle.main.bundleIdentifier != nil else { return }
+        guard !hud.isShown else { return }
+        postNotification(title: "\(s.projectName): \(s.stateTitle.lowercased())",
+                         body: s.title.isEmpty ? "The agent is waiting for a reply" : s.title,
+                         id: s.activePending?.id ?? UUID().uuidString)
+    }
+
+    /// The one place that shows a system notification (requests and routines): honours the notifications setting
+    /// and asks the system for permission the first time.
+    private func postNotification(title: String, body: String, id: String) {
+        guard settings.notifications, Bundle.main.bundleIdentifier != nil else { return }
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert]) { granted, _ in
             let center = UNUserNotificationCenter.current()
             guard granted else { return }
             let c = UNMutableNotificationContent()
-            c.title = "\(s.projectName): \(s.stateTitle.lowercased())"
-            c.body = s.title.isEmpty ? "The agent is waiting for a reply" : s.title
-            center.add(UNNotificationRequest(identifier: s.activePending?.id ?? UUID().uuidString, content: c, trigger: nil))
+            c.title = title
+            c.body = body
+            center.add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
         }
     }
 }
@@ -191,6 +205,16 @@ if let i = CommandLine.arguments.firstIndex(of: "--render"), i + 1 < CommandLine
         RenderCheck.run(dir: dir)
     }
     exit(0)
+}
+
+// Developer check: AgentHud --routines-check <dir> runs routines against a fake CLI with an injected clock and exits.
+if let i = CommandLine.arguments.firstIndex(of: "--routines-check"), i + 1 < CommandLine.arguments.count {
+    let dir = CommandLine.arguments[i + 1]
+    let code: Int32 = MainActor.assumeIsolated {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        return RoutinesCheck.run(dir: dir)
+    }
+    exit(code)
 }
 
 let app = NSApplication.shared

@@ -78,6 +78,21 @@ The session icon shows an eye while an agent is looking, and the log keeps what 
 Sessions run by Agent HUD get these tools by themselves. For sessions in an editor or terminal, connect them in
 the setup window.
 
+## Agents can act in apps
+
+This is off until you switch it on. Then an agent can press a button or link it found in a window, click at a
+point, type text, press a key combination, scroll, bring a window forward and open an app. Nothing else: no
+dragging, no file operations.
+
+Every action asks you first and the card shows exactly what will happen: the app and window, the element, or
+the whole text to be typed. In the "Per app" mode you can allow one app for one session. Some things are
+refused outright: a caller the app cannot match to a session, a paused or stopped session, password managers,
+Keychain Access, System Settings, the login window, and typing while a password field has the focus. Key
+combinations that close or delete things, and any command-key combination in a terminal or Finder, always ask.
+
+Control-Option-Command-Period switches all of this off at once, refuses what is waiting and clears what was
+allowed. It needs the Accessibility permission.
+
 ## Background tasks
 
 Every background shell and background agent of a session, with its age. Anything older than an hour is

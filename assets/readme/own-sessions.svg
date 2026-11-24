@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="838" viewBox="0 0 1200 838" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Sessions run by Agent HUD</title>
+<desc id="d">Three drawn steps. The New session window with a project folder list and an optional first message. The session card where you chat and the reply streams in. The card's open menu with Move to Cursor and Move to VS Code.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="838" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 788V814H1150 M50 814H24 V788" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="360" height="700" rx="18" fill="#000000" fill-opacity="0.32" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="72" y="100" font-size="30" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">New session</text>
+<text x="72" y="132" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Claude Code runs inside Agent HUD:</text>
+<text x="72" y="156" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">you chat in the session card and</text>
+<text x="72" y="180" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">approve its actions there.</text>
+<rect x="72" y="216" width="312" height="36" rx="8" fill="#FFFFFF" fill-opacity="0.1"/>
+<rect x="72" y="216" width="156.0" height="36" rx="8" fill="#FFFFFF" fill-opacity="0.3"/>
+<text x="150.0" y="241" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">New</text>
+<text x="306.0" y="241" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.7" text-anchor="middle">Continue</text>
+<text x="72" y="288" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">01 / PROJECT FOLDER</text>
+<rect x="72" y="304" width="312" height="160" rx="12" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<rect x="88" y="329" width="22" height="16" rx="3" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="2"/>
+<text x="116" y="343" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">/Users/dev/acme-web</text>
+<path d="M84 360H372" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<rect x="84" y="370" width="288" height="36" rx="6" fill="#338EF7" fill-opacity="0.25"/>
+<circle cx="100" cy="388" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="116" y="395" font-size="20" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<path d="M344 388L350 394L360 382" fill="none" stroke="#7DB7FA" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="100" cy="432" r="6" fill="#D45FA3" fill-opacity="1"/>
+<text x="116" y="439" font-size="20" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-api</text>
+<text x="72" y="500" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">02 / FIRST MESSAGE (OPTIONAL)</text>
+<rect x="72" y="516" width="312" height="76" rx="12" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<text x="88" y="548" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Find out why the coupon</text>
+<text x="88" y="574" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">is lost going back a step</text>
+<text x="72" y="638" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Every action that needs</text>
+<text x="72" y="662" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">approval asks you first.</text>
+<rect x="222" y="694" width="78" height="34" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="261" y="717" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Cancel</text>
+<rect x="306" y="694" width="78" height="34" rx="8" fill="#338EF7" fill-opacity="1"/>
+<text x="345" y="717" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Start</text>
+<rect x="444" y="48" width="360" height="700" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="480" cy="88" r="18" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="480" cy="88" r="7" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5"/>
+<circle cx="510" cy="80" r="5" fill="#E8795A" fill-opacity="1"/>
+<text x="522" y="87" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="504" y="100" width="100" height="32" rx="16" fill="#338EF7" fill-opacity="0.18" stroke="#338EF7" stroke-opacity="0.7" stroke-width="2"/>
+<text x="554.0" y="122" font-size="18" font-weight="600" fill="#338EF7" fill-opacity="1" text-anchor="middle">Working</text>
+<text x="468" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · Agent HUD · 1 min</text>
+<rect x="484" y="184" width="300" height="76" rx="18" fill="#338EF7" fill-opacity="0.28"/>
+<text x="502" y="216" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Find out why the coupon</text>
+<text x="502" y="244" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">is lost going back a step</text>
+<text x="464" y="306" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">I'll start with CheckoutForm.tsx.</text>
+<text x="464" y="350" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Read</text>
+<text x="528" y="350" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/cart/store.ts</text>
+<path d="M762 344L768 350L778 338" fill="none" stroke="#34D399" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M472 398a8 8 0 1 1 8 8" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="494" y="410" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Writing…</text>
+<rect x="464" y="612" width="260" height="50" rx="16" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="482" y="644" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.5" text-anchor="start">Message…</text>
+<circle cx="758" cy="637" r="25" fill="#F87171" fill-opacity="1"/>
+<rect x="750" y="629" width="16" height="16" rx="4" fill="#FFFFFF" fill-opacity="1"/>
+<text x="464" y="708" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Replies stream in; the stop</text>
+<text x="464" y="732" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">button interrupts it</text>
+<rect x="840" y="48" width="360" height="700" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="876" cy="88" r="18" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="876" cy="88" r="7" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5"/>
+<circle cx="906" cy="80" r="5" fill="#E8795A" fill-opacity="1"/>
+<text x="918" y="87" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="1118" y="68" width="42" height="42" rx="10" fill="#FFFFFF" fill-opacity="0.18"/>
+<rect x="1127" y="77" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M1135 93L1144 84M1138 84H1144V90" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="900" y="100" width="70" height="32" rx="16" fill="#C9C3BC" fill-opacity="0.18" stroke="#C9C3BC" stroke-opacity="0.7" stroke-width="2"/>
+<text x="935.0" y="122" font-size="18" font-weight="600" fill="#C9C3BC" fill-opacity="1" text-anchor="middle">Idle</text>
+<text x="864" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · Agent HUD · 6 min</text>
+<rect x="900" y="120" width="280" height="0" rx="0" fill="#FFFFFF" fill-opacity="0.1"/>
+<rect x="870" y="196" width="300" height="118" rx="14" fill="#1B1C3E" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="2"/>
+<rect x="880" y="206" width="280" height="44" rx="8" fill="#338EF7" fill-opacity="0.3"/>
+<text x="896" y="236" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Move to Cursor</text>
+<text x="896" y="288" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.85" text-anchor="start">Move to VS Code</text>
+<text x="864" y="374" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">The session goes on in the</text>
+<text x="864" y="402" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">editor from where it stopped.</text>
+<text x="864" y="458" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Available between turns:</text>
+<text x="864" y="486" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">wait until the agent finishes</text>
+<text x="864" y="514" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">its current step.</text>
+<text x="228.0" y="790" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">1  Start, or Continue a past session</text>
+<text x="624.0" y="790" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">2  Chat in the card</text>
+<text x="1020.0" y="790" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">3  Move to Cursor or VS Code</text>
+<path d="M408 388L422 398L408 408" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 388L818 398L804 408" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

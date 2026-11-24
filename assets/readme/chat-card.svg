@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="758" viewBox="0 0 1200 758" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">The card is the conversation</title>
+<desc id="d">Two drawn session cards. Left: a session running in VS Code shows your message, the reply, tool calls with check marks and a failed test, and a footer that says Watching, reply in VS Code. Right: a session run by Agent HUD shows a streaming reply, suggestion chips, a message field and a stop button.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="758" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 708V734H1150 M50 734H24 V708" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="548" height="640" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="94" cy="94" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="94" cy="94" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="140" cy="84" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="154" y="92" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="130" y="104" width="100" height="32" rx="16" fill="#338EF7" fill-opacity="0.18" stroke="#338EF7" stroke-opacity="0.7" stroke-width="2"/>
+<text x="180.0" y="126" font-size="18" font-weight="600" fill="#338EF7" fill-opacity="1" text-anchor="middle">Working</text>
+<text x="242" y="126" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Fix the checkou…</text>
+<text x="72" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · VS Code · 10 min</text>
+<rect x="413" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="422" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="452" y="74" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="490" y="70" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M498 86L507 77M501 77H507V83" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M536 74L552 90M552 74L536 90" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="152" y="188" width="420" height="76" rx="18" fill="#338EF7" fill-opacity="0.28"/>
+<text x="170" y="220" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">The checkout form loses the</text>
+<text x="170" y="248" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">coupon when I go back a step.</text>
+<text x="72" y="298" font-size="20" fill="#FFFFFF" fill-opacity="0.92">I'll look at <tspan font-weight="700">CheckoutForm.tsx</tspan> first.</text>
+<text x="72" y="328" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">The state is probably reset on unmount.</text>
+<text x="72" y="378" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Read</text>
+<text x="148" y="378" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/CheckoutForm.tsx</text>
+<path d="M548 372L554 378L564 366" fill="none" stroke="#34D399" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="422" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Edit</text>
+<text x="148" y="422" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/cart/store.ts</text>
+<path d="M548 416L554 422L564 410" fill="none" stroke="#34D399" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="466" font-size="20" font-weight="400" fill="#F87171" fill-opacity="1" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$ npm test -- checkout</text>
+<path d="M550 454L562 466M562 454L550 466" fill="none" stroke="#F87171" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="72" y="514" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">One test fails: the fixture has no coupon.</text>
+<text x="72" y="544" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">I'll update it and run the suite again.</text>
+<text x="72" y="590" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">$ npm test -- checkout</text>
+<path d="M544 584a10 10 0 1 1 10 10" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M68 622H576" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<path d="M87 649L80 656L87 663M97 649L104 656L97 663M94 647L90 665" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="120" y="663" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Watching — reply in VS Code</text>
+<rect x="484" y="639" width="88" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="528.0" y="660" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Open</text>
+<rect x="604" y="48" width="548" height="640" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="650" cy="94" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="650" cy="94" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="696" cy="84" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="710" y="92" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-api</text>
+<rect x="686" y="104" width="100" height="32" rx="16" fill="#338EF7" fill-opacity="0.18" stroke="#338EF7" stroke-opacity="0.7" stroke-width="2"/>
+<text x="736.0" y="126" font-size="18" font-weight="600" fill="#338EF7" fill-opacity="1" text-anchor="middle">Working</text>
+<text x="798" y="126" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Fix the che…</text>
+<text x="628" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · Agent HUD · 7 min · $0.31</text>
+<rect x="969" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="978" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="1008" y="74" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="1046" y="70" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M1054 86L1063 77M1057 77H1063V83" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1092 74L1108 90M1108 74L1092 90" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="640" cy="198" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.8"/>
+<rect x="639" y="197" width="2" height="6" rx="1" fill="#FFFFFF" fill-opacity="0.55"/>
+<circle cx="640" cy="193.5" r="1.3" fill="#FFFFFF" fill-opacity="0.55"/>
+<text x="662" y="205" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Retrying the request (attempt 2 of 10)</text>
+<rect x="728" y="238" width="400" height="76" rx="18" fill="#338EF7" fill-opacity="0.28"/>
+<text x="746" y="270" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Why does the order total</text>
+<text x="746" y="298" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">drop the coupon?</text>
+<text x="628" y="358" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">The total is rebuilt in submitOrder, so the</text>
+<text x="628" y="388" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">coupon is dropped. I'll check where it is</text>
+<text x="628" y="418" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">read and then</text>
+<path d="M636 456a8 8 0 1 1 8 8" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="658" y="468" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Writing…</text>
+<rect x="628" y="520" width="106" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="681.0" y="541" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Continue</text>
+<rect x="744" y="520" width="348" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="918.0" y="541" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Run the tests and fix what fails</text>
+<rect x="628" y="566" width="438" height="56" rx="18" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="650" y="602" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.5" text-anchor="start">Message…</text>
+<circle cx="1100" cy="594" r="28" fill="#F87171" fill-opacity="1"/>
+<rect x="1091" y="585" width="18" height="18" rx="4" fill="#FFFFFF" fill-opacity="1"/>
+<text x="628" y="658" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">The agent is working — the stop button interrupts it</text>
+<text x="322" y="732" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Editor session: the card watches</text>
+<text x="878" y="732" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Run by Agent HUD: type, watch it stream</text>
+</svg>

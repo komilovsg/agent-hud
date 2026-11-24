@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="970" viewBox="0 0 1200 970" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Setup window</title>
+<desc id="d">A drawn setup window with mixed statuses. Needed now: Connection to Claude Code granted, Automation to check, Notifications not granted. For what is coming: Accessibility granted but not used yet, Screen Recording and Full Disk Access not granted. The footer reads 1 of 6 allowed, limited, with a Done button. Callouts say each permission has a purpose, nothing is requested without a click, and skipped permissions only leave their feature off.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="970" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 920V946H1150 M50 946H24 V920" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="700" height="874" rx="18" fill="#000000" fill-opacity="0.32" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="76" y="94" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Agent HUD works with whatever you allow.</text>
+<text x="76" y="122" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Anything you skip just stays off.</text>
+<text x="76" y="166" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">01 / NEEDED NOW</text>
+<rect x="68" y="180" width="660" height="314" rx="16" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<rect x="92" y="196" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<path d="M110 222L118 214" fill="none" stroke="#7DB7FA" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="100" y="214" width="12" height="12" rx="6" fill="none" fill-opacity="0" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2.5"/>
+<rect x="116" y="210" width="12" height="12" rx="6" fill="none" fill-opacity="0" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2.5"/>
+<text x="152" y="224" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Connection to Claude Code</text>
+<rect x="456.0" y="202" width="96" height="28" rx="6" fill="#34D399" fill-opacity="0.2"/>
+<text x="504" y="222" font-size="18" font-weight="600" fill="#34D399" fill-opacity="1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">GRANTED</text>
+<text x="152" y="256" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Sees your sessions, lets you answer</text>
+<text x="152" y="280" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">permission requests, powers Pause and Stop.</text>
+
+
+<path d="M84 286H712" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="92" y="296" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<rect x="102" y="308" width="24" height="20" rx="4" fill="none" fill-opacity="0" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2.5"/>
+<path d="M107 315L111 318L107 321" fill="none" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="152" y="324" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Automation</text>
+<rect x="282.0" y="302" width="75.0" height="28" rx="6" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="319.5" y="322" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.95" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">CHECK</text>
+<text x="152" y="356" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Brings the right Terminal or iTerm</text>
+<text x="152" y="380" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">tab to the front.</text>
+<rect x="594" y="300" width="110" height="40" rx="10" fill="#338EF7" fill-opacity="1"/>
+<text x="649" y="326" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow…</text>
+<path d="M84 386H712" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="92" y="396" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<path d="M105 424H123M107 424V416A7 7 0 0 1 121 416V424" fill="none" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="152" y="424" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Notifications</text>
+<rect x="316.79999999999995" y="402" width="138.6" height="28" rx="6" fill="#FBBF24" fill-opacity="0.2"/>
+<text x="386.09999999999997" y="422" font-size="18" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">NOT GRANTED</text>
+<text x="152" y="456" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Tells you when an agent needs you</text>
+<text x="152" y="480" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">while the HUD is hidden.</text>
+<rect x="594" y="400" width="110" height="40" rx="10" fill="#338EF7" fill-opacity="1"/>
+<text x="649" y="426" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow…</text>
+<text x="76" y="522" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">02 / FOR WHAT IS COMING</text>
+<rect x="68" y="536" width="660" height="274" rx="16" fill="#FFFFFF" fill-opacity="0.05" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<rect x="92" y="552" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<circle cx="114" cy="574" r="12" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5"/>
+<circle cx="114" cy="569" r="2.5" fill="#FFFFFF" fill-opacity="0.8"/>
+<path d="M108 573H120M114 573V577M110 582L114 577L118 582" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="152" y="580" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Accessibility</text>
+<rect x="316.79999999999995" y="558" width="96.2" height="28" rx="6" fill="#34D399" fill-opacity="0.2"/>
+<text x="364.9" y="578" font-size="18" font-weight="600" fill="#34D399" fill-opacity="1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">GRANTED</text>
+<rect x="420.99999999999994" y="558" width="149.2" height="28" rx="6" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="495.5999999999999" y="578" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.95" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">NOT USED YET</text>
+<text x="152" y="612" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Lets Agent HUD type and click for you.</text>
+<path d="M84 620H712" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="92" y="630" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<circle cx="114" cy="652" r="12" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5"/>
+<circle cx="114" cy="652" r="5" fill="#FFFFFF" fill-opacity="0.8"/>
+<text x="152" y="658" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Screen Recording</text>
+<rect x="351.6" y="636" width="138.6" height="28" rx="6" fill="#FBBF24" fill-opacity="0.2"/>
+<text x="420.90000000000003" y="656" font-size="18" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">NOT GRANTED</text>
+<text x="152" y="690" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Lets agents see the screen.</text>
+<rect x="594" y="634" width="110" height="40" rx="10" fill="#338EF7" fill-opacity="1"/>
+<text x="649" y="660" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow…</text>
+<path d="M84 698H712" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="92" y="708" width="44" height="44" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<rect x="101" y="726" width="26" height="14" rx="4" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5"/>
+<path d="M104 726L108 720H120L124 726" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="152" y="736" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Full Disk Access</text>
+<rect x="351.6" y="714" width="138.6" height="28" rx="6" fill="#FBBF24" fill-opacity="0.2"/>
+<text x="420.90000000000003" y="734" font-size="18" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">NOT GRANTED</text>
+<text x="152" y="768" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">Lets sessions started by Agent HUD read</text>
+<text x="152" y="792" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">files outside your projects.</text>
+<rect x="594" y="712" width="110" height="40" rx="10" fill="#338EF7" fill-opacity="1"/>
+<text x="649" y="738" font-size="19" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow…</text>
+<path d="M48 830H748" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<text x="76" y="866" font-size="20" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="start">2 of 6 allowed · limited: no notifications</text>
+<text x="76" y="898" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Built from source: macOS forgets these after each rebuild.</text>
+<rect x="620" y="846" width="100" height="40" rx="10" fill="#338EF7" fill-opacity="1"/>
+<text x="670" y="873" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Done</text>
+<rect x="800" y="120" width="4" height="150" rx="2" fill="#338EF7" fill-opacity="1"/>
+<text x="824" y="150" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Purpose and status</text>
+<text x="824" y="186" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">Every permission says what it</text>
+<text x="824" y="214" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">is for and shows whether it is</text>
+<text x="824" y="242" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">granted.</text>
+<rect x="800" y="316" width="4" height="150" rx="2" fill="#338EF7" fill-opacity="1"/>
+<text x="824" y="346" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Nothing without a click</text>
+<text x="824" y="382" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">Allow… asks macOS for that one</text>
+<text x="824" y="410" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">permission. The window never</text>
+<text x="824" y="438" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">requests anything on its own.</text>
+<rect x="800" y="512" width="4" height="150" rx="2" fill="#338EF7" fill-opacity="1"/>
+<text x="824" y="542" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Skip what you do not need</text>
+<text x="824" y="578" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">A permission you skip leaves</text>
+<text x="824" y="606" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">only its own feature off.</text>
+</svg>

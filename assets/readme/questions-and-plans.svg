@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="810" viewBox="0 0 1200 810" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Questions and plans</title>
+<desc id="d">Two drawn session cards. Left: the agent asks three questions; one multiple-choice question shows radio options, a Send answers button and Answered 3 of 3. Right: the plan is ready, shown with its steps and checks, with Approve, Send back, Approve and accept edits, and a button to decide in the editor.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="810" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 760V786H1150 M50 786H24 V760" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="548" height="692" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="94" cy="94" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="94" cy="94" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="110" cy="78" r="10" fill="#FBBF24" fill-opacity="1" stroke="#1A1A48" stroke-width="2"/>
+<text x="110" y="84" font-size="16" font-weight="800" fill="#1A1A48" fill-opacity="1" text-anchor="middle">!</text>
+<circle cx="140" cy="84" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="154" y="92" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="130" y="104" width="171" height="32" rx="16" fill="#FBBF24" fill-opacity="0.18" stroke="#FBBF24" stroke-opacity="0.7" stroke-width="2"/>
+<text x="215.5" y="126" font-size="18" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="middle">Has a question</text>
+<text x="313" y="126" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Fix the c…</text>
+<text x="72" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · VS Code · 10 min</text>
+<rect x="413" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="422" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="452" y="74" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="490" y="70" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M498 86L507 77M501 77H507V83" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M536 74L552 90M552 74L536 90" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="64" y="182" width="516" height="542" rx="16" fill="#FBBF24" fill-opacity="0.1"/>
+<rect x="80" y="196" width="34" height="34" rx="9" fill="#FBBF24" fill-opacity="0.9"/>
+<text x="97" y="221" font-size="22" font-weight="800" fill="#1A1A48" fill-opacity="1" text-anchor="middle">?</text>
+<text x="126" y="221" font-size="21" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">The agent asks 3 questions</text>
+<text x="562" y="221" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end">6:51</text>
+<rect x="80" y="246" width="96" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="128.0" y="267" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Storage</text>
+<text x="80" y="312" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Where should the coupon be stored between</text>
+<text x="80" y="340" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">checkout steps?</text>
+<rect x="76" y="358" width="492" height="66" rx="10" fill="#FFFFFF" fill-opacity="0.07"/>
+<circle cx="104" cy="384" r="11" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-width="3"/>
+<text x="130" y="392" font-size="21" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Cart store</text>
+<text x="130" y="416" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Keeps it with the other cart data</text>
+<rect x="76" y="430" width="492" height="66" rx="10" fill="#338EF7" fill-opacity="0.2"/>
+<circle cx="104" cy="456" r="11" fill="none" fill-opacity="1" stroke="#338EF7" stroke-width="3"/>
+<circle cx="104" cy="456" r="5.5" fill="#338EF7" fill-opacity="1"/>
+<text x="130" y="464" font-size="21" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">URL query</text>
+<text x="130" y="488" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Shareable link, visible in the address bar</text>
+<rect x="76" y="502" width="492" height="46" rx="10" fill="#FFFFFF" fill-opacity="0.07"/>
+<circle cx="104" cy="525.0" r="11" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-width="3"/>
+<text x="130" y="538" font-size="21" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Other…</text>
+<rect x="80" y="570" width="484" height="56" rx="12" fill="#338EF7" fill-opacity="1"/>
+<text x="322.0" y="605.0" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Send answers</text>
+<text x="82" y="658" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Answered 3 of 3</text>
+<rect x="328" y="636" width="236" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<path d="M347 644L340 651L347 658M357 644L364 651L357 658M354 642L350 660" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="374" y="657" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="start">Answer in VS Code</text>
+<rect x="604" y="48" width="548" height="692" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="650" cy="94" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="650" cy="94" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="666" cy="78" r="10" fill="#FBBF24" fill-opacity="1" stroke="#1A1A48" stroke-width="2"/>
+<text x="666" y="84" font-size="16" font-weight="800" fill="#1A1A48" fill-opacity="1" text-anchor="middle">!</text>
+<circle cx="696" cy="84" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="710" y="92" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="686" y="104" width="130" height="32" rx="16" fill="#FBBF24" fill-opacity="0.18" stroke="#FBBF24" stroke-opacity="0.7" stroke-width="2"/>
+<text x="751.0" y="126" font-size="18" font-weight="600" fill="#FBBF24" fill-opacity="1" text-anchor="middle">Plan ready</text>
+<text x="828" y="126" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Fix the check…</text>
+<text x="628" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · VS Code · 10 min</text>
+<rect x="969" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="978" y="73" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="1008" y="74" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="1046" y="70" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M1054 86L1063 77M1057 77H1063V83" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1092 74L1108 90M1108 74L1092 90" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="620" y="182" width="516" height="542" rx="16" fill="#FBBF24" fill-opacity="0.1"/>
+<rect x="636" y="192" width="26" height="34" rx="5" fill="#FBBF24" fill-opacity="0.95"/>
+<rect x="642" y="186" width="14" height="10" rx="3" fill="#1A1A48" fill-opacity="1"/>
+<text x="682" y="221" font-size="21" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">The plan is ready</text>
+<text x="1118" y="221" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end">8:59</text>
+<rect x="632" y="244" width="492" height="350" rx="12" fill="#000000" fill-opacity="0.22"/>
+<text x="648" y="284" font-size="22" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Keep the coupon between steps</text>
+<text x="648" y="328" font-size="20" font-weight="700" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">Steps</text>
+<text x="648" y="364" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">1.</text>
+<text x="676" y="364" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Add coupon and setCoupon to the store.</text>
+<text x="648" y="398" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">2.</text>
+<text x="676" y="398" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Read it from the store in CheckoutForm.</text>
+<text x="648" y="432" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">3.</text>
+<text x="676" y="432" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Send it with the order in submitOrder.</text>
+<text x="648" y="466" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">4.</text>
+<text x="676" y="466" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Add a regression test.</text>
+<text x="648" y="522" font-size="20" font-weight="700" fill="#FFFFFF" fill-opacity="0.8" text-anchor="start">Checks</text>
+<rect x="648" y="538" width="436" height="44" rx="8" fill="#FFFFFF" fill-opacity="0.1"/>
+<text x="664" y="568" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">npm test -- checkout</text>
+<rect x="628" y="612" width="238.0" height="56" rx="12" fill="#338EF7" fill-opacity="1"/>
+<text x="747.0" y="647.0" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Approve</text>
+<rect x="882.0" y="612" width="238.0" height="56" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<text x="1001.0" y="647.0" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Send back…</text>
+<rect x="628" y="686" width="237" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="746.5" y="707" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Approve, accept edits</text>
+<rect x="894" y="686" width="226" height="30" rx="8" fill="#FFFFFF" fill-opacity="0.14"/>
+<path d="M913 694L906 701L913 708M923 694L930 701L923 708M920 692L916 710" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="940" y="707" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="start">Decide in VS Code</text>
+<text x="322" y="784" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">The agent asks questions: pick, then send</text>
+<text x="878" y="784" font-size="22" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">The agent proposes a plan: approve or send back</text>
+</svg>

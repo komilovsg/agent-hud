@@ -1,34 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">Agent HUD</title>
-<desc id="d">Agent HUD title and a drawn mock-up of its floating window: three session avatars and an open session card showing a Working status pill and three steps.</desc>
+<desc id="d">Agent HUD title and a drawn mock-up of the desktop: three small session icons with project names, one selected with its chat card open below it, showing a Working status and two tool calls.</desc>
 <defs>
 <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
 </defs>
 <rect width="1200" height="520" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 470V496H1150 M50 496H24 V470" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M48 78V48H78 M1122 48H1152V78 M1152 442V472H1122 M78 472H48 V442" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="80" y="150" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">macOS  ·  Claude Code</text>
 <text x="80" y="238" font-size="84" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Agent HUD</text>
 <text x="80" y="306" font-size="30" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">See every Claude Code session.</text>
 <text x="80" y="348" font-size="30" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Answer requests without</text>
 <text x="80" y="390" font-size="30" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">leaving your window.</text>
-<text x="80" y="440" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Local only. No network.</text>
-<rect x="620" y="80" width="500" height="360" rx="20" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
-<circle cx="672" cy="134" r="28" fill="#FFFFFF" fill-opacity="0.14"/><circle cx="672" cy="134" r="11" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/><circle cx="693" cy="155" r="9" fill="#34D399" stroke="#1A1A48" stroke-width="3"/>
-<circle cx="756" cy="134" r="28" fill="#FFFFFF" fill-opacity="0.14"/><circle cx="756" cy="134" r="11" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/><circle cx="777" cy="155" r="9" fill="#FBBF24" stroke="#1A1A48" stroke-width="3"/>
-<circle cx="840" cy="134" r="28" fill="#FFFFFF" fill-opacity="0.14"/><circle cx="840" cy="134" r="11" fill="none" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/><circle cx="861" cy="155" r="9" fill="#338EF7" stroke="#1A1A48" stroke-width="3"/>
-<rect x="644" y="184" width="452" height="232" rx="16" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2"/>
-<text x="668" y="228" font-size="26" font-weight="650" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
-<text x="668" y="256" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · VS Code</text>
-<rect x="940" y="204" width="132" height="42" rx="21" fill="#34D399" fill-opacity="0.18" stroke="#34D399" stroke-opacity="0.7" stroke-width="2"/>
-<circle cx="962" cy="225" r="6" fill="#34D399"/>
-<text x="976" y="232" font-size="20" font-weight="600" fill="#34D399" fill-opacity="1" text-anchor="start">Working</text>
-<circle cx="676" cy="293" r="5" fill="#34D399"/>
-<text x="698" y="300" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Read</text>
-<text x="770" y="300" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/login.tsx</text>
-<circle cx="676" cy="331" r="5" fill="#34D399"/>
-<text x="698" y="338" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Edit</text>
-<text x="770" y="338" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/login.tsx</text>
-<circle cx="676" cy="369" r="5" fill="#338EF7"/>
-<text x="698" y="376" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Bash</text>
-<text x="770" y="376" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">npm run build</text>
+<text x="80" y="440" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">No network code in the app.</text>
+<rect x="620" y="80" width="100" height="126" rx="18" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+<circle cx="670" cy="126" r="32" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="670" cy="126" r="12.16" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="693.68" cy="149.68" r="9" fill="#338EF7" fill-opacity="1" stroke="#1A1A48" stroke-width="3"/>
+<rect x="617.68" y="172" width="104.64000000000001" height="28" rx="14" fill="#338EF7" fill-opacity="0.9"/>
+<text x="670" y="192" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">acme-web</text>
+<circle cx="800" cy="126" r="32" fill="#FFFFFF" fill-opacity="0.07"/>
+<circle cx="800" cy="126" r="12.16" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.4" stroke-width="3"/>
+<circle cx="823.68" cy="149.68" r="9" fill="#C9C3BC" fill-opacity="1" stroke="#1A1A48" stroke-width="3"/>
+<text x="800" y="190" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">acme-api</text>
+<circle cx="930" cy="126" r="32" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="930" cy="126" r="12.16" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="953.68" cy="149.68" r="9" fill="#FBBF24" fill-opacity="1" stroke="#1A1A48" stroke-width="3"/>
+<circle cx="955.6" cy="100.4" r="13" fill="#FBBF24" fill-opacity="1" stroke="#1A1A48" stroke-width="3"/>
+<text x="955.6" y="107.4" font-size="19" font-weight="800" fill="#1A1A48" fill-opacity="1" text-anchor="middle">!</text>
+<text x="930" y="190" font-size="18" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">acme-docs</text>
+<rect x="624" y="214" width="480" height="230" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="670" cy="260" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<circle cx="670" cy="260" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.8" stroke-width="3"/>
+<circle cx="716" cy="250" r="6" fill="#E8795A" fill-opacity="1"/>
+<text x="730" y="258" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">acme-web</text>
+<rect x="706" y="270" width="100" height="32" rx="16" fill="#338EF7" fill-opacity="0.18" stroke="#338EF7" stroke-opacity="0.7" stroke-width="2"/>
+<text x="756.0" y="292" font-size="18" font-weight="600" fill="#338EF7" fill-opacity="1" text-anchor="middle">Working</text>
+<text x="818" y="292" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Fix the checkout…</text>
+<text x="648" y="326" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · VS Code · 10 min</text>
+<rect x="921" y="239" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="930" y="239" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="960" y="240" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="998" y="236" width="24" height="24" rx="6" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2"/>
+<path d="M1006 252L1015 243M1009 243H1015V249" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M1044 240L1060 256M1060 240L1044 256" fill="none" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="664" cy="362" r="5" fill="#34D399" fill-opacity="1"/>
+<text x="682" y="369" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Edit</text>
+<text x="750" y="369" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">src/cart/store.ts</text>
+<path d="M1060 362L1066 368L1076 356" fill="none" stroke="#34D399" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="664" cy="404" r="5" fill="#338EF7" fill-opacity="1"/>
+<text x="682" y="411" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Bash</text>
+<text x="750" y="411" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">npm test -- checkout</text>
 </svg>

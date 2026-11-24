@@ -1,23 +1,70 @@
 # Agent HUD
 
 <p align="center">
-  <img src="assets/readme/hero.svg" width="100%" alt="Agent HUD: drawn mock-up of the floating window">
+  <img src="assets/readme/hero.svg" width="100%" alt="Agent HUD: drawn mock-up of the desktop with three session icons and one open session card">
 </p>
 
 Based on [AgentHUD](https://github.com/vladilenm/agent-hud) by Vladilen Minin (MIT).
 
-A small macOS heads-up display for Claude Code. It floats above your windows, shows what every session is
-doing, and takes you back to the right window in one click. The pictures here are drawings of the interface.
+A small macOS app for Claude Code. Every session becomes a small icon on your desktop. Click it to see the
+conversation, answer what the agent asks, pause it, or start a new session without opening a terminal. The
+pictures here are drawings of the interface.
 
-## Permission requests and red flags
+## Sessions on your desktop
 
-Allow, deny with a reason, or hand the request back to where the agent runs. Dangerous commands are shown in
-red with the reason, and "always allow" is never offered for them. Out of the box: pushing to `main` / `master`
-/ `dev` / `develop`, `--force`, creating or merging a merge or pull request, `rm -rf`, database migrations. The
-rules live in a JSON file you can edit.
+Each Claude Code session is one small transparent icon with the project name under it. A dot shows the state, a
+badge says the agent needs you, and a red mark says a background task looks stuck. Drag an icon anywhere and it
+stays there. Click it to open a card of fixed size next to it; click anywhere outside to close the card.
+
+## The card is the conversation
+
+The card shows the session as a chat: your messages, the agent's replies with Markdown, and every tool call with
+its status. Sessions that run in an editor or a terminal are watch-only: the footer says "Watching — reply in
+VS Code" and a button takes you there. Sessions run by Agent HUD have a message field, stream the reply as it is
+written, and can be interrupted.
 
 <p align="center">
-  <img src="assets/readme/permission-red-flag.svg" width="100%" alt="An ordinary request and a red-flagged git push request without Always">
+  <img src="assets/readme/chat-card.svg" width="100%" alt="A watch-only editor session next to a session run by Agent HUD with a message field and a streaming reply">
+</p>
+
+## Answer from the card
+
+When the agent needs you, the card shows the request instead of making you hunt for the right window.
+
+- **Permissions:** Allow, Deny… with a reason, or Always for a rule. Or answer in the editor instead.
+- **Red flags:** dangerous commands are shown in red with the reason and offer no Always. Out of the box:
+  pushing to `main` / `master` / `dev` / `develop`, `--force`, creating or merging a merge or pull request,
+  `rm -rf`, database migrations. The rules live in a JSON file you can edit.
+- **Questions:** the agent's multiple-choice questions, one or several, with an Other… field. Send all answers at
+  once.
+- **Plans:** read the plan, then Approve, "Approve, accept edits", or Send back… with feedback.
+
+<p align="center">
+  <img src="assets/readme/permission-red-flag.svg" width="100%" alt="An ordinary permission request and a red-flagged git push request without Always">
+</p>
+
+<p align="center">
+  <img src="assets/readme/questions-and-plans.svg" width="100%" alt="A card with three questions next to a card with a plan to approve">
+</p>
+
+## Pause and Stop
+
+Pause holds the agent before its next action for at most 15 minutes; the icon blurs and shows a countdown. Stop
+holds it until you press Play. Both continue from the same place. Hover the icon for what is held and for the
+limits: a command that is already running cannot be interrupted, and quitting Agent HUD releases all holds.
+
+<p align="center">
+  <img src="assets/readme/pause-stop.svg" width="100%" alt="A paused icon with a countdown and its popover, and a stopped icon with its popover">
+</p>
+
+## Sessions run by Agent HUD
+
+"New session…" starts Claude Code inside the app. Pick a project folder, write a first message if you like, and
+chat in the card. Every action that needs approval asks you first. "Continue a session…" lists past sessions to
+pick up where they stopped. "Move to Cursor" or "Move to VS Code" hands a running session over to the editor.
+
+<p align="center">
+  <img src="assets/readme/own-sessions.svg" width="100%" alt="The New session window, the chat card, and the Move to Cursor menu">
 </p>
 
 ## Background tasks
@@ -38,23 +85,29 @@ links that appeared in commands.
   <img src="assets/readme/period-report.svg" width="100%" alt="Range presets and a Markdown report preview">
 </p>
 
-Each session also gets one avatar with its state: working, waiting for you, done, idle. Click it for the step
-feed and the subagent tree. Drag the HUD anywhere by an avatar.
-
 ## How it works
 
+Claude Code calls a small hook, `agenthud-hook`. The hook talks to the app over a Unix socket that only your user
+can open, and your answer goes back the same way. If the app is not running, the hook steps aside and Claude Code
+behaves as if it was never installed.
+
 <p align="center">
-  <img src="assets/readme/how-it-works.svg" width="100%" alt="Claude Code, agenthud-hook, Unix socket, Agent HUD, decision back">
+  <img src="assets/readme/how-it-works.svg" width="100%" alt="Claude Code, agenthud-hook, Unix socket, Agent HUD, your answer back">
 </p>
 
-Everything stays on your Mac. The app has no network code. The hook talks to the app over a Unix socket that
-only your user can open, and the activity log is a local file you can switch off in the settings.
+Privacy: the app itself has no network code. To show the chat it reads the session transcript from your disk.
+Sessions that Agent HUD starts are ordinary Claude Code processes that use your own login. The activity log is a
+local file you can switch off in the settings.
+
+Limits: requests reach the app through hooks, so sessions started before you connected do not report. Start a new
+one. Sessions run by Agent HUD need the `claude` command-line tool installed.
 
 ## Requirements
 
 - macOS 15 or later
 - Swift 6 toolchain (Xcode or Command Line Tools)
-- Claude Code in the terminal, VS Code or Cursor
+- Claude Code in the terminal, VS Code, Cursor or another VS Code based editor
+- The `claude` command-line tool, to run sessions from Agent HUD
 
 ## Install
 
@@ -67,13 +120,20 @@ open ~/Applications/AgentHUD.app
 
 This builds the app, puts it in `~/Applications` and links the hook to `~/.local/bin/agenthud-hook`.
 
-Then connect it to Claude Code from the app's control panel. The app shows exactly what it will add to
-`~/.claude/settings.json`, keeps your existing hooks in place and in order, and saves a copy of the file as
-`settings.json.agenthud-backup-<date>` before writing. Disconnecting removes only its own entries.
+The setup window opens on first launch. It lists the connection to Claude Code and the macOS permissions, each
+with what it is for and its status. Nothing is requested until you click, and a permission you skip only leaves
+its own feature off.
 
-Sessions started before you connected do not report to the HUD. Start a new one.
+<p align="center">
+  <img src="assets/readme/setup.svg" width="100%" alt="The setup window with granted and not granted permissions">
+</p>
 
-When the app is not running, the hook steps aside and Claude Code behaves as if it was never installed.
+The connection shows exactly what it will add to `~/.claude/settings.json`, keeps your existing hooks in place
+and in order, and saves a copy of the file as `settings.json.agenthud-backup-<date>` before writing.
+Disconnecting removes only its own entries.
+
+The app is built from source and signed ad hoc, so macOS forgets its permissions after each rebuild. Open the
+setup window again and allow them once more.
 
 ## Red flag rules
 
@@ -112,9 +172,11 @@ The second date is optional and defaults to now.
 ```sh
 swift build
 swift run AgentHudCoreTests
+swift run AgentHud --render /tmp/hud-render
 ```
 
-Tests are an executable target, so they run without Xcode. The app icon is drawn by `scripts/make-icon.swift`.
+Tests are an executable target, so they run without Xcode. The `--render <dir>` flag draws the interface to PNG
+files with sample data and exits. The app icon is drawn by `scripts/make-icon.swift`.
 
 ## License
 

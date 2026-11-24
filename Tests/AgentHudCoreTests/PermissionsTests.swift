@@ -12,7 +12,8 @@ import Testing
             #expect(Permissions.all.filter { $0.kind == k }.count == 1)
             #expect(Permissions.info(k).kind == k)
         }
-        #expect(Permissions.all.filter { $0.stage == .now }.count == 4)
+        #expect(Permissions.all.filter { $0.stage == .now }.count == 3)
+        #expect(Permissions.info(.accessibility).stage == .coming)
         #expect(Permissions.info(.screenRecording).stage == .coming)
         #expect(Permissions.info(.fullDiskAccess).stage == .coming)
     }
@@ -26,13 +27,15 @@ import Testing
 
     @Test func missingNowLimits() {
         var st = all(.granted)
-        st[.accessibility] = .notGranted
+        st[.automation] = .notGranted
         st[.fullDiskAccess] = .notGranted
         let s = Permissions.summary(st)
         #expect(s.grantedCount == 4)
-        #expect(s.missingNow.map(\.kind) == [.accessibility])
+        #expect(s.missingNow.map(\.kind) == [.automation])
         #expect(s.isLimited)
-        #expect(s.headline == "4 of 6 allowed · limited: messages are copied instead of sent")
+        #expect(s.headline == "4 of 6 allowed · limited: terminal sessions cannot be opened or answered from the HUD")
+        st[.accessibility] = .notGranted
+        #expect(Permissions.summary(st).missingNow.map(\.kind) == [.automation])
     }
 
     @Test func missingComingDoesNotLimit() {
@@ -58,7 +61,7 @@ import Testing
     @Test func nothingGranted() {
         let s = Permissions.summary(all(.notGranted))
         #expect(s.grantedCount == 0)
-        #expect(s.missingNow.map(\.kind) == [.hooks, .accessibility, .automation, .notifications])
+        #expect(s.missingNow.map(\.kind) == [.hooks, .automation, .notifications])
         #expect(s.headline == "Nothing allowed yet · limited: Agent HUD sees nothing")
     }
 }

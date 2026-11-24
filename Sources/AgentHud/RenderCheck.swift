@@ -50,8 +50,16 @@ enum RenderCheck {
         write(card(fb, nil), size: cardSize, to: out.appendingPathComponent("card-fallback.png"))
         write(card(held(.pause, calls: 1), chat), size: cardSize, to: out.appendingPathComponent("card-paused.png"))
 
+        // The input bar is shown only for a session run by the app (a fixed object, no process).
+        let inputId = "0f8fad5b-d9cb-469f-a165-708677289500", inputCwd = "/Users/dev/acme-web"
+        var inputStore = SessionStore()
+        let inputKey = inputStore.register(sessionId: inputId, cwd: inputCwd, host: .ownedByHud, now: Date().addingTimeInterval(-420))
+        inputStore.apply(AgentEvent(kind: .claude, sessionId: inputId, cwd: inputCwd, time: Date().addingTimeInterval(-400),
+                                    body: .sessionStarted(source: nil, model: "claude-sonnet-5-5")))
+        model.installPreview(OwnedSession(previewId: inputId, cwd: inputCwd, state: .idle, items: chat, partialText: "",
+                                          lastError: nil, stderrTail: "", notice: nil, costUSD: nil))
         func inputCard(_ preset: ChatInputPreset) -> some View {
-            SessionCard(model: model, session: session(.working), preset: chat, inputPreset: preset)
+            SessionCard(model: model, session: inputStore.session(inputKey)!, preset: chat, inputPreset: preset)
                 .frame(width: cardSize.width, height: cardSize.height)
                 .environment(\.solidBackground, true)
         }

@@ -342,12 +342,12 @@ struct ChatInput: View {
     }
 
     var body: some View {
-        if owned != nil || kind.canCompose {
+        if InputLogic.inputMode(owned: owned != nil, hostCanBeTyped: kind.canCompose) != .watchOnly {
             composer
         } else {
             HStack(spacing: 8) {
                 Image(systemName: session.host.placeSymbol).foregroundStyle(.secondary)
-                Text("Reply \(session.host.placeIn)").font(.system(size: 12)).foregroundStyle(.secondary)
+                Text(InputLogic.watchLine(hostLabel: session.host.label)).font(.system(size: 12)).foregroundStyle(.secondary)
                 Spacer(minLength: 4)
                 Button("Open") { model.open(session.id) }.controlSize(.small)
             }

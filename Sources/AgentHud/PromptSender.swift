@@ -33,6 +33,8 @@ final class PromptSender {
             guard owned.isLive else { return .failed(OwnedSession.goneMessage) }
             return owned.send(text) ? .sent : .failed(OwnedSession.busyMessage)
         }
+        // Switched off: no key is posted and the pasteboard is not touched.
+        guard Features.typeIntoHost else { return .failed("Sending to this session is switched off") }
         guard !busy else { return .failed("Another message is still being sent") }
         busy = true
         defer { busy = false }
@@ -99,7 +101,7 @@ final class PromptSender {
 
     private func bringEditorForward(_ session: AgentSession) async {
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
-            TerminalFocus.focusEditor(session) { c.resume() }
+            TerminalFocus.focusEditor(session, withLink: false) { c.resume() }
         }
     }
 

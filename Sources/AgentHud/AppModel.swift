@@ -37,7 +37,7 @@ final class Settings: ObservableObject {
     @Published var activityLog: Bool { didSet { d.set(activityLog, forKey: "activityLog") } }
     /// Quick prompts for VS Code sessions (inserted into the session's input field).
     @Published var quickPrompts: [String] { didSet { d.set(quickPrompts, forKey: "quickPrompts") } }
-    /// Send from the card by typing into the host app (needs the Accessibility permission); off: copy the text and open the session.
+    /// Unused while `Features.typeIntoHost` is off; the stored value is kept.
     @Published var sendByTyping: Bool { didSet { d.set(sendByTyping, forKey: "sendByTyping") } }
 
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
@@ -443,7 +443,8 @@ final class AppModel: ObservableObject {
     func open(_ key: String, in editor: EditorChoice) {
         guard let s = store.session(key) else { return }
         if s.host.isEditor {
-            TerminalFocus.focusEditor(s, bundleId: editor.bundleId)
+            TerminalFocus.focusEditor(s, bundleId: editor.bundleId,
+                                      withLink: EditorOpenPlan.usesSessionLink(sessionEnded: s.baseState == .ended, handOver: false))
         } else {
             TerminalFocus.openProject(s, in: editor.bundleId)
         }
@@ -517,7 +518,7 @@ final class AppModel: ObservableObject {
 
     static let handOverWaitHint = "Wait until the agent finishes this step"
     /// Opens a session in an editor: the project folder first, then the session link.
-    var openInEditor: (AgentSession, String) -> Void = { TerminalFocus.focusEditor($0, bundleId: $1) }
+    var openInEditor: (AgentSession, String) -> Void = { TerminalFocus.focusEditor($0, bundleId: $1, withLink: EditorOpenPlan.usesSessionLink(sessionEnded: false, handOver: true)) }
 
     /// Project folders for the "New session" window: most recently active first.
     var recentProjects: [String] {

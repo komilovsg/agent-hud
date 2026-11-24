@@ -2,6 +2,25 @@ import Testing
 @testable import AgentHudCore
 
 @Suite struct ChatInputLogicTests {
+    // MARK: input mode
+
+    @Test func inputModeFollowsOwnerAndSwitch() {
+        #expect(InputLogic.inputMode(owned: true, typeIntoHost: false, hostCanBeTyped: false) == .direct)
+        #expect(InputLogic.inputMode(owned: true, typeIntoHost: true, hostCanBeTyped: true) == .direct)
+        #expect(InputLogic.inputMode(owned: false, typeIntoHost: true, hostCanBeTyped: true) == .typeIntoHost)
+        #expect(InputLogic.inputMode(owned: false, typeIntoHost: true, hostCanBeTyped: false) == .watchOnly)
+        #expect(InputLogic.inputMode(owned: false, typeIntoHost: false, hostCanBeTyped: true) == .watchOnly)
+        #expect(!Features.typeIntoHost)
+        #expect(InputLogic.inputMode(owned: false, hostCanBeTyped: true) == .watchOnly)
+        #expect(InputLogic.watchLine(hostLabel: "Cursor") == "Watching — reply in Cursor")
+    }
+
+    @Test func sessionLinkOnlyForEndedOrHandOver() {
+        #expect(!EditorOpenPlan.usesSessionLink(sessionEnded: false, handOver: false))
+        #expect(EditorOpenPlan.usesSessionLink(sessionEnded: true, handOver: false))
+        #expect(EditorOpenPlan.usesSessionLink(sessionEnded: false, handOver: true))
+    }
+
     // MARK: send plan
 
     @Test func typesOnlyWithTrustAndSetting() {

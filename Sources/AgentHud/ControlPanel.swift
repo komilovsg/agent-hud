@@ -185,9 +185,6 @@ struct ControlPanelView: View {
                                    isOn: Binding(get: { loginItem }, set: { actions.setLoginItem($0) }))
                     BrandToggleRow(title: "Activity log", hint: "For the daily summary; stored only on this Mac",
                                    isOn: $settings.activityLog)
-                    BrandToggleRow(title: "Send from the card by typing into the editor",
-                                   hint: "Needs the Accessibility permission. Off: the text is copied and the session opens.",
-                                   isOn: $settings.sendByTyping)
                     permissionsRow
                     Divider().overlay(Brand.line).padding(.vertical, 4)
                     FieldLabel(title: "Time to answer", hint: "then it goes to the agent")

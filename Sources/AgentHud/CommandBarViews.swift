@@ -16,6 +16,8 @@ final class CommandBarModel: ObservableObject {
     @Published var entries: [CommandBarEntry]
     @Published var target: CommandBarTarget
     @Published var status: Status?
+    /// Voice: listening, the countdown, a missing permission. `.none` for a plain bar.
+    @Published var voice: VoiceBarState = .none
     @Published var menuOpen = false
     @Published var commands: [SlashCommand] = []
     /// Bumped whenever the field should take the keyboard.
@@ -29,6 +31,8 @@ final class CommandBarModel: ObservableObject {
     var onPicked: (CommandBarTarget) -> Void = { _ in }
     var onNewConversation: () -> Void = {}
     var onHeight: (CGFloat) -> Void = { _ in }
+    /// Opens the setup window, highlighting a permission.
+    var onSetup: (PermissionKind?) -> Void = { _ in }
 
     init(app: AppModel) {
         self.app = app
@@ -40,12 +44,13 @@ final class CommandBarModel: ObservableObject {
 
     /// Fixed state for the offscreen render check.
     init(previewText: String, entries: [CommandBarEntry], target: CommandBarTarget = .assistant, busy: Bool = false,
-         status: Status? = nil, menuOpen: Bool = false, commands: [SlashCommand] = [], row: Int = 0) {
+         status: Status? = nil, voice: VoiceBarState = .none, menuOpen: Bool = false, commands: [SlashCommand] = [], row: Int = 0) {
         app = nil
         text = previewText
         self.entries = entries
         self.target = target
         self.status = status
+        self.voice = voice
         self.menuOpen = menuOpen
         self.commands = commands
         previewBusy = busy
@@ -61,6 +66,13 @@ final class CommandBarModel: ObservableObject {
     }
 
     var statusText: Status {
+        switch voice {
+        case .listening: return Status(text: VoiceText.listeningLine)
+        case .finishing: return Status(text: VoiceText.finishingLine)
+        case .countdown: return Status(text: VoiceText.countdownLine)
+        case .missing(let kinds): return Status(text: VoicePermissions.message(missing: kinds) ?? "", isError: true)
+        case .none: break
+        }
         if let status { return status }
         let line = CommandBarLogic.statusLine(error: nil, busyTitle: busy ? targetTitle : nil, newSession: target == .newSession)
         return Status(text: line, isError: false)
@@ -120,7 +132,7 @@ struct CommandBarView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top, spacing: 10) {
                     chip
-                    field
+                    if model.voice.showsListening { ListeningField(state: model.voice) } else { field }
                 }
                 statusLine
                 if model.menuOpen {
@@ -149,6 +161,8 @@ struct CommandBarView: View {
         }
         .onChange(of: model.commands) { _, _ in nav.reset(count: suggestions.count) }
         .onChange(of: model.menuOpen) { _, _ in nav.reset(count: suggestions.count) }
+        // The field comes back after listening: it takes the keyboard again.
+        .onChange(of: model.voice.showsListening) { _, listening in if !listening { takeKeyboard() } }
         .onChange(of: model.focusTick) { _, _ in takeKeyboard() }
         .onAppear { takeKeyboard() }
     }
@@ -215,6 +229,10 @@ struct CommandBarView: View {
         return HStack(spacing: 5) {
             if s.isError { Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)) }
             Text(s.text).font(Brand.body(11)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            if case .missing(let kinds) = model.voice {
+                Spacer(minLength: 8)
+                SetupButton(title: "Set up\u{2026}", primary: true) { model.onSetup(kinds.first) }
+            }
         }
         .foregroundStyle(s.isError ? Brand.warning : Brand.inkSubtle)
         .padding(.leading, 2)
@@ -388,7 +406,8 @@ struct CommandBarSettingsSection: View {
                             .font(Brand.body(11, .medium)).foregroundStyle(Brand.warning)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text("Press it anywhere to type a command").font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
+                        Text(settings.voiceEnabled ? "Tap it anywhere to type a command, hold it to talk" : "Press it anywhere to type a command")
+                            .font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
                     }
                     Divider().overlay(Brand.line).padding(.top, 2)
                     BrandToggleRow(title: "Keep command history", hint: "Last 20, stored only on this Mac", isOn: $settings.commandBarHistory)

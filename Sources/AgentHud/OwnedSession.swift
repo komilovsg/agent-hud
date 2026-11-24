@@ -71,6 +71,12 @@ final class OwnedSession: ObservableObject {
     /// The CLI reported its session (id, model).
     var onInit: ((String?, String?) -> Void)?
     var onExit: ((Int32) -> Void)?
+    /// A turn that was started by voice ended well: the text of its answer, for the spoken reply.
+    var onVoiceReply: ((String) -> Void)?
+    /// The turn that is running was started by a spoken command.
+    private(set) var turnByVoice = false
+    /// The message waiting in the command bar's queue for this session was spoken.
+    var queuedByVoice = false
 
     private(set) var logic = OwnedSessionLogic()
     private let config: Config
@@ -223,8 +229,9 @@ final class OwnedSession: ObservableObject {
 
     /// Sends one user turn. False when the session cannot take a message right now.
     @discardableResult
-    func send(_ text: String) -> Bool {
+    func send(_ text: String, byVoice: Bool = false) -> Bool {
         guard logic.canSend, let stdin else { return false }
+        turnByVoice = byVoice
         let line = StreamParser.userLine(text)
         apply(.userSent)
         userSeq += 1
@@ -333,6 +340,8 @@ final class OwnedSession: ObservableObject {
                 let interrupted = logic.state == .interrupting
                 apply(.turnFinished)
                 turnsFinished += 1
+                let byVoice = turnByVoice
+                turnByVoice = false
                 if let cost { costUSD = cost }
                 partialText = ""
                 settleRunningTools()
@@ -341,6 +350,8 @@ final class OwnedSession: ObservableObject {
                 } else if !success {
                     lastError = error.map { "The turn ended with an error: \($0)" } ?? "The turn ended with an error"
                 }
+                // Only a turn that ended well and was not interrupted has an answer worth reading out.
+                if byVoice, success, !interrupted, let reply = VoiceReply.finalText(in: items) { onVoiceReply?(reply) }
             case .notice(let text):
                 notice = text
             }

@@ -23,11 +23,14 @@ final class CommandBarController: NSObject, NSWindowDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var commandCache: [String: [SlashCommand]] = [:]
     private var lastHeight: CGFloat = 80
+    private let voice: VoiceController
 
     /// `registry`: nil leaves the hotkey out (a test instance with its own socket never registers one).
-    init(app: AppModel, registry: HotKeyRegistry?) {
+    /// `voiceServices`: the speech engines; nil builds the Apple ones, tests and renders pass fakes.
+    init(app: AppModel, registry: HotKeyRegistry?, voiceServices: VoiceServices? = nil) {
         self.app = app
         self.registry = registry
+        voice = VoiceController(app: app, services: voiceServices ?? .make())
         model = CommandBarModel(app: app)
         panel = BarPanel(contentRect: NSRect(x: 0, y: 0, width: CommandBarLogic.barWidth, height: 80),
                          styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -42,12 +45,17 @@ final class CommandBarController: NSObject, NSWindowDelegate {
         panel.animationBehavior = .none
         panel.isReleasedWhenClosed = false
         panel.delegate = self
-        panel.onCancel = { [weak self] in self?.hide() }
+        panel.onCancel = { [weak self] in self?.closeRequested() }
         let host = FirstClickHostingView(rootView: CommandBarView(model: model).tint(Brand.accent))
         host.sizingOptions = []
         panel.contentView = host
 
-        model.onClose = { [weak self] in self?.hide() }
+        voice.attach(self)
+        model.onClose = { [weak self] in self?.closeRequested() }
+        model.onSetup = { [weak self] kind in
+            self?.app.openSetup(kind)
+            self?.hide()
+        }
         model.onSubmit = { [weak self] interrupt in self?.submit(interrupt: interrupt) }
         model.onHeight = { [weak self] h in self?.heightChanged(h) }
         model.onNewConversation = { [weak self] in self?.newConversation() }
@@ -79,7 +87,10 @@ final class CommandBarController: NSObject, NSWindowDelegate {
             app.commandBarHotKeyTaken = false
             return
         }
-        let ok = registry.register(id: HotKeyId.commandBar, keyCode: code, modifiers: mods) { [weak self] in self?.toggle() }
+        // A press toggles the bar (or, with voice on, starts the tap-or-hold decision); the release ends a hold.
+        let ok = registry.register(id: HotKeyId.commandBar, keyCode: code, modifiers: mods,
+                                   action: { [weak self] in self?.voice.keyDown() },
+                                   onRelease: { [weak self] in self?.voice.keyUp() })
         app.commandBarHotKeyTaken = !ok
         if !ok { NSLog("AgentHUD: the command bar hotkey could not be registered") }
     }
@@ -105,10 +116,27 @@ final class CommandBarController: NSObject, NSWindowDelegate {
         loadCommands()
     }
 
+    /// Opens the bar for listening, or clears the line of an open one.
+    func showForVoice() {
+        if panel.isVisible {
+            model.status = nil
+            model.menuOpen = false
+        } else {
+            show()
+        }
+    }
+
+    /// Esc: voice takes it while it is listening or counting down, otherwise the bar closes.
+    private func closeRequested() {
+        if voice.escapePressed() { return }
+        hide()
+    }
+
     func hide() {
         guard panel.isVisible else { return }
         removeMonitors()
         panel.orderOut(nil)
+        voice.barHidden()
     }
 
     nonisolated func windowDidResignKey(_ notification: Notification) {
@@ -195,7 +223,8 @@ final class CommandBarController: NSObject, NSWindowDelegate {
         loadCommands()
     }
 
-    private func submit(interrupt: Bool) {
+    /// `byVoice`: the text was spoken; the answer is read aloud when the Assistant gives it.
+    func submit(interrupt: Bool, byVoice: Bool = false) {
         let text = model.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let target = model.target
@@ -204,10 +233,10 @@ final class CommandBarController: NSObject, NSWindowDelegate {
             hide()
             model.text = ""
             app.recordCommand(text)
-            _ = app.submitFromBar(target: target, text: text, interrupt: false)
+            _ = app.submitFromBar(target: target, text: text, interrupt: false, byVoice: byVoice)
             return
         }
-        switch app.submitFromBar(target: target, text: text, interrupt: interrupt) {
+        switch app.submitFromBar(target: target, text: text, interrupt: interrupt, byVoice: byVoice) {
         case .refused(let message):
             model.status = CommandBarModel.Status(text: message, isError: true)
         case .sent, .queued, .openedNewSession:

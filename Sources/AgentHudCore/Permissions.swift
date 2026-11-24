@@ -2,7 +2,7 @@ import Foundation
 
 /// The macOS permissions (and the hook connection) Agent HUD can use. Pure data: the checks live in the app target.
 public enum PermissionKind: String, CaseIterable, Sendable {
-    case hooks, accessibility, automation, notifications, screenRecording, fullDiskAccess
+    case hooks, accessibility, automation, notifications, screenRecording, microphone, speechRecognition, fullDiskAccess
 }
 
 public enum PermissionStatus: String, Sendable {
@@ -45,6 +45,12 @@ public enum Permissions {
         PermissionInfo(kind: .screenRecording, title: "Screen Recording",
                        usedFor: "Lets agents take screenshots when you allow it.",
                        stage: .now, limitedWithout: "Agents cannot take screenshots"),
+        PermissionInfo(kind: .microphone, title: "Microphone",
+                       usedFor: "Hears you only while you hold the talk key",
+                       stage: .now, limitedWithout: "Voice cannot hear you"),
+        PermissionInfo(kind: .speechRecognition, title: "Speech Recognition",
+                       usedFor: "Turns what you said into text, on this Mac",
+                       stage: .now, limitedWithout: "Voice cannot turn speech into text"),
         PermissionInfo(kind: .fullDiskAccess, title: "Full Disk Access",
                        usedFor: "Lets sessions started by Agent HUD read files outside your projects.",
                        stage: .coming, limitedWithout: "Sessions cannot read files outside your projects"),
@@ -65,12 +71,13 @@ public enum Permissions {
     }
 
     /// Permissions that limit the app only once the feature behind them is in use. Accessibility serves agents
-    /// acting in apps (off by default) and reading window text (asked for by few sessions).
-    public static let neededOnlyInUse: Set<PermissionKind> = [.accessibility]
+    /// acting in apps (off by default) and reading window text (asked for by few sessions). The microphone and
+    /// speech recognition serve voice, which is off until the person switches it on.
+    public static let neededOnlyInUse: Set<PermissionKind> = [.accessibility, .microphone, .speechRecognition]
 
     /// A kind missing from `statuses` counts as unknown.
     /// `inUse`: which of the `neededOnlyInUse` permissions are wanted right now - agent actions are switched on,
-    /// or a read of window text was refused for the missing permission. The others do not count as a limit.
+    /// a read of window text was refused for the missing permission, or voice is switched on. The others do not count as a limit.
     public static func summary(_ statuses: [PermissionKind: PermissionStatus], inUse: Set<PermissionKind> = []) -> Summary {
         func status(_ i: PermissionInfo) -> PermissionStatus { statuses[i.kind] ?? .unknown }
         let granted = all.filter { status($0) == .granted }.count

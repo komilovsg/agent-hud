@@ -63,6 +63,17 @@ final class Settings: ObservableObject {
     /// Whether the command bar keeps the last commands for Up / Down.
     @Published var commandBarHistory: Bool { didSet { d.set(commandBarHistory, forKey: "commandBarHistoryEnabled") } }
 
+    /// Push-to-talk on the command bar hotkey. Off until the person switches it on.
+    @Published var voiceEnabled: Bool { didSet { d.set(voiceEnabled, forKey: "voiceEnabled") } }
+    /// A code of `VoiceLanguages.all`.
+    @Published var voiceLanguage: String { didSet { d.set(voiceLanguage, forKey: "voiceLanguage") } }
+    /// Send the heard text by itself after a short countdown.
+    @Published var voiceSendAfterSpeaking: Bool { didSet { d.set(voiceSendAfterSpeaking, forKey: "voiceSendAfterSpeaking") } }
+    /// Read a short form of the Assistant's reply aloud after a spoken command.
+    @Published var voiceSpeakReplies: Bool { didSet { d.set(voiceSpeakReplies, forKey: "voiceSpeakReplies") } }
+    /// Allow recognition through Apple's servers when the language has no on-device model. Audio then leaves the Mac.
+    @Published var voiceAllowServerRecognition: Bool { didSet { d.set(voiceAllowServerRecognition, forKey: "voiceAllowServerRecognition") } }
+
     static let defaultQuickPrompts = ["Continue", "Run the tests and fix what fails", "Check lint and types", "Make a commit"]
 
     init() {
@@ -88,6 +99,11 @@ final class Settings: ObservableObject {
         handsAccess = HandsAccessMode(rawValue: d.string(forKey: "handsAccess") ?? "") ?? .default
         commandBarHotKey = CommandBarHotKey.option(id: d.string(forKey: "commandBarHotKey")).id
         commandBarHistory = d.object(forKey: "commandBarHistoryEnabled") as? Bool ?? true
+        voiceEnabled = d.object(forKey: "voiceEnabled") as? Bool ?? false
+        voiceLanguage = VoiceLanguages.info(code: d.string(forKey: "voiceLanguage")).code
+        voiceSendAfterSpeaking = d.object(forKey: "voiceSendAfterSpeaking") as? Bool ?? true
+        voiceSpeakReplies = d.object(forKey: "voiceSpeakReplies") as? Bool ?? true
+        voiceAllowServerRecognition = d.object(forKey: "voiceAllowServerRecognition") as? Bool ?? false
         let stopped = d.double(forKey: "handsStoppedAt")
         handsStoppedAt = handsAccess == .off && stopped > 0 ? Date(timeIntervalSince1970: stopped) : nil
     }
@@ -120,6 +136,8 @@ final class AppModel: ObservableObject {
     var onNewSessionWithText: ((String) -> Void)?
     /// Open the command bar (held by AppDelegate).
     var onOpenCommandBar: (() -> Void)?
+    /// The Assistant answered a spoken command: the text of the answer (held by the command bar).
+    var onVoiceReply: ((String) -> Void)?
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -707,7 +725,7 @@ final class AppModel: ObservableObject {
         return nil
     }
 
-    private func launch(_ o: OwnedSession, key: String, firstMessage: String?) {
+    private func launch(_ o: OwnedSession, key: String, firstMessage: String?, byVoice: Bool = false) {
         let id = o.sessionId
         owned[id] = o
         store.keep(key, true)
@@ -719,6 +737,11 @@ final class AppModel: ObservableObject {
         o.onExit = { [weak self, weak o] _ in
             guard let self, let o, self.owned[id] === o else { return }
             self.ownedExited(o)
+        }
+        // The spoken reply is for the Assistant only.
+        o.onVoiceReply = { [weak self, weak o] text in
+            guard let self, let o, o.assistant else { return }
+            self.onVoiceReply?(text)
         }
         // State and cost changes redraw the HUD; streamed text only redraws the open card.
         ownedSubscriptions[id] = o.$state.map { _ in () }.merge(with: o.$costUSD.map { _ in () })
@@ -732,7 +755,7 @@ final class AppModel: ObservableObject {
         selectedKey = key
         selectedByUser = true
         o.start()
-        if let text = firstMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty { o.send(text) }
+        if let text = firstMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty { o.send(text, byVoice: byVoice) }
         hudLog.notice("owned start [\(id.prefix(8), privacy: .public)]")
     }
 
@@ -886,7 +909,8 @@ final class AppModel: ObservableObject {
     func openCommandBar() { onOpenCommandBar?() }
 
     /// Sends what was typed in the bar. Nothing is sent while the hooks are not connected.
-    func submitFromBar(target: CommandBarTarget, text raw: String, interrupt: Bool) -> CommandBarOutcome {
+    /// `byVoice`: the text was spoken; the answer to that turn is read aloud (Assistant only). It changes nothing else.
+    func submitFromBar(target: CommandBarTarget, text raw: String, interrupt: Bool, byVoice: Bool = false) -> CommandBarOutcome {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .refused("Type something first") }
         if target == .newSession {
@@ -897,9 +921,9 @@ final class AppModel: ObservableObject {
         switch target {
         case .session(let id):
             guard let o = owned[id], o.isLive else { return .refused("That session is no longer running in Agent HUD") }
-            return deliver(text, to: o, interrupt: interrupt)
+            return deliver(text, to: o, interrupt: interrupt, byVoice: byVoice)
         default:
-            return sendToAssistant(text, interrupt: interrupt)
+            return sendToAssistant(text, interrupt: interrupt, byVoice: byVoice)
         }
     }
 
@@ -909,19 +933,21 @@ final class AppModel: ObservableObject {
         selectedByUser = true
     }
 
-    private func deliver(_ text: String, to o: OwnedSession, interrupt: Bool) -> CommandBarOutcome {
+    private func deliver(_ text: String, to o: OwnedSession, interrupt: Bool, byVoice: Bool = false) -> CommandBarOutcome {
         guard let id = registryId(of: o) else { return .refused(OwnedSession.goneMessage) }
         let key = "\(AgentKind.claude.rawValue):\(id)"
         showCard(key)
         switch CommandBarLogic.sendPlan(state: o.state, interrupt: interrupt) {
         case .sendNow:
-            return o.send(text) ? .sent(key) : .refused(OwnedSession.busyMessage)
+            return o.send(text, byVoice: byVoice) ? .sent(key) : .refused(OwnedSession.busyMessage)
         case .queue, .waitThenSend:
             queue.queue(text, for: id)
+            o.queuedByVoice = byVoice
             return .queued(key)
         case .interruptThenSend:
             // The text waits in the slot and goes out when the interrupted turn has ended.
             queue.queue(text, for: id)
+            o.queuedByVoice = byVoice
             o.interrupt()
             return .queued(key)
         case .unavailable:
@@ -931,10 +957,10 @@ final class AppModel: ObservableObject {
 
     private func flushQueue(_ o: OwnedSession) {
         guard let id = registryId(of: o), o.logic.canSend, let text = queue.flush(id) else { return }
-        if !o.send(text) { queue.queue(text, for: id) }
+        if o.send(text, byVoice: o.queuedByVoice) { o.queuedByVoice = false } else { queue.queue(text, for: id) }
     }
 
-    private func sendToAssistant(_ text: String, interrupt: Bool) -> CommandBarOutcome {
+    private func sendToAssistant(_ text: String, interrupt: Bool, byVoice: Bool) -> CommandBarOutcome {
         let stored = assistantSessionId
         let ownedAlive = stored.flatMap { owned[$0]?.isLive } ?? false
         let transcript = stored.map { transcriptPath(ofSession: $0) != nil } ?? false
@@ -943,20 +969,20 @@ final class AppModel: ObservableObject {
         switch CommandBarLogic.assistantAction(storedId: stored, ownedAlive: ownedAlive, transcriptExists: transcript, aliveElsewhere: elsewhere) {
         case .sendToLive:
             guard let id = stored, let o = owned[id] else { return .refused(OwnedSession.goneMessage) }
-            return deliver(text, to: o, interrupt: interrupt)
+            return deliver(text, to: o, interrupt: interrupt, byVoice: byVoice)
         case .resume:
             guard let id = stored else { return .refused(OwnedSession.goneMessage) }
-            return startAssistant(id: id, resume: true, text: text)
+            return startAssistant(id: id, resume: true, text: text, byVoice: byVoice)
         case .startNew:
             // A dead entry of an earlier assistant that never got going is let go.
             if let old = stored, let o = owned[old], !o.isLive { hide("\(AgentKind.claude.rawValue):\(old)") }
             let id = UUID().uuidString.lowercased()
             assistantSessionId = id
-            return startAssistant(id: id, resume: false, text: text)
+            return startAssistant(id: id, resume: false, text: text, byVoice: byVoice)
         }
     }
 
-    private func startAssistant(id: String, resume: Bool, text: String) -> CommandBarOutcome {
+    private func startAssistant(id: String, resume: Bool, text: String, byVoice: Bool) -> CommandBarOutcome {
         let dir = AssistantSession.directory
         do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
             return .refused("The assistant's folder could not be created: \(error.localizedDescription)")
@@ -965,7 +991,7 @@ final class AppModel: ObservableObject {
         let key = store.register(sessionId: id, cwd: dir.path, host: .ownedByHud, now: Date())
         let o = makeOwned(id: id, cwd: dir.path, resume: resume)
         if resume { o.loadHistory(transcriptPath: transcriptPath(ofSession: id)) }
-        launch(o, key: key, firstMessage: text)
+        launch(o, key: key, firstMessage: text, byVoice: byVoice)
         return .sent(key)
     }
 
@@ -1295,7 +1321,9 @@ final class AppModel: ObservableObject {
 
     /// Which permissions count as a limit when missing (see `Permissions.summary`).
     var permissionsInUse: Set<PermissionKind> {
-        settings.handsAccess != .off || accessibilityAskedFor ? [.accessibility] : []
+        var inUse = VoicePermissions.inUse(voiceEnabled: settings.voiceEnabled)
+        if settings.handsAccess != .off || accessibilityAskedFor { inUse.insert(.accessibility) }
+        return inUse
     }
 
     /// What an action needs besides the request itself.

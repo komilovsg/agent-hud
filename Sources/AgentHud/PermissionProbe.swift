@@ -1,6 +1,7 @@
 import AgentHudCore
 import AppKit
 import ApplicationServices
+import AVFoundation
 import CoreServices
 import Foundation
 @preconcurrency import UserNotifications
@@ -34,6 +35,9 @@ enum PermissionProbe {
         case .notifications: return PermissionState(status: .unknown)
         case .screenRecording: return PermissionState(status: CGPreflightScreenCaptureAccess() ? .granted : .notGranted)
         case .fullDiskAccess: return fullDiskState()
+        // Read-only status checks: neither shows a system prompt.
+        case .microphone: return PermissionState(status: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized ? .granted : .notGranted)
+        case .speechRecognition: return PermissionState(status: AppleSpeechAccess.status() == .granted ? .granted : .notGranted)
         }
     }
 
@@ -142,6 +146,15 @@ enum PermissionProbe {
             _ = CGRequestScreenCaptureAccess()
         case .fullDiskAccess:
             openSettingsPane(.fullDiskAccess)       // macOS has no prompt for it
+        case .microphone:
+            // The system asks once; after a refusal only the Settings pane can change the answer.
+            if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+                AVCaptureDevice.requestAccess(for: .audio) { _ in }
+            } else {
+                openSettingsPane(.microphone)
+            }
+        case .speechRecognition:
+            if AppleSpeechAccess.status() == .notDetermined { AppleSpeechAccess.request() } else { openSettingsPane(.speechRecognition) }
         }
     }
 
@@ -153,6 +166,8 @@ enum PermissionProbe {
         case .automation: link = privacy + "Privacy_Automation"
         case .screenRecording: link = privacy + "Privacy_ScreenCapture"
         case .fullDiskAccess: link = privacy + "Privacy_AllFiles"
+        case .microphone: link = privacy + "Privacy_Microphone"
+        case .speechRecognition: link = privacy + "Privacy_SpeechRecognition"
         case .notifications: link = "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
         case .hooks: return
         }

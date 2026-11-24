@@ -152,6 +152,8 @@ enum SetupMetrics {
 struct SetupView: View {
     @ObservedObject var model: SetupModel
     var actions = SetupActions()
+    /// The window's height; the render check draws a taller one to show every row.
+    var height: CGFloat = SetupMetrics.height
 
     var body: some View {
         VStack(spacing: 0) {
@@ -183,7 +185,7 @@ struct SetupView: View {
             Rectangle().fill(Brand.line).frame(height: 1)
             footer
         }
-        .frame(width: SetupMetrics.width, height: SetupMetrics.height)
+        .frame(width: SetupMetrics.width, height: height)
         .background(Brand.bg)
     }
 
@@ -292,6 +294,8 @@ struct PermissionRow: View {
         case .automation: return "terminal"
         case .notifications: return "bell"
         case .screenRecording: return "record.circle"
+        case .microphone: return "mic"
+        case .speechRecognition: return "waveform"
         case .fullDiskAccess: return "internaldrive"
         }
     }

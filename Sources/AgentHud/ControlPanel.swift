@@ -73,6 +73,9 @@ struct ControlPanelView: View {
                         behaviorSection
                         CommandBarSettingsSection(index: 3, settings: settings, taken: model.commandBarHotKeyTaken,
                                                   clear: actions.clearCommandHistory)
+                        VoiceSettingsSection(index: 4, enabled: $settings.voiceEnabled, language: $settings.voiceLanguage,
+                                             sendAfterSpeaking: $settings.voiceSendAfterSpeaking, speakReplies: $settings.voiceSpeakReplies,
+                                             allowServer: $settings.voiceAllowServerRecognition)
                     }
                 }
                 .frame(maxHeight: screenTabLimit)

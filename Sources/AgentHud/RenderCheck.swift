@@ -202,6 +202,14 @@ enum RenderCheck {
             let v = SetupView(model: SetupModel(states: st, showsSourceBuildNote: source)).tint(Brand.accent)
             write(v, size: CGSize(width: SetupMetrics.width, height: SetupMetrics.height), to: out.appendingPathComponent("\(name).png"))
         }
+        // The two voice rows, with voice switched on, in a window tall enough to show every row.
+        var voiceStates = fake(.granted)
+        voiceStates[.microphone] = PermissionState(status: .notGranted)
+        voiceStates[.speechRecognition] = PermissionState(status: .notGranted)
+        let voiceSetup = SetupModel(states: voiceStates)
+        voiceSetup.inUse = VoicePermissions.inUse(voiceEnabled: true)
+        write(SetupView(model: voiceSetup, height: 960).tint(Brand.accent),
+              size: CGSize(width: SetupMetrics.width, height: 960), to: out.appendingPathComponent("setup-voice-rows.png"))
         let highlighted = SetupModel(states: mixed)
         highlighted.highlight = .accessibility
         write(SetupView(model: highlighted).tint(Brand.accent),
@@ -462,6 +470,22 @@ enum RenderCheck {
         bar("command-bar-busy", CommandBarModel(previewText: "Now do the same for the March file", entries: entries, busy: true))
         bar("command-bar-refused", CommandBarModel(previewText: "Open Mail", entries: entries,
                                                    status: CommandBarModel.Status(text: "Agent HUD is not connected to Claude Code, so the agent's permission requests could not reach you. Connect it in the setup window first.", isError: true)))
+        // Voice: fixed states only, no engine is built.
+        bar("command-bar-listening", CommandBarModel(previewText: "", entries: entries,
+                                                     voice: .listening(level: 0.55, partial: "Open the quarterly report in Numbers and tell me which sheet has the totals")))
+        bar("command-bar-listening-start", CommandBarModel(previewText: "", entries: entries, voice: .listening(level: 0, partial: "")))
+        bar("command-bar-countdown", CommandBarModel(previewText: "Open the quarterly report in Numbers and tell me which sheet has the totals",
+                                                     entries: entries, voice: .countdown))
+        bar("command-bar-no-mic-permission", CommandBarModel(previewText: "", entries: entries, voice: .missing([.microphone])))
+        bar("command-bar-no-permissions", CommandBarModel(previewText: "", entries: entries, voice: .missing([.microphone, .speechRecognition])))
+        let russian = VoiceLanguages.info(code: "ru-RU")
+        if case .unavailable(let message) = VoiceAvailability.decide(recognizerAvailable: true, supportsOnDevice: false, allowServer: false,
+                                                                    languageLabel: russian.label) {
+            bar("command-bar-not-on-device", CommandBarModel(previewText: "", entries: entries,
+                                                             status: CommandBarModel.Status(text: message, isError: true)))
+        }
+        bar("command-bar-didnt-catch", CommandBarModel(previewText: "", entries: entries,
+                                                       status: CommandBarModel.Status(text: VoiceText.didntCatch)))
         bar("command-bar-target-menu-open", CommandBarModel(previewText: "", entries: entries, target: .session(live[0].sessionId), menuOpen: true))
         let menu = ZStack { Brand.bg; TargetMenuList(entries: entries, selected: .assistant).padding(12) }
             .frame(width: 300).fixedSize(horizontal: false, vertical: true)
@@ -492,6 +516,17 @@ enum RenderCheck {
                   to: out.appendingPathComponent("\(name).png"))
         }
         settings.commandBarHotKey = saved
+
+        // Control panel: the Voice section, off and on (plain bindings: the saved settings stay as they are).
+        for (name, on, server) in [("control-panel-voice-off", false, false), ("control-panel-voice-on", true, false),
+                                   ("control-panel-voice-on-server", true, true)] {
+            let v = VoiceSettingsSection(index: 4, enabled: .constant(on), language: .constant("en-US"), sendAfterSpeaking: .constant(true),
+                                         speakReplies: .constant(true), allowServer: .constant(server))
+                .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
+            let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
+            write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
     }
 
     private static func held(_ kind: Hold.Kind, calls: Int) -> AgentSession {

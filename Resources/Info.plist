@@ -24,6 +24,10 @@
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Agent HUD brings the Terminal or iTerm tab of an agent session to the front.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Agent HUD listens only while you hold the talk key, to turn what you say into a command.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Agent HUD turns what you say while holding the talk key into text. Recognition runs on this Mac unless you allow Apple's servers in the Voice settings.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

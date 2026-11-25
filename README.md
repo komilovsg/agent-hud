@@ -16,6 +16,13 @@ Each Claude Code session is one small transparent icon with the project name und
 badge says the agent needs you, and a red mark says a background task looks stuck. Drag an icon anywhere and it
 stays there. Click it to open a card of fixed size next to it; click anywhere outside to close the card.
 
+The icon style is chosen in the control panel under Appearance. There are ten, and they change with the state of
+the session: Logos, Blob, Bot, Pixel, Reactor, Planet, Visor, Buddy, Ring and Origami.
+
+<p align="center">
+  <img src="assets/readme/avatars.svg" width="100%" alt="The ten icon styles in a grid, each with its name">
+</p>
+
 ## The card is the conversation
 
 The card shows the session as a chat: your messages, the agent's replies with Markdown, and every tool call with
@@ -76,14 +83,23 @@ project. If the target is still working, Return queues the message and Command-R
 hotkey can be changed or switched off in the settings; the list of recent commands stays on your Mac and can be
 cleared or switched off.
 
+<p align="center">
+  <img src="assets/readme/command-bar.svg" width="100%" alt="The command bar with a target chip and a typed command, a busy session with the queue hint, and the Assistant card with the reply">
+</p>
+
 ## Routines
 
 A routine is a saved request that Agent HUD starts by itself: every day at a set time on the days you choose,
 every few hours, or only when you press "Run now". Each run is a new session with its own icon and card.
 Routines run only while the app is open and the Mac is awake; a run missed within the last 12 hours happens
 once when the app is back. Nothing is approved in advance: a run that needs your approval asks like any
-session, you get a notification, and the run is closed if nobody answers within an hour. The list lives in a `routines.json` file you can also edit by
-hand, and a log keeps the outcome of each run without the text of the request or the reply.
+session, you get a notification, and the run is closed if nobody answers within an hour. The list lives in a
+`routines.json` file you can also edit by hand, and a log keeps the outcome of each run without the text of the
+request or the reply.
+
+<p align="center">
+  <img src="assets/readme/routines.svg" width="100%" alt="The Routines tab with three routines and their Run now buttons, next to the Edit routine window">
+</p>
 
 ## Voice
 
@@ -106,6 +122,10 @@ The microphone is on only while you hold the key. Recognition runs on your Mac; 
 language, the app says so and uses Apple's servers only if you allow it in the settings. Voice sends messages
 and nothing else: approving a request always takes a click.
 
+<p align="center">
+  <img src="assets/readme/voice.svg" width="100%" alt="The command bar while the hotkey is held and after release, next to the Voice settings">
+</p>
+
 ## Memory
 
 The Assistant can keep a few short notes about your lasting preferences, and it is off until you switch it on in
@@ -114,6 +134,10 @@ and edit, with room for 200 of them. You see every save as a "Remembered" row in
 button, and every removal as "Forgot". In the settings you can delete single notes or everything, and open the file;
 a file the app cannot read is left untouched. When the Assistant recalls its notes, their text is sent to the model
 like the rest of the conversation. Text that looks like a secret is refused, and a note never gives permission for anything.
+
+<p align="center">
+  <img src="assets/readme/memory.svg" width="100%" alt="The Assistant card with a Remembered row and Undo, next to the Memory settings with three notes">
+</p>
 
 ## Agents can look at the screen
 
@@ -140,6 +164,10 @@ combinations that close or delete things, and any command-key combination in a t
 
 Control-Option-Command-Period switches all of this off at once, refuses what is waiting and clears what was
 allowed. It needs the Accessibility permission.
+
+<p align="center">
+  <img src="assets/readme/look-and-act.svg" width="100%" alt="A request to see a window and a request to type text, each with Allow once, Deny and a session button">
+</p>
 
 ## Background tasks
 

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Command bar</title>
+<desc id="d">Drawn command bar over a desktop. The first bar has the Assistant chip, a typed command and the hint Return sends, Shift-Return adds a line, Esc closes. The second bar targets a session that is still working and says Return queues this, Command-Return interrupts and sends. Next to them is the Assistant card with the reply.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="560" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 510V536H1150 M50 536H24 V510" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="600" height="420" rx="18" fill="#000000" fill-opacity="0.22" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="72" y="72" width="552" height="100" rx="20" fill="#000000" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+<rect x="88" y="88" width="150" height="36" rx="18" fill="#338EF7" fill-opacity="0.2"/>
+<path d="M108 98L110.4 103.6L116 106L110.4 108.4L108 114L105.6 108.4L100 106L105.6 103.6Z" fill="#7DB7FA" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="124" y="113" font-size="18" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start">Assistant</text>
+<path d="M216 104L221 109L226 104" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="256" y="114" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Summarize the open pull requests</text>
+<rect x="586" y="96" width="2" height="24" rx="1" fill="#338EF7" fill-opacity="1"/>
+<text x="92" y="154" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Return sends · Shift-Return adds a line · Esc closes</text>
+<rect x="72" y="200" width="552" height="128" rx="20" fill="#000000" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+<rect x="88" y="216" width="166" height="36" rx="18" fill="#338EF7" fill-opacity="0.2"/>
+<rect x="99" y="226" width="18" height="16" rx="3" fill="none" fill-opacity="0" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2"/>
+<path d="M103 232L107 235L103 238" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="124" y="241" font-size="18" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start">acme-web</text>
+<path d="M232 232L237 237L242 232" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="272" y="242" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Also run the linter</text>
+<text x="92" y="284" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">acme-web is still working — Return queues this,</text>
+<text x="92" y="308" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">⌘Return interrupts and sends</text>
+<circle cx="150" cy="372" r="28" fill="#FFFFFF" fill-opacity="0.1"/>
+<circle cx="150" cy="372" r="10" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
+<circle cx="174" cy="394" r="8" fill="#E8795A" fill-opacity="1" stroke="#1A1A48" stroke-opacity="1" stroke-width="3"/>
+<text x="150" y="434" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">acme-web</text>
+<circle cx="340" cy="372" r="28" fill="#FFFFFF" fill-opacity="0.1"/>
+<circle cx="340" cy="372" r="10" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
+<circle cx="364" cy="394" r="8" fill="#E8795A" fill-opacity="1" stroke="#1A1A48" stroke-opacity="1" stroke-width="3"/>
+<text x="340" y="434" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">acme-api</text>
+<circle cx="530" cy="372" r="28" fill="#FFFFFF" fill-opacity="0.1"/>
+<circle cx="530" cy="372" r="10" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3"/>
+<circle cx="554" cy="394" r="8" fill="#E8795A" fill-opacity="1" stroke="#1A1A48" stroke-opacity="1" stroke-width="3"/>
+<text x="530" y="434" font-size="17" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">docs-site</text>
+<rect x="680" y="48" width="472" height="420" rx="20" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<circle cx="726" cy="94" r="24" fill="#FFFFFF" fill-opacity="0.14"/>
+<path d="M726 83L729.3 90.7L737 94L729.3 97.3L726 105L722.7 97.3L715 94L722.7 90.7Z" fill="#FFFFFF" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="772" cy="84" r="6" fill="#C9C3BC" fill-opacity="1"/>
+<text x="786" y="92" font-size="24" font-weight="700" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Assistant</text>
+<rect x="762" y="104" width="62" height="32" rx="16" fill="#C9C3BC" fill-opacity="0.18" stroke="#C9C3BC" stroke-opacity="0.7" stroke-width="2"/>
+<text x="793" y="126" font-size="18" font-weight="600" fill="#C9C3BC" fill-opacity="1" text-anchor="middle">Idle</text>
+<text x="762" y="160" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Claude Code · Agent HUD · 1 min</text>
+<rect x="962" y="74" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="971" y="74" width="5" height="18" rx="1.5" fill="#FFFFFF" fill-opacity="0.55"/>
+<rect x="1002" y="75" width="16" height="16" rx="3" fill="#FFFFFF" fill-opacity="0.55"/>
+<path d="M1072 74L1088 90M1088 74L1072 90" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="800" y="200" width="328" height="50" rx="18" fill="#338EF7" fill-opacity="0.28"/>
+<text x="818" y="233" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Summarize the open pull requests</text>
+<text x="704" y="290" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Two pull requests are open: #41 adds order</text>
+<text x="704" y="318" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">filters and is ready for review; #44 bumps</text>
+<text x="704" y="346" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">dependencies and has one failing check.</text>
+<rect x="704" y="392" width="380" height="52" rx="18" fill="#FFFFFF" fill-opacity="0.12"/>
+<text x="724" y="426" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.5" text-anchor="start">Message…</text>
+<circle cx="1110" cy="418" r="26" fill="#338EF7" fill-opacity="1"/>
+<path d="M1110 430V406M1100 415L1110 405L1120 415" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="348" y="516" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Return sends to the Assistant; a working session queues it</text>
+<text x="916" y="516" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">The Assistant's card opens with the reply</text>
+</svg>

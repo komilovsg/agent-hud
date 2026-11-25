@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Voice</title>
+<desc id="d">Drawn command bar while the hotkey is held, with a level meter, the heard text and the line Listening, release the key to finish, Esc cancels; below it the same bar after release with Sending, Esc to cancel, any key to edit. On the right is the Voice settings section with language, send after speaking, speak replies, voice engine, voice pickers with Preview, and speaking speed.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="780" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 730V756H1150 M50 756H24 V730" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="560" height="628" rx="18" fill="#000000" fill-opacity="0.22" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="2"/>
+<rect x="72" y="72" width="512" height="196" rx="20" fill="#000000" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+<rect x="88" y="88" width="150" height="36" rx="18" fill="#338EF7" fill-opacity="0.2"/>
+<path d="M108 98L110.4 103.6L116 106L110.4 108.4L108 114L105.6 108.4L100 106L105.6 103.6Z" fill="#7DB7FA" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="124" y="113" font-size="18" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start">Assistant</text>
+<path d="M216 104L221 109L226 104" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="261" y="92" width="10" height="17" rx="5" fill="#7DB7FA" fill-opacity="1"/>
+<path d="M256 104Q256 118 266 118Q276 118 276 104M266 118V123" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="292" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="306" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="320" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="334" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="348" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="362" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="376" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="390" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="404" y="98" width="8" height="18" rx="3" fill="#338EF7" fill-opacity="1"/>
+<rect x="418" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="432" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="446" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="460" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="474" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="488" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<rect x="502" y="98" width="8" height="18" rx="3" fill="#FFFFFF" fill-opacity="0.2"/>
+<text x="256" y="152" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Open the quarterly report in</text>
+<text x="256" y="180" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Numbers and tell me which</text>
+<text x="256" y="208" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">sheet has the totals</text>
+<text x="92" y="248" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Listening — release the key to finish, Esc cancels</text>
+<rect x="72" y="296" width="512" height="170" rx="20" fill="#000000" fill-opacity="0.5" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+<rect x="88" y="312" width="150" height="36" rx="18" fill="#338EF7" fill-opacity="0.2"/>
+<path d="M108 322L110.4 327.6L116 330L110.4 332.4L108 338L105.6 332.4L100 330L105.6 327.6Z" fill="#7DB7FA" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="124" y="337" font-size="18" font-weight="600" fill="#7DB7FA" fill-opacity="1" text-anchor="start">Assistant</text>
+<path d="M216 328L221 333L226 328" fill="none" fill-opacity="1" stroke="#7DB7FA" stroke-opacity="1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="256" y="358" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Open the quarterly report in</text>
+<text x="256" y="386" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Numbers and tell me which</text>
+<text x="256" y="414" font-size="20" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">sheet has the totals</text>
+<text x="92" y="446" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Sending… Esc to cancel, any key to edit</text>
+<text x="328" y="520" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="middle">Hold the hotkey and speak</text>
+<text x="328" y="552" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="middle">The text is sent when you let go,</text>
+<text x="328" y="578" font-size="18" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="middle">unless you press Esc</text>
+<text x="328" y="716" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Command bar: listening, then a short countdown</text>
+<text x="640" y="70" font-size="16" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">04 / VOICE</text>
+<rect x="640" y="82" width="512" height="594" rx="16" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="662" y="122" font-size="19" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Voice</text>
+<text x="662" y="146" font-size="15" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Hold the command bar hotkey and speak</text>
+<rect x="1076" y="100" width="52" height="30" rx="15" fill="#338EF7" fill-opacity="1"/>
+<circle cx="1113" cy="115" r="11" fill="#FFFFFF" fill-opacity="1"/>
+<path d="M656 160H1136" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<text x="662" y="196" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Language</text>
+<rect x="960" y="170" width="170" height="36" rx="9" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="974" y="194" font-size="16" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">English (US)</text>
+<path d="M1112 184l5 5l5 -5" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="662" y="246" font-size="19" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Send after speaking</text>
+<text x="662" y="270" font-size="15" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Goes out 1.5 s after you let go; Esc cancels</text>
+<rect x="1076" y="224" width="52" height="30" rx="15" fill="#338EF7" fill-opacity="1"/>
+<circle cx="1113" cy="239" r="11" fill="#FFFFFF" fill-opacity="1"/>
+<text x="662" y="308" font-size="19" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Speak replies</text>
+<text x="662" y="332" font-size="15" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">A short spoken answer from the Assistant</text>
+<rect x="1076" y="286" width="52" height="30" rx="15" fill="#338EF7" fill-opacity="1"/>
+<circle cx="1113" cy="301" r="11" fill="#FFFFFF" fill-opacity="1"/>
+<path d="M656 354H1136" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="2"/>
+<text x="662" y="388" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Voice engine</text>
+<rect x="1000" y="362" width="130" height="36" rx="9" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="1014" y="386" font-size="16" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">System</text>
+<path d="M1112 376l5 5l5 -5" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="662" y="424" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">English voice</text>
+<rect x="1038" y="404" width="92" height="28" rx="7" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="1084" y="424" font-size="15" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Preview</text>
+<rect x="662" y="438" width="468" height="36" rx="9" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="676" y="462" font-size="16" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Automatic — Ava</text>
+<text x="662" y="512" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Russian voice</text>
+<rect x="1038" y="492" width="92" height="28" rx="7" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="1084" y="512" font-size="15" font-weight="600" fill="#FFFFFF" fill-opacity="0.85" text-anchor="middle">Preview</text>
+<rect x="662" y="526" width="468" height="36" rx="9" fill="#FFFFFF" fill-opacity="0.14"/>
+<text x="676" y="550" font-size="16" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Automatic — Milena</text>
+<text x="662" y="600" font-size="19" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Speaking speed</text>
+<text x="1130" y="600" font-size="15" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1×</text>
+<rect x="662" y="616" width="468" height="4" rx="2" fill="#FFFFFF" fill-opacity="0.25"/>
+<circle cx="896.0" cy="618" r="9" fill="#FFFFFF" fill-opacity="1"/>
+<text x="662" y="650" font-size="14" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="start">Slow</text>
+<text x="896.0" y="650" font-size="14" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="middle">Normal</text>
+<text x="1130" y="650" font-size="14" font-weight="400" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end">Fast</text>
+<text x="896.0" y="716" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Voice settings: engine, voices, Preview and speed</text>
+</svg>

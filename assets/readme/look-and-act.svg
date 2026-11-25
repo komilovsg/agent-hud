@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<title id="t">Looking and acting</title>
+<desc id="d">Two drawn request cards. Left: Wants to see a window, for a browser window, with the note that the picture is sent to the model and the buttons Allow once, Deny and Allow for this session. Right: Wants to type, in the Notes window Release checklist, showing the whole text to be typed with its line breaks marked, the note types 79 characters, and the buttons Allow once, Deny and Allow in Notes for this session.</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#2B2A6B"/><stop offset="1" stop-color="#0E0F24"/></linearGradient>
+</defs>
+<rect width="1200" height="640" rx="24" fill="url(#bg)"/>
+<path d="M24 50V24H50 M1150 24H1176V50 M1176 590V616H1150 M50 616H24 V590" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="48" y="48" width="528" height="374" rx="18" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<rect x="48" y="48" width="528" height="374" rx="18" fill="#FBBF24" fill-opacity="0.09"/>
+<path d="M70 90Q88 70 106 90Q88 110 70 90Z" fill="none" fill-opacity="1" stroke="#FBBF24" stroke-opacity="1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="88" cy="90" r="6" fill="#FBBF24" fill-opacity="1"/>
+<text x="120" y="98" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Wants to see a window</text>
+<text x="548" y="98" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end">1:37</text>
+<rect x="72" y="128" width="480" height="64" rx="12" fill="#FFFFFF" fill-opacity="0.08"/>
+<path d="M86 160Q98 148 110 160Q98 172 86 160Z" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="98" cy="160" r="3.5" fill="#FFFFFF" fill-opacity="0.6"/>
+<text x="124" y="168" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Browser — Checkout — Acme Store</text>
+<circle cx="90" cy="240" r="9" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.8"/>
+<path d="M86 244L94 236M88 236H94V242" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="104" y="246" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">The picture is sent to the model</text>
+<rect x="72" y="270" width="228" height="56" rx="12" fill="#338EF7" fill-opacity="1"/>
+<text x="186.0" y="305.92" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow once</text>
+<rect x="324" y="270" width="228" height="56" rx="12" fill="#F87171" fill-opacity="0.1" stroke="#F87171" stroke-opacity="0.7" stroke-width="2"/>
+<text x="438.0" y="305.92" font-size="22" font-weight="600" fill="#F87171" fill-opacity="1" text-anchor="middle">Deny</text>
+<rect x="72" y="342" width="480" height="56" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<circle cx="176" cy="370" r="10" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="2"/>
+<path d="M171 370l4 4l8 -8" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="202" y="378" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Allow for this session</text>
+<text x="312" y="594" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Look: read-only, asks first</text>
+<rect x="624" y="48" width="528" height="500" rx="18" fill="#FFFFFF" fill-opacity="0.09" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<rect x="624" y="48" width="528" height="500" rx="18" fill="#FBBF24" fill-opacity="0.09"/>
+<rect x="662" y="74" width="8" height="22" rx="4" fill="#FBBF24" fill-opacity="1"/>
+<rect x="652" y="88" width="26" height="18" rx="6" fill="#FBBF24" fill-opacity="1"/>
+<text x="696" y="98" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Wants to type</text>
+<text x="1124" y="98" font-size="18" font-weight="500" fill="#FFFFFF" fill-opacity="0.55" text-anchor="end">1:37</text>
+<rect x="648" y="128" width="480" height="52" rx="12" fill="#FFFFFF" fill-opacity="0.08"/>
+<rect x="662" y="142" width="26" height="20" rx="4" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2"/>
+<path d="M662 148H688" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="700" y="162" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Notes — Release checklist</text>
+<rect x="648" y="196" width="480" height="132" rx="10" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.16" stroke-width="2"/>
+<text x="664" y="226" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Release checklist⏎</text>
+<text x="664" y="252" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">1. Run the test suite⏎</text>
+<text x="664" y="278" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">2. Bump the version⏎</text>
+<text x="664" y="304" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">3. Tag the release⏎</text>
+<rect x="658" y="338" width="22" height="14" rx="3" fill="none" fill-opacity="0" stroke="#FFFFFF" stroke-opacity="0.6" stroke-width="1.6"/>
+<text x="690" y="352" font-size="17" font-weight="400" fill="#FFFFFF" fill-opacity="0.6" text-anchor="start">types 79 characters</text>
+<rect x="648" y="410" width="228" height="56" rx="12" fill="#338EF7" fill-opacity="1"/>
+<text x="762.0" y="445.92" font-size="22" font-weight="600" fill="#FFFFFF" fill-opacity="1" text-anchor="middle">Allow once</text>
+<rect x="900" y="410" width="228" height="56" rx="12" fill="#F87171" fill-opacity="0.1" stroke="#F87171" stroke-opacity="0.7" stroke-width="2"/>
+<text x="1014.0" y="445.92" font-size="22" font-weight="600" fill="#F87171" fill-opacity="1" text-anchor="middle">Deny</text>
+<rect x="648" y="482" width="480" height="56" rx="12" fill="#FFFFFF" fill-opacity="0.1" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="2"/>
+<circle cx="752" cy="510" r="10" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.85" stroke-width="2"/>
+<path d="M747 510l4 4l8 -8" fill="none" fill-opacity="1" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="778" y="518" font-size="20" font-weight="600" fill="#FFFFFF" fill-opacity="0.92" text-anchor="start">Allow in Notes for this session</text>
+<text x="888" y="594" font-size="20" font-weight="500" fill="#FFFFFF" fill-opacity="0.75" text-anchor="middle">Act: the card shows exactly what will be typed</text>
+</svg>

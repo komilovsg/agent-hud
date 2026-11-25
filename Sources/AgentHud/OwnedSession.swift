@@ -166,7 +166,8 @@ final class OwnedSession: ObservableObject {
         p.executableURL = URL(fileURLWithPath: Self.loginShell)
         p.arguments = ["-lc", Self.shellScript, exe.path] + args
         p.currentDirectoryURL = URL(fileURLWithPath: cwd, isDirectory: true)
-        p.environment = config.environment
+        // The Assistant keeps notes only through Agent HUD's memory, which the person sees and can undo.
+        p.environment = assistant ? config.environment.merging(AssistantSession.environment) { _, ours in ours } : config.environment
         let inPipe = Pipe(), outPipe = Pipe(), errPipe = Pipe()
         p.standardInput = inPipe
         p.standardOutput = outPipe

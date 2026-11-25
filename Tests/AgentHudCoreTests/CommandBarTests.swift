@@ -13,6 +13,10 @@ import Testing
 
     // MARK: Targets
 
+    @Test func assistantSwitchesOffTheFileMemoryOfTheCLI() {
+        #expect(AssistantSession.environment["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1")
+    }
+
     @Test func entriesAssistantFirstNewSessionLast() {
         // The support folder comes from an environment variable that file-based tests change for a moment.
         supportDirLock.lock(); defer { supportDirLock.unlock() }

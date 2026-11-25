@@ -106,6 +106,15 @@ The microphone is on only while you hold the key. Recognition runs on your Mac; 
 language, the app says so and uses Apple's servers only if you allow it in the settings. Voice sends messages
 and nothing else: approving a request always takes a click.
 
+## Memory
+
+The Assistant can keep a few short notes about your lasting preferences, and it is off until you switch it on in
+the Memory section of the settings. Notes live in `memory.json` in the app's support folder, a plain file you can read
+and edit, with room for 200 of them. You see every save as a "Remembered" row in the Assistant's card with an Undo
+button, and every removal as "Forgot". In the settings you can delete single notes or everything, and open the file;
+a file the app cannot read is left untouched. When the Assistant recalls its notes, their text is sent to the model
+like the rest of the conversation. Text that looks like a secret is refused, and a note never gives permission for anything.
+
 ## Agents can look at the screen
 
 With your consent an agent can list the open windows, take a screenshot of the screen or of one window, and read

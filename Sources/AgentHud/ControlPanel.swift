@@ -88,9 +88,13 @@ struct ControlPanelView: View {
                                              neuralSpeakerEnglish: $settings.neuralSpeakerEnglish,
                                              neuralSpeakerRussian: $settings.neuralSpeakerRussian,
                                              preview: actions.previewVoice, openSpokenContent: actions.openSpokenContent)
+                        MemorySettingsSection(index: 5, enabled: $settings.memoryEnabled, entries: model.memoryStore.entries,
+                                              broken: model.memoryStore.broken, delete: { model.deleteMemoryEntry($0) },
+                                              openFile: MemoryFile.open, clearAll: model.clearMemory)
                     }
                 }
                 .onAppear {
+                    model.reloadMemory()
                     voices = model.installedVoices()
                     neuralInstalled = NeuralVoice.Paths(supportDirectory: AgentHUDPaths.supportDirectory)
                         .isInstalled(fileExists: { FileManager.default.fileExists(atPath: $0) })

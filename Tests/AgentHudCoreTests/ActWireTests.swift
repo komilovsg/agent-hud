@@ -30,6 +30,7 @@ private func problem(_ params: String) -> (code: Int?, message: String?) {
         #expect(tools.compactMap { $0["name"]?.stringValue } == [
             "list_windows", "screenshot", "read_window_text",
             "press_element", "click_at", "type_text", "press_keys", "scroll", "focus_window", "open_app",
+            "remember", "recall", "forget",
         ])
         #expect(MCPServer.actTools.count == ActKind.allCases.count && MCPServer.actTools.count == 7)
         #expect(MCPServer.actTools.compactMap { $0["name"]?.stringValue } == ActKind.allCases.map(\.rawValue))

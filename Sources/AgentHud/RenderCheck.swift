@@ -448,6 +448,14 @@ enum RenderCheck {
         model.installLookPreview()
         model.installActPreview(blocked: [demo.id])
         card("card-act-no-permission", demo)
+        model.installActPreview()
+        // The Assistant's memory: a save with its Undo button, and a removal.
+        model.installMemoryPreview(notes: [demo.id: [
+            MemoryNote(time: now.addingTimeInterval(-40), text: "Forgot: I prefer tea to coffee"),
+            MemoryNote(time: now.addingTimeInterval(-5), text: "Remembered: I like short answers", entryId: "a1b2c3"),
+        ]])
+        card("card-memory-notice", demo)
+        model.installMemoryPreview()
         // While the action runs there is no card, only the hand on the icon.
         model.installActPreview(acting: [demo.id])
         let running = ZStack {
@@ -676,6 +684,19 @@ enum RenderCheck {
                                          voiceIdEnglish: .constant(""), voiceIdRussian: .constant(""), voiceRate: .constant(1.0),
                                          engine: .constant(engine), neuralInstalled: installed,
                                          neuralSpeakerEnglish: .constant(0), neuralSpeakerRussian: .constant(3))
+                .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
+            let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
+            write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        // Control panel: the Memory section - off and empty, on with three notes, and a broken file.
+        let sample = [MemoryEntry(id: "a1b2c3", text: "I like short answers", created: "2026-11-20T09:00:00Z"),
+                      MemoryEntry(id: "d4e5f6", text: "I live in Dushanbe and work from home", created: "2026-11-21T10:30:00Z"),
+                      MemoryEntry(id: "0a9b8c", text: "Call me Sam", created: "2026-11-24T18:05:00Z")]
+        for (name, on, entries, broken) in [("control-panel-memory-off", false, [MemoryEntry](), false),
+                                            ("control-panel-memory-on", true, sample, false),
+                                            ("control-panel-memory-broken", true, [MemoryEntry](), true)] {
+            let v = MemorySettingsSection(index: 5, enabled: .constant(on), entries: entries, broken: broken)
                 .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
             let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
             write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),

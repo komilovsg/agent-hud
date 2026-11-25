@@ -100,8 +100,8 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
     @Test func toolListSchema() throws {
         let r = try #require(reply(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#))
         let all = try #require(r["result"]?["tools"]?.arrayValue)
-        // The look tools come first; the tools that act follow them (see ActWireTests).
-        #expect(all.count == LookTool.allCases.count + ActKind.allCases.count)
+        // The look tools come first; the tools that act and then the memory tools follow them (see ActWireTests).
+        #expect(all.count == LookTool.allCases.count + ActKind.allCases.count + MemoryTool.allCases.count)
         let tools = Array(all.prefix(LookTool.allCases.count))
         #expect(tools == MCPServer.lookTools)
         #expect(tools.compactMap { $0["name"]?.stringValue } == ["list_windows", "screenshot", "read_window_text"])
@@ -132,9 +132,9 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
         for word in ["click", "type text", "press", "move the", "drag", "write", "delete", "close the"] {
             #expect(!text.contains(word), "\(word)")
         }
-        // And every tool that is marked read-only is one of them.
+        // And every tool that is marked read-only is one of them, or the memory's recall, which changes nothing.
         let readOnly = MCPServer.tools.filter { $0["annotations"]?["readOnlyHint"] == .bool(true) }.compactMap { $0["name"]?.stringValue }
-        #expect(readOnly == LookTool.allCases.map(\.rawValue))
+        #expect(readOnly == LookTool.allCases.map(\.rawValue) + ["recall"])
     }
 
     @Test func callsAreRouted() {

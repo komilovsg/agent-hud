@@ -79,6 +79,8 @@ final class Settings: ObservableObject {
 
     /// Push-to-talk on the command bar hotkey. Off until the person switches it on.
     @Published var voiceEnabled: Bool { didSet { d.set(voiceEnabled, forKey: "voiceEnabled") } }
+    /// The Assistant keeps notes the person asks it to remember (see Memory.swift).
+    @Published var memoryEnabled: Bool { didSet { d.set(memoryEnabled, forKey: "memoryEnabled") } }
     /// A code of `VoiceLanguages.all`.
     @Published var voiceLanguage: String { didSet { d.set(voiceLanguage, forKey: "voiceLanguage") } }
     /// Send the heard text by itself after a short countdown.
@@ -139,6 +141,7 @@ final class Settings: ObservableObject {
         commandBarHotKey = CommandBarHotKey.option(id: d.string(forKey: "commandBarHotKey")).id
         commandBarHistory = d.object(forKey: "commandBarHistoryEnabled") as? Bool ?? true
         voiceEnabled = d.object(forKey: "voiceEnabled") as? Bool ?? false
+        memoryEnabled = d.object(forKey: "memoryEnabled") as? Bool ?? false
         voiceLanguage = VoiceLanguages.info(code: d.string(forKey: "voiceLanguage")).code
         voiceSendAfterSpeaking = d.object(forKey: "voiceSendAfterSpeaking") as? Bool ?? true
         voiceSpeakReplies = d.object(forKey: "voiceSpeakReplies") as? Bool ?? true
@@ -224,6 +227,7 @@ final class AppModel: ObservableObject {
         s.onClosed = { [weak self] rid in self?.connectionClosed(rid) }
         s.onLook = { [weak self] request, peer in self?.handleLook(request, peerPid: peer) }
         s.onAct = { [weak self] request, peer in self?.handleAct(request, peerPid: peer) }
+        s.onMemory = { [weak self] request, peer in self?.handleMemory(request, peerPid: peer) }
         try s.start()
         server = s
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -1170,9 +1174,10 @@ final class AppModel: ObservableObject {
     /// The session's icon shows the eye: a look is being decided or taken.
     func isLooking(_ key: String) -> Bool { look(for: key) != nil || (looking[key] ?? 0) > 0 }
 
-    /// Path of the bundled screen tools server for sessions started here; nil while both looking and acting are off.
+    /// Path of the bundled tools server for sessions started here; nil while looking, acting and memory are all off.
     private var screenToolsPath: String? {
-        settings.screenAccess == .off && settings.handsAccess == .off ? nil : ScreenToolsSetup.bundledHelper()?.path
+        settings.screenAccess == .off && settings.handsAccess == .off && !settings.memoryEnabled
+            ? nil : ScreenToolsSetup.bundledHelper()?.path
     }
 
     /// A look request from `agenthud-mcp`. It is refused, queued for a click, or - for a session the person
@@ -1371,6 +1376,7 @@ final class AppModel: ObservableObject {
         allowances.prune(store)
         for key in lookNotes.keys where store.session(key) == nil { lookNotes[key] = nil }
         for key in lookBlocked.keys where store.session(key) == nil { lookBlocked[key] = nil }
+        for key in memoryNotes.keys where store.session(key) == nil { memoryNotes[key] = nil }
         dropUnknownEntryIfIdle()
     }
 
@@ -1396,6 +1402,96 @@ final class AppModel: ObservableObject {
         guard store.session(key) != nil, !isLooking(key) else { return }
         store.remove(key)
         if selectedKey == key { selectedKey = nil }
+    }
+
+    // MARK: - Memory (the Assistant's notes)
+
+    /// The file as it is now, for the settings list. Reloaded when the settings open and after every change here.
+    @Published private(set) var memoryStore = MemoryStore.load(from: AgentHUDPaths.memoryFile)
+    /// "Remembered: …" and "Forgot: …" rows of the Assistant's card; kept in memory only, never sent to the CLI.
+    @Published private(set) var memoryNotes: [String: [MemoryNote]] = [:]
+
+    func reloadMemory() { memoryStore = MemoryStore.load(from: AgentHUDPaths.memoryFile) }
+
+    /// True only for the Assistant session this app runs: the caller is worked out from the connection's process
+    /// (see `callerKey`), then must be the live, owned session that was started as the Assistant. A session found
+    /// by a claimed id alone, one run in an editor or one not run here never passes.
+    private func isAssistantCaller(_ key: String?) -> Bool {
+        guard let key, let sid = store.session(key)?.sessionId, let o = owned[sid] else { return false }
+        return o.assistant && o.isLive && sid == assistantSessionId
+    }
+
+    private func handleMemory(_ request: MemoryRequest, peerPid: Int32?) {
+        let key = callerKey(claimedSessionId: request.sessionId, peerPid: peerPid)
+        let file = AgentHUDPaths.memoryFile
+        let result = Memory.apply(request.call, enabled: settings.memoryEnabled, isAssistant: isAssistantCaller(key),
+                                  store: MemoryStore.load(from: file), now: Date())
+        var outcome = result.outcome
+        if let change = result.change {
+            do {
+                try result.store.save(to: file)
+                memoryStore = result.store
+                noteMemoryChange(change, key: key, source: "tool")
+            } catch {
+                outcome = .refused("The memory file could not be saved")
+            }
+        }
+        server?.replyLook(LookReply(requestId: request.requestId, outcome: outcome))
+    }
+
+    private func noteMemoryChange(_ change: Memory.Change, key: String?, source: String) {
+        let saved: Bool
+        let entry: MemoryEntry
+        switch change {
+        case .saved(let e): saved = true; entry = e
+        case .removed(let e): saved = false; entry = e
+        }
+        hudLog.notice("memory \(saved ? "saved" : "removed", privacy: .public) \(source, privacy: .public)")
+        // Only that something changed and who asked; never the text.
+        if settings.activityLog {
+            let s = key.flatMap { store.session($0) }
+            ActivityLog.append(ActivityRecord(kind: .memory, time: Date(), agent: AgentKind.claude.rawValue,
+                                              session: s?.sessionId ?? "", project: s?.projectName ?? AssistantSession.label,
+                                              cwd: s?.cwd ?? "", text: saved ? "note saved" : "note removed", detail: source))
+        }
+        guard source == "tool", let key else { return }
+        var notes = memoryNotes[key] ?? []
+        notes.append(MemoryNote(time: Date(), text: saved ? "Remembered: \(entry.text)" : "Forgot: \(entry.text)",
+                                entryId: saved ? entry.id : nil))
+        memoryNotes[key] = Array(notes.suffix(MemoryNote.kept))
+    }
+
+    /// The "Undo" button of a "Remembered" row: the note goes away and the row stops offering the button.
+    func undoRemember(sessionKey: String, noteId: UUID) {
+        guard let i = memoryNotes[sessionKey]?.firstIndex(where: { $0.id == noteId }),
+              let entryId = memoryNotes[sessionKey]?[i].entryId else { return }
+        memoryNotes[sessionKey]?[i].entryId = nil
+        memoryNotes[sessionKey]?[i].text += " (undone)"
+        deleteMemoryEntry(entryId, source: "undo")
+    }
+
+    /// A delete button of the settings list (or the undo of a row). A broken file is never written.
+    func deleteMemoryEntry(_ id: String, source: String = "settings") {
+        var next = MemoryStore.load(from: AgentHUDPaths.memoryFile)
+        guard !next.broken, let i = next.entries.firstIndex(where: { $0.id == id }) else { reloadMemory(); return }
+        let gone = next.entries.remove(at: i)
+        if (try? next.save(to: AgentHUDPaths.memoryFile)) != nil { memoryStore = next; noteMemoryChange(.removed(gone), key: nil, source: source) }
+        else { reloadMemory() }
+    }
+
+    func clearMemory() {
+        let current = MemoryStore.load(from: AgentHUDPaths.memoryFile)
+        guard !current.broken, !current.entries.isEmpty else { reloadMemory(); return }
+        if (try? MemoryStore().save(to: AgentHUDPaths.memoryFile)) != nil {
+            memoryStore = MemoryStore()
+            for e in current.entries { noteMemoryChange(.removed(e), key: nil, source: "settings") }
+        } else { reloadMemory() }
+    }
+
+    /// For the offscreen render check: notes in a fixed state. Nothing is read or written.
+    func installMemoryPreview(notes: [String: [MemoryNote]] = [:], store: MemoryStore = MemoryStore()) {
+        memoryNotes = notes
+        memoryStore = store
     }
 
     // MARK: - Hands (agents acting in other apps)
@@ -1724,6 +1820,16 @@ final class AppModel: ObservableObject {
         actBlocked.remove(key)
         scheduleAutoClose()
     }
+}
+
+/// One row of the Assistant's card about its memory.
+struct MemoryNote: Identifiable, Equatable {
+    static let kept = 3
+    let id = UUID()
+    let time: Date
+    var text: String
+    /// The note a "Remembered" row can still undo; nil for "Forgot" rows and after an undo.
+    var entryId: String?
 }
 
 /// One finished look, as the session's card shows it.

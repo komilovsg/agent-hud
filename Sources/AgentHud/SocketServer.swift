@@ -42,6 +42,8 @@ final class SocketServer {
     var onLook: ((LookRequest, Int32?) -> Void)?
     /// An action request arrived from `agenthud-mcp`; answered through `replyLook` like a look.
     var onAct: ((ActRequest, Int32?) -> Void)?
+    /// A memory request arrived from `agenthud-mcp`; answered through `replyLook` too.
+    var onMemory: ((MemoryRequest, Int32?) -> Void)?
 
     init(path: String) { self.path = path }
 
@@ -199,6 +201,14 @@ final class SocketServer {
             byRequest[act.requestId] = c
             let peer = Self.peerPid(c.fd)
             DispatchQueue.main.async { [weak self] in self?.onAct?(act, peer) }
+            return
+        }
+        if line.contains("\"memory\""), let memory = MemoryRequest.decode(line) {
+            guard byRequest[memory.requestId] == nil else { drop(c); return }
+            c.requestId = memory.requestId
+            byRequest[memory.requestId] = c
+            let peer = Self.peerPid(c.fd)
+            DispatchQueue.main.async { [weak self] in self?.onMemory?(memory, peer) }
             return
         }
         guard let msg = HookMessage.decode(line) else { drop(c); return }

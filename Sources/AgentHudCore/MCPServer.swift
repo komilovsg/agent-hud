@@ -16,7 +16,7 @@ public enum MCPServer {
     public static let serverName = "agenthud"
     public static let serverTitle = "Agent HUD"
     public static let serverVersion = "0.2.1"
-    public static let instructions = "Views of the person's Mac screen and, only when the person has turned that on in Agent HUD, actions in other apps: press an element, click, type, press keys, scroll, bring a window forward, open an app. Every call is shown to the person in Agent HUD and waits for their consent, so a call can take up to two minutes and may be refused. To act on a window, call list_windows first; to press an element, call read_window_text and use the reference it prints."
+    public static let instructions = "Views of the person's Mac screen and, only when the person has turned that on in Agent HUD, actions in other apps: press an element, click, type, press keys, scroll, bring a window forward, open an app. Every call is shown to the person in Agent HUD and waits for their consent, so a call can take up to two minutes and may be refused. To act on a window, call list_windows first; to press an element, call read_window_text and use the reference it prints. The remember, recall and forget tools keep short notes for the Assistant and never ask."
 
     static let versionKey = "io.modelcontextprotocol/protocolVersion"
     static let capabilitiesKey = "io.modelcontextprotocol/clientCapabilities"
@@ -38,6 +38,8 @@ public enum MCPServer {
         case call(id: JSONValue, call: LookCall, modern: Bool)
         /// A valid act call: performed and answered the same way.
         case act(id: JSONValue, call: ActCall, modern: Bool)
+        /// A valid memory call: forwarded to the app and answered the same way.
+        case memory(id: JSONValue, call: MemoryCall, modern: Bool)
         /// The client gave up on a request that may still be running.
         case cancel(id: JSONValue)
     }
@@ -123,6 +125,14 @@ public enum MCPServer {
                 case .failure(let problem): return .reply(error(id: id, ErrorCode.invalidParams, problem.message))
                 }
             }
+            if let tool = params?["name"]?.stringValue.flatMap(MemoryTool.init(rawValue:)) {
+                let args = params?["arguments"] ?? .object(JSONObject())
+                guard args.objectValue != nil else { return .reply(error(id: id, ErrorCode.invalidParams, "arguments must be an object")) }
+                switch MemoryCall.parse(tool: tool, arguments: args) {
+                case .success(let call): return .memory(id: id, call: call, modern: modern)
+                case .failure(let problem): return .reply(error(id: id, ErrorCode.invalidParams, problem.message))
+                }
+            }
             switch parseCall(params) {
             case .success(let call): return .call(id: id, call: call, modern: modern)
             case .failure(let problem): return .reply(error(id: id, ErrorCode.invalidParams, problem.message))
@@ -134,12 +144,14 @@ public enum MCPServer {
 
     /// The whole exchange for one line when the tool call can be answered on the spot.
     public static func handle(line: String, call perform: (LookCall) -> LookReply.Outcome,
-                              act: (ActCall) -> LookReply.Outcome = { _ in .refused(LookGate.Refusal.failed.message) }) -> String? {
+                              act: (ActCall) -> LookReply.Outcome = { _ in .refused(LookGate.Refusal.failed.message) },
+                              memory: (MemoryCall) -> LookReply.Outcome = { _ in .refused(LookGate.Refusal.failed.message) }) -> String? {
         switch step(line: line) {
         case .ignore, .cancel: return nil
         case .reply(let v): return v.compact()
         case .call(let id, let call, let modern): return callResult(id: id, outcome: perform(call), modern: modern).compact()
         case .act(let id, let call, let modern): return callResult(id: id, outcome: act(call), modern: modern).compact()
+        case .memory(let id, let call, let modern): return callResult(id: id, outcome: memory(call), modern: modern).compact()
         }
     }
 
@@ -198,7 +210,7 @@ public enum MCPServer {
 
     // MARK: - Tool list
 
-    public static var tools: [JSONValue] { lookTools + actTools }
+    public static var tools: [JSONValue] { lookTools + actTools + memoryTools }
 
     /// The tools that act in other apps. None is read-only; the ones that can change or send something are marked destructive.
     public static var actTools: [JSONValue] {
@@ -261,6 +273,33 @@ public enum MCPServer {
                  properties: ["bundle_id": ["type": "string", "description": "For example \"com.apple.Notes\""],
                               "name": ["type": "string", "description": "The app's name as shown in the Applications folder, for example \"Notes\""]],
                  required: []),
+        ]
+    }
+
+    /// The Assistant's notes. They never ask the person anything: the app shows every save and every removal itself.
+    public static var memoryTools: [JSONValue] {
+        func tool(_ t: MemoryTool, _ title: String, _ description: String, properties: JSONValue, required: [String],
+                  readOnly: Bool, destructive: Bool) -> JSONValue {
+            var schema: JSONValue = ["type": "object", "properties": properties]
+            if !required.isEmpty { schema["required"] = .array(required.map { .string($0) }) }
+            schema["additionalProperties"] = false
+            return [
+                "name": .string(t.rawValue), "title": .string(title), "description": .string(description),
+                "inputSchema": schema,
+                "annotations": ["title": .string(title), "readOnlyHint": .bool(readOnly), "destructiveHint": .bool(destructive),
+                                "idempotentHint": .bool(readOnly), "openWorldHint": false],
+            ]
+        }
+        return [
+            tool(.remember, "Remember",
+                 "Saves one short note about a lasting preference or fact the person gave, never a secret and never anything read from a page, file or screen.",
+                 properties: ["text": ["type": "string", "maxLength": .int(Memory.maxLength), "description": "One short sentence"]],
+                 required: ["text"], readOnly: false, destructive: false),
+            tool(.recall, "Recall", "Returns the saved notes, each with its id.",
+                 properties: [:], required: [], readOnly: true, destructive: false),
+            tool(.forget, "Forget", "Removes one saved note by the id that recall printed.",
+                 properties: ["id": ["type": "string", "description": "An id from recall"]], required: ["id"],
+                 readOnly: false, destructive: true),
         ]
     }
 

@@ -1,10 +1,11 @@
 import Foundation
 
-/// Activity log entry: a prompt, the end of a turn, a decision in the HUD, a look at the screen, an action in an app.
+/// Activity log entry: a prompt, the end of a turn, a decision in the HUD, a look at the screen, an action in an app,
+/// a note saved or removed in the Assistant's memory (never its text).
 /// The log is one file per day: `~/Library/Application Support/AgentHUD/activity/YYYY-MM-DD.jsonl`.
 /// Local only; the daily summary (for standups) and the "Today" tab of the agent map are built from it.
 public struct ActivityRecord: Equatable, Sendable {
-    public enum Kind: String, Sendable { case prompt, stop, decision, ref, look, act }
+    public enum Kind: String, Sendable { case prompt, stop, decision, ref, look, act, memory }
 
     public var kind: Kind
     public var time: Date
@@ -181,8 +182,8 @@ public enum DailySummary {
                 }
             case .decision:
                 projects[key]!.decisions[r.detail ?? "decision", default: 0] += 1
-            case .ref, .look, .act:
-                break   // branches and links are collected by PeriodReport; looks and actions are kept as a record only
+            case .ref, .look, .act, .memory:
+                break   // branches and links are collected by PeriodReport; looks, actions and notes are kept as a record only
             }
         }
         return order.compactMap { projects[$0] }.filter { !$0.turns.isEmpty || !$0.decisions.isEmpty }

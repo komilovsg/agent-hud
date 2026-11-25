@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 
 // agenthud-mcp: an MCP server on stdin/stdout (one JSON-RPC message per line) with three read-only tools
-// for looking at the screen and seven for acting in other apps.
+// for looking at the screen, seven for acting in other apps and three for the Assistant's notes.
 //
 // It looks at nothing and does nothing itself, and holds no macOS permission. Every tool call becomes one request
 // to the Agent HUD app over its socket; the app asks the person, does the work and answers. Without the app,
@@ -128,6 +128,17 @@ func handle(_ line: String) {
             let request = ActRequest(requestId: UUID().uuidString.lowercased(), call: call, sessionId: claimedSession,
                                      deadline: Date().addingTimeInterval(LookTiming.helperTimeout))
             let outcome = ActClient.perform(request, socketPath: socketPath) { fd in calls.connected(key, fd) }
+            if calls.finished(key) { return }
+            output.write(MCPServer.callResult(id: id, outcome: outcome, modern: modern).compact())
+        }
+    case .memory(let id, let call, let modern):
+        let key = id.compact()
+        calls.started()
+        Thread.detachNewThread {
+            defer { calls.ended() }
+            let request = MemoryRequest(requestId: UUID().uuidString.lowercased(), call: call, sessionId: claimedSession,
+                                        deadline: Date().addingTimeInterval(LookTiming.helperTimeout))
+            let outcome = MemoryClient.perform(request, socketPath: socketPath) { fd in calls.connected(key, fd) }
             if calls.finished(key) { return }
             output.write(MCPServer.callResult(id: id, outcome: outcome, modern: modern).compact())
         }

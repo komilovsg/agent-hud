@@ -362,6 +362,7 @@ struct SessionCard: View {
                        text: "Moved to \(session.host.label), but it has not picked the session up yet. Open it there, or continue here.")
             }
             if let notes = model.lookNotes[session.id], !notes.isEmpty { LookNotes(notes: notes) }
+            if let notes = model.memoryNotes[session.id], !notes.isEmpty { MemoryNoteRows(model: model, sessionKey: session.id, notes: notes) }
             chat.frame(maxWidth: .infinity, maxHeight: .infinity)
             if let queued = model.queue.text(for: session.sessionId) {
                 QueuedMessageRow(text: queued) { model.cancelQueued(session.sessionId) }

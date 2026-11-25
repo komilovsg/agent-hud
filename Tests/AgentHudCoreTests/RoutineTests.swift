@@ -298,7 +298,43 @@ import Testing
         #expect(text(.finished) == "Finished 2 h ago")
         #expect(text(.failed) == "Failed 2 h ago")
         #expect(text(.skipped("still running")) == "Skipped: still running")
+        #expect(text(.expired) == "Closed: no answer")
         #expect(text(.finished, running: true) == "Running")
+    }
+
+    // MARK: Waiting too long
+
+    @Test func waitVerdictAroundTheLimit() {
+        let t = at("2026-06-10 10:00")
+        func v(_ after: TimeInterval, pending: Int = 1, routine: Bool = true, since: Date? = nil) -> RoutineWaitVerdict {
+            RoutineRules.waitVerdict(routineRun: routine, waitingSince: since ?? t, now: t.addingTimeInterval(after), pending: pending)
+        }
+        #expect(RoutineRules.waitLimit == 3600)
+        #expect(v(3599) == .keep)
+        #expect(v(3600) == .expire)
+        #expect(v(3600 * 5) == .expire)
+        #expect(v(7200, pending: 0) == .keep)
+        #expect(v(7200, routine: false) == .keep)
+        #expect(RoutineRules.waitVerdict(routineRun: true, waitingSince: nil, now: t, pending: 1) == .keep)
+    }
+
+    @Test func waitRestartsAfterAnAnswer() {
+        let t = at("2026-06-10 10:00")
+        var w = RoutineWait()
+        #expect(w.update(pending: 1, now: t) == .keep)
+        #expect(w.update(pending: 2, now: t.addingTimeInterval(3000)) == .keep)    // a second request does not restart it
+        #expect(w.update(pending: 0, now: t.addingTimeInterval(3500)) == .keep)    // answered: the clock is gone
+        #expect(w.since == nil)
+        #expect(w.update(pending: 1, now: t.addingTimeInterval(3600)) == .keep)    // a new wait starts here
+        #expect(w.update(pending: 1, now: t.addingTimeInterval(3600 + 3599)) == .keep)
+        #expect(w.update(pending: 1, now: t.addingTimeInterval(3600 + 3600)) == .expire)
+    }
+
+    @Test func waitCountsDatesAcrossASleep() {
+        let t = at("2026-06-10 10:00")
+        var w = RoutineWait()
+        #expect(w.update(pending: 1, now: t) == .keep)
+        #expect(w.update(pending: 1, now: t.addingTimeInterval(8 * 3600)) == .expire)   // the next tick after a night asleep
     }
 
     // MARK: File
@@ -473,7 +509,7 @@ import Testing
         let line = r.line()
         #expect(line == "{\"time\":\"2026-06-10T10:00:00Z\",\"routine\":\"morning\",\"outcome\":\"finished\",\"session\":\"abc\",\"durationSec\":42,\"costUSD\":0.12}")
         #expect(RoutineLogRecord(line: line) == r)
-        for o in [RoutineLogRecord.Outcome.started, .finished, .failed, .needsYou, .skipped("still running")] {
+        for o in [RoutineLogRecord.Outcome.started, .finished, .failed, .needsYou, .expired, .skipped("still running")] {
             let rec = RoutineLogRecord(time: t, routine: "x", outcome: o)
             #expect(RoutineLogRecord(line: rec.line()) == rec)
         }

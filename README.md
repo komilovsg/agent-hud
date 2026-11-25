@@ -82,7 +82,7 @@ A routine is a saved request that Agent HUD starts by itself: every day at a set
 every few hours, or only when you press "Run now". Each run is a new session with its own icon and card.
 Routines run only while the app is open and the Mac is awake; a run missed within the last 12 hours happens
 once when the app is back. Nothing is approved in advance: a run that needs your approval asks like any
-session and waits, and you get a notification. The list lives in a `routines.json` file you can also edit by
+session, you get a notification, and the run is closed if nobody answers within an hour. The list lives in a `routines.json` file you can also edit by
 hand, and a log keeps the outcome of each run without the text of the request or the reply.
 
 ## Voice
@@ -194,6 +194,10 @@ Disconnecting removes only its own entries.
 
 The app is built from source and signed ad hoc, so macOS forgets its permissions after each rebuild. Open the
 setup window again and allow them once more.
+
+To keep the permissions across rebuilds, create a code signing certificate once: in Keychain Access choose
+Certificate Assistant > Create a Certificate, name it `Agent HUD Local Signing`, type "Code Signing". The build
+script uses it when it is there. Another name can be given in `AGENTHUD_SIGN_IDENTITY`.
 
 ## Red flag rules
 

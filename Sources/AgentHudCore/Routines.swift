@@ -462,6 +462,8 @@ public enum RoutineDecision: Equatable, Sendable {
 public enum RoutineRules {
     public static let maxConcurrent = 2
     public static let maxQueued = 5
+    /// A run that waits this long for the person without a break is closed.
+    public static let waitLimit: TimeInterval = 3600
 
     public static func decide(_ f: RoutineFacts) -> RoutineDecision {
         if f.runningOfRoutine > 0 { return .skip(.stillRunning) }
@@ -469,6 +471,31 @@ public enum RoutineRules {
         if !f.hooksConnected { return .skip(.hooksNotConnected) }
         if f.runningTotal >= maxConcurrent { return .queue(dropsOldest: f.queueLength >= maxQueued) }
         return .start
+    }
+}
+
+public enum RoutineWaitVerdict: Equatable, Sendable {
+    case keep, expire
+}
+
+extension RoutineRules {
+    /// Only a session started by a routine run is ever closed for waiting. Dates are compared, not ticks,
+    /// so a sleeping Mac or a late timer gives the same answer.
+    public static func waitVerdict(routineRun: Bool, waitingSince: Date?, now: Date, pending: Int) -> RoutineWaitVerdict {
+        guard routineRun, pending > 0, let since = waitingSince else { return .keep }
+        return now.timeIntervalSince(since) >= waitLimit ? .expire : .keep
+    }
+}
+
+/// The continuous wait of one routine run: it starts when something is pending and resets when nothing is.
+public struct RoutineWait: Equatable, Sendable {
+    public private(set) var since: Date?
+
+    public init() {}
+
+    public mutating func update(pending: Int, now: Date) -> RoutineWaitVerdict {
+        if pending == 0 { since = nil } else if since == nil { since = now }
+        return RoutineRules.waitVerdict(routineRun: true, waitingSince: since, now: now, pending: pending)
     }
 }
 
@@ -499,7 +526,7 @@ public struct RoutineQueue: Equatable, Sendable {
 
 public struct RoutineLogRecord: Equatable, Sendable {
     public enum Outcome: Equatable, Sendable {
-        case started, finished, failed, needsYou
+        case started, finished, failed, needsYou, expired
         case skipped(String)
 
         public var text: String {
@@ -508,6 +535,7 @@ public struct RoutineLogRecord: Equatable, Sendable {
             case .finished: return "finished"
             case .failed: return "failed"
             case .needsYou: return "needs you"
+            case .expired: return "expired"
             case .skipped(let r): return "skipped:\(r)"
             }
         }
@@ -518,6 +546,7 @@ public struct RoutineLogRecord: Equatable, Sendable {
             case "finished": self = .finished
             case "failed": self = .failed
             case "needs you": self = .needsYou
+            case "expired": self = .expired
             default:
                 guard text.hasPrefix("skipped:") else { return nil }
                 self = .skipped(String(text.dropFirst("skipped:".count)))
@@ -693,6 +722,7 @@ public enum RoutineText {
         case .finished: return "Finished \(ago)"
         case .failed: return "Failed \(ago)"
         case .needsYou: return "Needed you \(ago)"
+        case .expired: return "Closed: no answer"
         case .skipped(let why): return "Skipped: \(why)"
         }
     }

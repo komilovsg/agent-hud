@@ -26,10 +26,15 @@ cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM resource bundles, if any
 for b in "$BIN"/*.bundle; do [ -e "$b" ] && case "$b" in *Tests*) ;; *) cp -R "$b" "$APP/Contents/Resources/";; esac; done
-# Ad-hoc signature: without it macOS does not remember the permission to control Terminal.
-codesign --force --sign - "$APP/Contents/Helpers/agenthud-hook"
-codesign --force --sign - "$APP/Contents/Helpers/agenthud-mcp"
-codesign --force --sign - "$APP"
+# Signature: without one macOS does not remember any permission. An ad-hoc signature changes with every build,
+# so the permissions are asked again each time. A certificate named "Agent HUD Local Signing" in the keychain
+# (or the one named in AGENTHUD_SIGN_IDENTITY) keeps them across builds; see the README.
+SIGN="${AGENTHUD_SIGN_IDENTITY:-Agent HUD Local Signing}"
+security find-identity -p codesigning 2>/dev/null | grep -qF "\"$SIGN\"" || SIGN=-
+codesign --force --sign "$SIGN" "$APP/Contents/Helpers/agenthud-hook"
+codesign --force --sign "$SIGN" "$APP/Contents/Helpers/agenthud-mcp"
+codesign --force --sign "$SIGN" "$APP"
+[ "$SIGN" = - ] && echo "Signed ad hoc" || echo "Signed with: $SIGN"
 echo "Built: $APP"
 
 if [[ "${1:-}" == "--install" ]]; then

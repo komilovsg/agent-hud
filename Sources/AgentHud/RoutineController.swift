@@ -35,6 +35,7 @@ final class RoutineController: ObservableObject {
         var sub: AnyCancellable?
         var ended = false
         var needsLogged = false
+        var wait = RoutineWait()
         var announced = Set<String>()
         init(routineId: String, name: String, notify: Bool, startedAt: Date, sessionId: String, session: OwnedSession) {
             self.routineId = routineId
@@ -66,6 +67,8 @@ final class RoutineController: ObservableObject {
 
     private var queue = RoutineQueue()
     private var runs: [Run] = []
+    /// Runs closed for waiting whose process may still be there: whatever they ask is refused.
+    private var closed: [Run] = []
     private var enabledSince: [String: Date] = [:]
     private var timer: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
@@ -117,6 +120,7 @@ final class RoutineController: ObservableObject {
         guard started else { return }
         if stamp() != fileStamp { reload() }
         watchRuns()
+        refuseClosed()
     }
 
     private func stamp() -> String {
@@ -362,15 +366,17 @@ final class RoutineController: ObservableObject {
         }
     }
 
-    private func end(_ run: Run, failed: Bool, cost: Double?) {
+    private func end(_ run: Run, failed: Bool, cost: Double?, expired: Bool = false) {
         guard !run.ended else { return }
         run.ended = true
         run.sub = nil
         runs.removeAll { $0 === run }
         if !runs.contains(where: { $0.routineId == run.routineId }) { activeIds.remove(run.routineId) }
         let seconds = max(0, Int(now().timeIntervalSince(run.startedAt)))
-        record(failed ? .failed : .finished, run.routineId, session: run.sessionId, duration: seconds, cost: cost)
-        if run.notify, !cardIsOpen(run) {
+        record(expired ? .expired : failed ? .failed : .finished, run.routineId, session: run.sessionId, duration: seconds, cost: cost)
+        if expired {
+            postNotice?("Routine \"\(run.name)\" was closed: no answer within an hour", "", "routine-expired-\(run.sessionId)")
+        } else if run.notify, !cardIsOpen(run) {
             postNotice?("Routine \(run.name) \(failed ? "failed" : "finished")", "", "routine-end-\(run.sessionId)")
         }
         evaluate()
@@ -388,6 +394,8 @@ final class RoutineController: ObservableObject {
             guard let o = run.session, let key = app.sessionKey(of: o) else { continue }
             var ids: [String] = []
             if let s = app.store.session(key), let p = s.activePending { ids.append(p.id) }
+            let pending = app.waitingCount(for: key)
+            if run.wait.update(pending: pending, now: now()) == .expire { expire(run, key: key, session: o); continue }
             if let l = app.look(for: key) { ids.append("look-\(l.id)") }
             if let a = app.act(for: key) { ids.append("act-\(a.id)") }
             for id in ids where run.announced.insert(id).inserted {
@@ -398,6 +406,26 @@ final class RoutineController: ObservableObject {
                 if run.notify, app.selectedKey != key {
                     postNotice?("Routine \(run.name) needs you", "The agent is waiting for your answer", "routine-needs-\(id)")
                 }
+            }
+        }
+    }
+
+    /// Nobody answered in time: everything the run asks is refused (nothing is ever approved here), its process
+    /// is let go like at the end of a run, and the outcome is written down.
+    private func expire(_ run: Run, key: String, session o: OwnedSession) {
+        app?.refuseWaiting(for: key, reason: "No answer within an hour")
+        o.finish()
+        end(run, failed: false, cost: o.costUSD, expired: true)
+        closed.append(run)
+    }
+
+    /// A closed run that asks again before its process is gone gets a refusal too.
+    private func refuseClosed() {
+        closed.removeAll { $0.session?.isLive != true }
+        guard let app else { return }
+        for run in closed {
+            if let o = run.session, let key = app.sessionKey(of: o), app.waitingCount(for: key) > 0 {
+                app.refuseWaiting(for: key, reason: "No answer within an hour")
             }
         }
     }
@@ -444,7 +472,7 @@ final class RoutineController: ObservableObject {
                 switch rec?.outcome {
                 case .finished: tone = .success
                 case .failed: tone = .danger
-                case .skipped, .needsYou: tone = .warning
+                case .skipped, .needsYou, .expired: tone = .warning
                 case .started: tone = .accent
                 case nil: tone = .neutral
                 }

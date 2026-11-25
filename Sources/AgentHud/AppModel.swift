@@ -422,6 +422,30 @@ final class AppModel: ObservableObject {
         scheduleAutoClose()
     }
 
+    /// Requests of a session that wait for the person: permissions, questions, plans, looks and actions.
+    func waitingCount(for key: String) -> Int {
+        (store.session(key)?.pending.filter { $0.status == .open }.count ?? 0)
+            + looks.filter { $0.sessionKey == key }.count + acts.filter { $0.sessionKey == key }.count
+    }
+
+    /// Refuses everything of a session that waits for the person, as their Deny would. A question has no deny
+    /// in the window, so its refusal is sent directly.
+    func refuseWaiting(for key: String, reason: String) {
+        let refusal = Decision.deny(reason: reason)
+        if let s = store.session(key) {
+            for p in s.pending where p.status == .open {
+                if p.kind.accepts(refusal) {
+                    decide(p.id, refusal)
+                } else {
+                    server?.reply(HookReply(requestId: p.id, decision: refusal))
+                    store.markAnswered(p.id)
+                }
+            }
+        }
+        for p in looks where p.sessionKey == key { decideLook(p.id, .deny) }
+        for p in acts where p.sessionKey == key { decideAct(p.id, .deny) }
+    }
+
     func select(_ key: String?) {
         selectedKey = (selectedKey == key) ? nil : key
         selectedByUser = true

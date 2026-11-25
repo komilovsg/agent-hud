@@ -300,6 +300,10 @@ enum RenderCheck {
             "dependency-check": rec("dependency-check", .needsYou, 900),
         ], queued: ["morning-report"])
         tab("routines-tab-waiting", model.routines)
+        model.routines.installPreview(set: RoutineSet(routines: [list[1]]), history: [
+            "dependency-check": rec("dependency-check", .expired, 1800),
+        ])
+        tab("routines-tab-expired", model.routines)
         model.routines.installPreview(set: RoutineSet(), history: [:])
 
         func editor(_ name: String, _ m: RoutineEditorModel) {

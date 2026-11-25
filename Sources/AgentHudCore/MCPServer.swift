@@ -117,7 +117,14 @@ public enum MCPServer {
         case "ping":
             return .reply(result(id: id, modern: modern, [:]))
         case "tools/list":
-            return .reply(result(id: id, modern: modern, ["tools": .array(tools)]))
+            // The 2026-07-28 revision makes a list result say how long it may be kept and for whom; a client of
+            // that revision drops the whole list without these two fields. The list never changes while running.
+            var listed = JSONObject([JSONObject.Entry("tools", .array(tools))])
+            if modern {
+                listed["ttlMs"] = .int(300_000)
+                listed["cacheScope"] = "private"
+            }
+            return .reply(result(id: id, modern: modern, .object(listed)))
         case "tools/call":
             if let kind = params?["name"]?.stringValue.flatMap(ActKind.init(rawValue:)) {
                 switch ActCall.parse(kind: kind, arguments: params?["arguments"] ?? .object(JSONObject())) {

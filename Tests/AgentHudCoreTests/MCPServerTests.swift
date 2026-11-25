@@ -123,6 +123,10 @@ private func meta(_ version: String = MCPServer.modernVersion, capabilities: Boo
         let modern = try #require(reply(#"{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{\#(meta())}}"#))
         #expect(modern["result"]?["resultType"]?.stringValue == "complete")
         #expect(modern["result"]?["tools"]?.arrayValue == all)
+        // A client of the new revision drops a list that does not say how long it may be kept and for whom.
+        #expect(modern["result"]?["ttlMs"] == .int(300_000))
+        #expect(modern["result"]?["cacheScope"]?.stringValue == "private")
+        #expect(r["result"]?["ttlMs"] == nil)
     }
 
     @Test func noLookToolActs() {

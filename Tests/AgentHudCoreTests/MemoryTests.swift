@@ -279,5 +279,11 @@ private func text(_ r: Memory.Result) -> String? {
         let args = OwnedSessionLogic.arguments(sessionId: id, resume: false, model: nil, assistant: true)
         #expect(args[args.firstIndex(of: "--append-system-prompt")! + 1] == p)
         #expect(!args.contains { $0.contains("memory.json") })
+        let at = args.firstIndex(of: "--disallowedTools")!
+        #expect(Array(args[(at + 1)...(at + 2)]) == ["Write(~/.claude/**)", "Edit(~/.claude/**)"])
+        let plain = OwnedSessionLogic.arguments(sessionId: id, resume: false, model: nil)
+        #expect(!plain.contains("--disallowedTools"))
+        let both = OwnedSessionLogic.arguments(sessionId: id, resume: false, model: nil, screenTools: "/a/agenthud-mcp", assistant: true)
+        #expect(both.firstIndex(of: "--mcp-config") == both.count - 2)
     }
 }

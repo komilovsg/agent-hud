@@ -107,7 +107,10 @@ public struct OwnedSessionLogic: Equatable, Sendable {
                     "--include-partial-messages", "--permission-mode", "default"]
         args += [resume ? "--resume" : "--session-id", sessionId.lowercased()]
         if let model, isValidModel(model) { args += ["--model", model] }
-        if assistant { args += ["--append-system-prompt", AssistantSession.systemPrompt] }
+        if assistant {
+            args += ["--append-system-prompt", AssistantSession.systemPrompt]
+            args += ["--disallowedTools"] + AssistantSession.deniedTools
+        }
         // Last: the flag takes a list of values, so nothing may follow it.
         if let helper = screenTools, let config = ScreenTools.configJSON(helperPath: helper) { args += ["--mcp-config", config] }
         return args

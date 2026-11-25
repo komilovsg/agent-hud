@@ -168,8 +168,10 @@ import Testing
                         #expect(args.filter { $0.hasPrefix("--permission-mode") } == ["--permission-mode"])
                         #expect(args[args.firstIndex(of: "--permission-mode")! + 1] == "default")
                         #expect(args.contains("--resume") != args.contains("--session-id"))
-                        // Whatever follows the prompt is the screen tools config at the very end, nothing else.
-                        let after = Array(args[(at + 2)...])
+                        // After the prompt come the fixed denied tools, then only the screen tools config at the very end.
+                        let denied = ["--disallowedTools"] + AssistantSession.deniedTools
+                        #expect(Array(args[(at + 2)...].prefix(denied.count)) == denied)
+                        let after = Array(args[(at + 2 + denied.count)...])
                         #expect(after.isEmpty || (after.count == 2 && after[0] == "--mcp-config"), "\(after)")
                         #expect(args.filter { $0 == prompt }.count == 1)
                     }

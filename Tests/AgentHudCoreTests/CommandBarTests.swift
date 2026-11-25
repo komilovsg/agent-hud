@@ -15,6 +15,8 @@ import Testing
 
     @Test func assistantSwitchesOffTheFileMemoryOfTheCLI() {
         #expect(AssistantSession.environment["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1")
+        #expect(AssistantSession.environment["ENABLE_TOOL_SEARCH"] == "false")
+        #expect(AssistantSession.systemPrompt.contains("never keep notes by writing or editing files"))
     }
 
     @Test func entriesAssistantFirstNewSessionLast() {

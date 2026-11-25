@@ -11,11 +11,13 @@ struct AvatarView: View {
     var animated = true
     /// The session's agent - for the "Logos" style.
     var kind: AgentKind? = nil
+    /// Renders only: time of the still frame for the newer styles.
+    var stillTime: Double? = nil
 
     @State private var blink = false
 
     private var motion: AvatarMotion {
-        guard animated else { return .still }
+        guard animated, !style.isExtra else { return .still }
         switch state {
         case .working, .starting: return .sway
         case .waitingPermission: return .bounce
@@ -28,12 +30,14 @@ struct AvatarView: View {
         LayerMotion(layerMotion) {
             if style == .logo {
                 LogoAvatar(kind: kind, state: state, size: size)
+            } else if style.isExtra {
+                ExtraAvatar(seed: seed, state: state, style: style, size: size, animated: animated, stillTime: stillTime)
             } else {
                 Canvas { gc, sz in
                     var g = gc
                     let p = AvatarPainter(seed: seed, state: state, size: sz, blink: blink)
                     switch style {
-                    case .blob, .logo: p.drawBlob(&g)
+                    case .blob, .logo, .reactor, .planet, .visor, .buddy, .ring, .origami: p.drawBlob(&g)
                     case .bot: p.drawBot(&g)
                     case .pixel: p.drawPixel(&g)
                     }
@@ -45,7 +49,7 @@ struct AvatarView: View {
         .overlay(alignment: .topTrailing) { StateBadge(state: state, size: size, animated: animated) }
         .task(id: motion) {
             // Blinking every few seconds - only for characters that move.
-            guard motion != .still, style != .logo else { blink = false; return }
+            guard motion != .still, style != .logo, !style.isExtra else { blink = false; return }
             let period = 3.2 + Double(seed % 13) / 10
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(period))

@@ -201,7 +201,7 @@ struct ControlPanelView: View {
             SectionLabel(index: 1, title: "Appearance")
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 5), spacing: 6) {
                         ForEach(AvatarStyle.allCases) { style in
                             StyleTile(style: style, selected: settings.avatarStyle == style) { settings.avatarStyle = style }
                         }

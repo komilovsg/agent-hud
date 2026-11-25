@@ -243,9 +243,44 @@ enum RenderCheck {
             write(v, size: size, to: out.appendingPathComponent("\(name).png"))
         }
 
+        renderAvatars(model: model, out: out)
         renderLooks(model: model, out: out)
         renderActs(model: model, out: out)
         renderRoutines(model: model, out: out)
+    }
+
+    /// The animated avatar styles: every state at 96 pt on a dark and a light strip (fixed time), and the appearance section.
+    private static func renderAvatars(model: AppModel, out: URL) {
+        let states: [AgentState] = [.idle, .working, .waitingPermission, .paused, .stopped, .done, .error]
+        // Seeds with chosen hue (low 10 bits) and body variant (bits from 12).
+        let seeds: [UInt64] = [530, 893 | (1 << 12), 111 | (2 << 12)]
+        func strip(_ style: AvatarStyle, seed: UInt64, dark: Bool, time: Double) -> some View {
+            HStack(spacing: 6) {
+                ForEach(states, id: \.rawValue) { st in
+                    AvatarView(seed: seed, state: st, style: style, size: 96, animated: false, stillTime: time)
+                        .frame(width: 100, height: 100)
+                }
+            }
+            .padding(10)
+            .background(dark ? AnyView(LinearGradient(colors: [Color(red: 0.23, green: 0.19, blue: 0.44), Color(red: 0.04, green: 0.05, blue: 0.1)],
+                                                      startPoint: .topLeading, endPoint: .bottomTrailing))
+                             : AnyView(LinearGradient(colors: [Color(red: 0.96, green: 0.87, blue: 0.8), Color(red: 0.83, green: 0.89, blue: 0.96)],
+                                                      startPoint: .topLeading, endPoint: .bottomTrailing)))
+        }
+        let size = CGSize(width: 7 * 106 + 14, height: 3 * 120 + 12)
+        for style in AvatarStyle.allCases where style.isExtra {
+            for (name, time) in [("", 2.2), ("-t2", 3.1)] {
+                let v = VStack(spacing: 0) {
+                    strip(style, seed: seeds[0], dark: true, time: time)
+                    strip(style, seed: seeds[1], dark: false, time: time + 0.7)
+                    strip(style, seed: seeds[2], dark: true, time: time + 1.3)
+                }
+                .frame(width: size.width, height: size.height)
+                write(v, size: size, to: out.appendingPathComponent("avatars-new-\(style.rawValue)\(name).png"))
+            }
+        }
+        let panel = ControlPanelView(model: model, settings: model.settings, tab: 1).tint(Brand.accent)
+        write(panel, size: NSHostingView(rootView: panel).fittingSize, to: out.appendingPathComponent("control-panel-appearance.png"))
     }
 
     /// Routines: the tab (empty, and with four routines in mixed states), the editor and a labelled token.

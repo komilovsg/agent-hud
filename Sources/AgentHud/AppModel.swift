@@ -10,13 +10,27 @@ let hudLog = Logger(subsystem: "dev.agenthud", category: "events")
 
 enum AvatarStyle: String, CaseIterable, Identifiable {
     case logo, blob, bot, pixel
+    case reactor, planet, visor, buddy, ring, origami
     var id: String { rawValue }
+    /// Styles drawn by `ExtraAvatar` (animated with a timeline instead of layer motion).
+    var isExtra: Bool {
+        switch self {
+        case .reactor, .planet, .visor, .buddy, .ring, .origami: return true
+        default: return false
+        }
+    }
     var title: String {
         switch self {
         case .logo: return "Logos"
         case .blob: return "Blob"
         case .bot: return "Bot"
         case .pixel: return "Pixel"
+        case .reactor: return "Reactor"
+        case .planet: return "Planet"
+        case .visor: return "Visor"
+        case .buddy: return "Buddy"
+        case .ring: return "Ring"
+        case .origami: return "Origami"
         }
     }
 }

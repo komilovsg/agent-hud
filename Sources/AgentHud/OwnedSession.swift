@@ -77,6 +77,8 @@ final class OwnedSession: ObservableObject {
     var onVoiceReply: ((String) -> Void)?
     /// The turn that is running was started by a spoken command.
     private(set) var turnByVoice = false
+    /// Asked when a spoken message goes out: the gender of the voice that will read the answer.
+    var spokenGender: (() -> SpokenStyle.Gender?)?
     /// The message waiting in the command bar's queue for this session was spoken.
     var queuedByVoice = false
 
@@ -235,7 +237,7 @@ final class OwnedSession: ObservableObject {
         guard logic.canSend, let stdin else { return false }
         turnByVoice = byVoice
         // Only the Assistant knows what the marker means; a plain session would see it as part of the message.
-        let line = StreamParser.userLine(assistant && byVoice ? SpokenStyle.mark(text) : text)
+        let line = StreamParser.userLine(assistant && byVoice ? SpokenStyle.mark(text, gender: spokenGender?()) : text)
         apply(.userSent)
         userSeq += 1
         StreamParser.merge([ChatItem(id: "sent-\(userSeq)", time: Date(), kind: .user(text))], into: &items)

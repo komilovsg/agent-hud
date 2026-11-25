@@ -52,6 +52,14 @@ final class AppleSpeechSpeaker: SpeechSpeaking {
         return AVSpeechSynthesisVoice(language: language)
     }
 
+    func gender(language: String, options: SpeechOptions) -> SpokenStyle.Gender? {
+        switch resolveVoice(language: language, preferredId: options.voiceId)?.gender {
+        case .female: return .female
+        case .male: return .male
+        default: return nil
+        }
+    }
+
     func stop() {
         synthesizer?.stopSpeaking(at: .immediate)
     }

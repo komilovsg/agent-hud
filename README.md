@@ -96,6 +96,12 @@ listen to it with Preview and set the speed. More natural voices can be download
 Spoken Content; a button in the settings takes you there. A question asked by voice gets a short conversational
 answer in the language you used.
 
+An optional neural voice can read the replies instead of the system voices. It is installed by
+`scripts/get-neural-voice.sh`, which downloads the sherpa-onnx speech engine (Apache-2.0) and the Supertonic 3
+model (code MIT, weights OpenRAIL-M with use restrictions) from their public releases, checks them against pinned
+checksums and puts about 180 MB under the app's support folder. After that it runs fully on your Mac, the app
+itself makes no network calls, and any failure falls back to the system voice. `--remove` deletes it again.
+
 The microphone is on only while you hold the key. Recognition runs on your Mac; if that is not available for a
 language, the app says so and uses Apple's servers only if you allow it in the settings. Voice sends messages
 and nothing else: approving a request always takes a click.

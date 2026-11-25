@@ -38,6 +38,7 @@ final class VoiceController {
         }.store(in: &cancellables)
         app.onVoiceReply = { [weak self] text in self?.speakReply(text) }
         app.installedVoices = { [weak self] in self?.services.speaker.voices() ?? [] }
+        app.spokenGender = { [weak self] in self?.currentGender() }
         app.onPreviewVoice = { [weak self] language in self?.preview(language) }
     }
 
@@ -278,7 +279,14 @@ final class VoiceController {
     }
 
     private func speechOptions(for language: VoiceLanguage) -> SpeechOptions {
-        SpeechOptions(voiceId: settings.voiceId(forLanguage: language.code), rate: settings.voiceRate)
+        SpeechOptions(voiceId: settings.voiceId(forLanguage: language.code), engine: settings.voiceEngine,
+                      neuralSpeaker: settings.neuralSpeaker(forLanguage: language.code), rate: settings.voiceRate)
+    }
+
+    /// The gender of the voice that will read the next reply, for the marker of a spoken message.
+    private func currentGender() -> SpokenStyle.Gender? {
+        let language = VoiceLanguages.info(code: settings.voiceLanguage)
+        return services.speaker.gender(language: language.speechLocale, options: speechOptions(for: language))
     }
 
     /// The settings' Preview button: one fixed sentence with the voice and speed that are set now.

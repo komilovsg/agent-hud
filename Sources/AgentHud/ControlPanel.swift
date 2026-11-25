@@ -43,6 +43,7 @@ struct ControlPanelView: View {
     @State private var quickText = ""
     /// Installed synthesizer voices, read when the Settings tab shows (listing them is silent).
     @State private var voices: [VoiceInfo] = []
+    @State private var neuralInstalled = false
 
     static let width: CGFloat = 340
     /// Room for the "Screen" tab's sections; the default leaves the header, the tabs and the footer on a laptop screen.
@@ -83,10 +84,17 @@ struct ControlPanelView: View {
                                              allowServer: $settings.voiceAllowServerRecognition,
                                              voices: voices, voiceIdEnglish: $settings.voiceIdEnglish,
                                              voiceIdRussian: $settings.voiceIdRussian, voiceRate: $settings.voiceRate,
+                                             engine: $settings.voiceEngine, neuralInstalled: neuralInstalled,
+                                             neuralSpeakerEnglish: $settings.neuralSpeakerEnglish,
+                                             neuralSpeakerRussian: $settings.neuralSpeakerRussian,
                                              preview: actions.previewVoice, openSpokenContent: actions.openSpokenContent)
                     }
                 }
-                .onAppear { voices = model.installedVoices() }
+                .onAppear {
+                    voices = model.installedVoices()
+                    neuralInstalled = NeuralVoice.Paths(supportDirectory: AgentHUDPaths.supportDirectory)
+                        .isInstalled(fileExists: { FileManager.default.fileExists(atPath: $0) })
+                }
                 .frame(maxHeight: screenTabLimit)
                 .fixedSize(horizontal: false, vertical: true)
             } else if tab == 3 {

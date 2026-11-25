@@ -659,7 +659,23 @@ enum RenderCheck {
                                                     ("control-panel-voice-none-installed", true, false, "", [VoiceInfo]())] {
             let v = VoiceSettingsSection(index: 4, enabled: .constant(on), language: .constant("en-US"), sendAfterSpeaking: .constant(true),
                                          speakReplies: .constant(true), allowServer: .constant(server), voices: voices,
-                                         voiceIdEnglish: .constant(english), voiceIdRussian: .constant(""), voiceRate: .constant(1.0))
+                                         voiceIdEnglish: .constant(english), voiceIdRussian: .constant(""), voiceRate: .constant(1.0),
+                                         engine: .constant(.system), neuralSpeakerEnglish: .constant(0), neuralSpeakerRussian: .constant(3))
+                .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
+            let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
+            write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
+                  to: out.appendingPathComponent("\(name).png"))
+        }
+        // The engine row: neural installed with System selected, neural installed and selected, and neural not installed
+        // (a stored Neural choice then shows as System).
+        for (name, engine, installed) in [("control-panel-voice-engine-system", VoiceEngine.system, true),
+                                          ("control-panel-voice-engine-neural", VoiceEngine.neural, true),
+                                          ("control-panel-voice-engine-missing", VoiceEngine.neural, false)] {
+            let v = VoiceSettingsSection(index: 4, enabled: .constant(true), language: .constant("en-US"), sendAfterSpeaking: .constant(true),
+                                         speakReplies: .constant(true), allowServer: .constant(false), voices: fakeVoices,
+                                         voiceIdEnglish: .constant(""), voiceIdRussian: .constant(""), voiceRate: .constant(1.0),
+                                         engine: .constant(engine), neuralInstalled: installed,
+                                         neuralSpeakerEnglish: .constant(0), neuralSpeakerRussian: .constant(3))
                 .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
             let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
             write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),
@@ -669,7 +685,8 @@ enum RenderCheck {
         for (name, rate) in [("control-panel-voice-slow", 0.8), ("control-panel-voice-fast", 1.3)] {
             let v = VoiceSettingsSection(index: 4, enabled: .constant(true), language: .constant("ru-RU"), sendAfterSpeaking: .constant(true),
                                          speakReplies: .constant(true), allowServer: .constant(false), voices: fakeVoices,
-                                         voiceIdEnglish: .constant(""), voiceIdRussian: .constant(fakeVoices[3].id), voiceRate: .constant(rate))
+                                         voiceIdEnglish: .constant(""), voiceIdRussian: .constant(fakeVoices[3].id), voiceRate: .constant(rate),
+                                         engine: .constant(.system), neuralSpeakerEnglish: .constant(0), neuralSpeakerRussian: .constant(3))
                 .padding(16).frame(width: ControlPanelView.width).background(Brand.bg)
             let s = NSHostingView(rootView: v.fixedSize(horizontal: false, vertical: true)).fittingSize
             write(v.tint(Brand.accent), size: CGSize(width: ControlPanelView.width, height: ceil(s.height)),

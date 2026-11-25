@@ -134,6 +134,31 @@ struct VoicePickerRow: View {
     }
 }
 
+/// "Voice" picker and Preview button for one language, listing the neural model's speakers.
+struct NeuralSpeakerRow: View {
+    let language: VoiceLanguage
+    let title: String
+    @Binding var speaker: Int
+    let preview: (VoiceLanguage) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(title).font(Brand.body(13)).foregroundStyle(Brand.ink)
+                Spacer(minLength: 4)
+                Button("Preview") { preview(language) }
+                    .controlSize(.small).fixedSize()
+            }
+            Picker("", selection: $speaker) {
+                ForEach(NeuralVoice.speakers) { Text($0.name).tag($0.id) }
+            }
+            .pickerStyle(.menu).labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityLabel(title)
+        }
+    }
+}
+
 /// Slow / normal / fast under a slider; the ticks sit where those speeds are on the slider.
 struct VoiceRateRow: View {
     @Binding var rate: Double
@@ -186,8 +211,20 @@ struct VoiceSettingsSection: View {
     @Binding var voiceIdEnglish: String
     @Binding var voiceIdRussian: String
     @Binding var voiceRate: Double
+    @Binding var engine: VoiceEngine
+    /// Whether the neural voice is installed; it can be chosen only then.
+    var neuralInstalled = false
+    @Binding var neuralSpeakerEnglish: Int
+    @Binding var neuralSpeakerRussian: Int
     var preview: (VoiceLanguage) -> Void = { _ in }
     var openSpokenContent: () -> Void = {}
+
+    /// A stored neural choice shows as System while the neural voice is not installed, which is also what is spoken then.
+    private var engineSelection: Binding<VoiceEngine> {
+        Binding(get: { neuralInstalled ? engine : .system }, set: { engine = ($0 == .neural && !neuralInstalled) ? .system : $0 })
+    }
+
+    private var usesNeural: Bool { neuralInstalled && engine == .neural }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -217,23 +254,47 @@ struct VoiceSettingsSection: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Divider().overlay(Brand.line)
-                        VoicePickerRow(language: VoiceLanguages.info(code: "en-US"), title: "English voice", voices: voices,
-                                       voiceId: $voiceIdEnglish, preview: preview)
-                        VoicePickerRow(language: VoiceLanguages.info(code: "ru-RU"), title: "Russian voice", voices: voices,
-                                       voiceId: $voiceIdRussian, preview: preview)
-                        VoiceRateRow(rate: $voiceRate)
-                        Label {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("More natural voices can be downloaded in System Settings")
-                                    .font(Brand.body(11)).foregroundStyle(Brand.inkMuted)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text("Spoken Content \u{203A} System Voice \u{203A} Manage Voices\u{2026}")
-                                    .font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                GhostButton(title: "Open Spoken Content settings", symbol: "gearshape", action: openSpokenContent)
+                        HStack(alignment: .center, spacing: 8) {
+                            Text("Voice engine").font(Brand.body(13)).foregroundStyle(Brand.ink)
+                            Spacer(minLength: 8)
+                            Picker("", selection: engineSelection) {
+                                Text(VoiceEngine.system.label).tag(VoiceEngine.system)
+                                Text(VoiceEngine.neural.label).tag(VoiceEngine.neural).disabled(!neuralInstalled)
                             }
-                        } icon: {
-                            Image(systemName: "arrow.down.circle").font(.system(size: 11)).foregroundStyle(Brand.inkSubtle)
+                            .pickerStyle(.menu).labelsHidden().fixedSize()
+                            .accessibilityLabel("Voice engine")
+                        }
+                        if !neuralInstalled {
+                            Text("Install with scripts/get-neural-voice.sh")
+                                .font(Brand.mono(11)).foregroundStyle(Brand.inkSubtle)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if usesNeural {
+                            NeuralSpeakerRow(language: VoiceLanguages.info(code: "en-US"), title: "English voice",
+                                             speaker: $neuralSpeakerEnglish, preview: preview)
+                            NeuralSpeakerRow(language: VoiceLanguages.info(code: "ru-RU"), title: "Russian voice",
+                                             speaker: $neuralSpeakerRussian, preview: preview)
+                        } else {
+                            VoicePickerRow(language: VoiceLanguages.info(code: "en-US"), title: "English voice", voices: voices,
+                                           voiceId: $voiceIdEnglish, preview: preview)
+                            VoicePickerRow(language: VoiceLanguages.info(code: "ru-RU"), title: "Russian voice", voices: voices,
+                                           voiceId: $voiceIdRussian, preview: preview)
+                        }
+                        VoiceRateRow(rate: $voiceRate)
+                        if !usesNeural {
+                            Label {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("More natural voices can be downloaded in System Settings")
+                                        .font(Brand.body(11)).foregroundStyle(Brand.inkMuted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text("Spoken Content \u{203A} System Voice \u{203A} Manage Voices\u{2026}")
+                                        .font(Brand.body(11)).foregroundStyle(Brand.inkSubtle)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    GhostButton(title: "Open Spoken Content settings", symbol: "gearshape", action: openSpokenContent)
+                                }
+                            } icon: {
+                                Image(systemName: "arrow.down.circle").font(.system(size: 11)).foregroundStyle(Brand.inkSubtle)
+                        }
                         }
                     }
                     Divider().overlay(Brand.line).padding(.top, 2)

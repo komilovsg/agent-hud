@@ -91,8 +91,17 @@ final class Settings: ObservableObject {
     @Published var voiceIdEnglish: String { didSet { d.set(voiceIdEnglish, forKey: "voiceIdEnglish") } }
     /// The same for Russian replies.
     @Published var voiceIdRussian: String { didSet { d.set(voiceIdRussian, forKey: "voiceIdRussian") } }
+    /// Which engine reads replies aloud; a `VoiceEngine` raw value. Neural only works while it is installed.
+    @Published var voiceEngine: VoiceEngine { didSet { d.set(voiceEngine.rawValue, forKey: "voiceEngine") } }
+    /// The neural voice (speaker id of the model) chosen per language.
+    @Published var neuralSpeakerEnglish: Int { didSet { d.set(neuralSpeakerEnglish, forKey: "neuralSpeakerEnglish") } }
+    @Published var neuralSpeakerRussian: Int { didSet { d.set(neuralSpeakerRussian, forKey: "neuralSpeakerRussian") } }
     /// Speaking speed as a multiple of the normal rate, within `VoiceRate`'s range.
     @Published var voiceRate: Double { didSet { d.set(voiceRate, forKey: "voiceRate") } }
+
+    func neuralSpeaker(forLanguage code: String) -> Int {
+        code == "ru-RU" ? neuralSpeakerRussian : neuralSpeakerEnglish
+    }
 
     /// The chosen voice id for a language code of `VoiceLanguages.all`; empty means automatic.
     func voiceId(forLanguage code: String) -> String {
@@ -136,6 +145,9 @@ final class Settings: ObservableObject {
         voiceAllowServerRecognition = d.object(forKey: "voiceAllowServerRecognition") as? Bool ?? false
         voiceIdEnglish = d.string(forKey: "voiceIdEnglish") ?? ""
         voiceIdRussian = d.string(forKey: "voiceIdRussian") ?? ""
+        voiceEngine = VoiceEngine(stored: d.string(forKey: "voiceEngine"))
+        neuralSpeakerEnglish = NeuralVoice.speaker(id: d.object(forKey: "neuralSpeakerEnglish") as? Int ?? -1, language: "en-US").id
+        neuralSpeakerRussian = NeuralVoice.speaker(id: d.object(forKey: "neuralSpeakerRussian") as? Int ?? -1, language: "ru-RU").id
         voiceRate = VoiceRate.clamped(d.object(forKey: "voiceRate") as? Double ?? VoiceRate.defaultMultiplier)
         routinesEnabled = d.object(forKey: "routinesEnabled") as? Bool ?? false
         let stopped = d.double(forKey: "handsStoppedAt")
@@ -179,6 +191,8 @@ final class AppModel: ObservableObject {
     /// The settings' Voice section: the installed voices, and a spoken sample. Set by the voice controller.
     var installedVoices: () -> [VoiceInfo] = { [] }
     var onPreviewVoice: ((VoiceLanguage) -> Void)?
+    /// The grammatical gender of the voice that would read a reply now; nil when unknown.
+    var spokenGender: () -> SpokenStyle.Gender? = { nil }
     /// All project folders seen while running, plus open VS Code windows. Project labels
     /// are computed from this set rather than from the currently visible sessions - otherwise labels would change
     /// every time a session appears or goes away.
@@ -829,6 +843,7 @@ final class AppModel: ObservableObject {
             guard let self, let o, self.owned[id] === o else { return }
             self.ownedExited(o)
         }
+        o.spokenGender = { [weak self] in self?.spokenGender() }
         // The spoken reply is for the Assistant only.
         o.onVoiceReply = { [weak self, weak o] text in
             guard let self, let o, o.assistant else { return }

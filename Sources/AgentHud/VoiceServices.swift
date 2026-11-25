@@ -27,6 +27,9 @@ protocol SpeechRecognizing: AnyObject {
 /// How a text is read: the chosen voice (empty - the automatic pick for the language) and the speed multiplier.
 struct SpeechOptions: Equatable {
     var voiceId = ""
+    var engine = VoiceEngine.system
+    /// Speaker id of the neural model, used when `engine` is neural.
+    var neuralSpeaker = NeuralVoice.defaultSpeakerEnglish
     var rate = VoiceRate.defaultMultiplier
 }
 
@@ -36,6 +39,8 @@ protocol SpeechSpeaking: AnyObject {
     /// The voices installed on this Mac. Read-only: nothing is spoken.
     func voices() -> [VoiceInfo]
     func speak(text: String, language: String, options: SpeechOptions)
+    /// The grammatical gender of the voice that `speak` would use; nil when the voice does not say.
+    func gender(language: String, options: SpeechOptions) -> SpokenStyle.Gender?
     /// Stops at once; harmless when nothing is spoken.
     func stop()
 }
@@ -49,6 +54,7 @@ struct VoiceServices {
     /// The one place where the engines are constructed. Neither constructor touches the microphone, the
     /// recognizer or the synthesizer: they are created when first used.
     static func make() -> VoiceServices {
-        VoiceServices(recognizer: AppleSpeechRecognizer(), speaker: AppleSpeechSpeaker())
+        let apple = AppleSpeechSpeaker()
+        return VoiceServices(recognizer: AppleSpeechRecognizer(), speaker: EngineSpeaker(system: apple, neural: NeuralSpeaker(fallback: apple)))
     }
 }

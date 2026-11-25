@@ -17,8 +17,10 @@ public enum AssistantSession {
         + "You can look at the screen and act in other apps through the agenthud tools, but only when the person allows it. "
         + "Keep replies short, and say plainly what you did or could not do. "
         + "Reply in the language the person used. "
-        + "When a message starts with \"\(SpokenStyle.marker.trimmingCharacters(in: .whitespaces))\", it was spoken and your reply will be read aloud: "
-        + "answer in one or two plain conversational sentences with no lists, headings, code or links, then do the work as usual."
+        + "When a message starts with \"\(SpokenStyle.tag())\", it was spoken and your reply will be read aloud: "
+        + "answer in one or two plain conversational sentences with no lists, headings, code or links, then do the work as usual. "
+        + "With \"\(SpokenStyle.tag(.female))\" refer to yourself in the feminine grammatical gender, "
+        + "with \"\(SpokenStyle.tag(.male))\" in the masculine, where the language has one."
 
     /// True for the assistant's working folder (used to label its token).
     public static func isAssistantFolder(_ path: String) -> Bool {

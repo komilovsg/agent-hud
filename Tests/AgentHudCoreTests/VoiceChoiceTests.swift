@@ -170,6 +170,34 @@ import Testing
         #expect(SpokenStyle.display("[spoken] [spoken] twice") == "[spoken] twice")
     }
 
+    @Test func genderFormsMarkAndDisplay() {
+        #expect(SpokenStyle.mark("hi", gender: .female) == "[spoken f] hi")
+        #expect(SpokenStyle.mark("hi", gender: .male) == "[spoken m] hi")
+        #expect(SpokenStyle.mark("hi", gender: nil) == "[spoken] hi")
+        for g in [nil, SpokenStyle.Gender.female, .male] {
+            let marked = SpokenStyle.mark("open the report", gender: g)
+            #expect(SpokenStyle.display(marked) == "open the report")
+            #expect(SpokenStyle.isMarked(marked))
+        }
+        #expect(SpokenStyle.display("[spoken f]") == "")
+        #expect(SpokenStyle.display("  [spoken m]   two") == "two")
+        #expect(SpokenStyle.display("[spoken f]\nnext") == "\nnext")
+        #expect(SpokenStyle.display("[spoken f] [spoken m] twice") == "[spoken m] twice")
+    }
+
+    @Test func genderLookAlikesAreWords() {
+        for t in ["[spoken x] a", "[spoken fm] a", "[spoken f]a", "[spoken  f] a", "[spoken F] a", "[spoken ] a", "[spoken f a", "spoken f] a",
+                  "[spokenf] a"] {
+            #expect(SpokenStyle.display(t) == t, "\(t)")
+            #expect(!SpokenStyle.isMarked(t))
+        }
+    }
+
+    @Test func promptNamesAllThreeMarkers() {
+        let p = AssistantSession.systemPrompt
+        #expect(p.contains("\"[spoken f]\"") && p.contains("\"[spoken m]\"") && p.contains("feminine") && p.contains("masculine"))
+    }
+
     @Test func theMarkerIsOneConstantUsedByThePrompt() {
         #expect(SpokenStyle.marker == "[spoken] ")
         #expect(AssistantSession.systemPrompt.contains("[spoken]"))
